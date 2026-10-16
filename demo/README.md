@@ -36,6 +36,12 @@ type `shop`, `api`, `doc` or `alice`; open a project page to try the scope chip 
 
 From `demo/`: `make up`, `make down`, `make test-symfony8`, `make release-check` (tests + e2e + healthcheck).
 
+**Forms:** the login page is a Symfony Form (`src/Form/LoginType.php`, fields `_username` / `_password`, CSRF field
+`_csrf_token`, token id `authenticate`) rendered by `templates/demo/_form.html.twig` with `form_start` / the
+`{% for child in form %}{% if not child.rendered %}{{ form_row(child) }}{% endif %}{% endfor %}` loop / `form_end`; the
+header search field comes from the bundle's `SearchFieldType`. No template writes raw `<form>` / `<input>` tags
+(REQ-TWIG-005, `make check-no-raw-html-form`).
+
 **Demo-only settings — do not copy:** the plaintext password hasher, the `password` accounts, the GET logout link and the
 placeholder `APP_SECRET` exist for the demo only; use the `auto` hasher, a CSRF-protected logout and a real secret in an
 application.

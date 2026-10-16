@@ -21,6 +21,7 @@ assignees: ''
 | ----------------------------| -----------------------
 | `SearchKitBundle` version        | x.y.z
 | PHP version                 | x.y.z
+| Database                    | MySQL / PostgreSQL / SQLite / Other
 
 #### Summary
 

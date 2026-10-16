@@ -15,6 +15,7 @@
 - [The header template](#the-header-template)
   - [Blocks](#blocks)
   - [Overriding](#overriding)
+  - [Forms](#forms)
   - [Twig functions](#twig-functions)
 - [Browser module](#browser-module)
   - [IIFE (default)](#iife-default)
@@ -206,7 +207,20 @@ The script needs these `data-part` elements inside the root: `toggle`, `field`, 
 
 ### Overriding
 
-Create `templates/bundles/NowoSearchKitBundle/search.html.twig` (REQ-TWIG-001) and extend the original:
+The bundle ships one template. It can be overridden by creating `templates/bundles/NowoSearchKitBundle/<subpath>` in the
+application (REQ-TWIG-001); the application's copy **always wins** over the bundle's (the bundle registers the
+`@NowoSearchKitBundle` Twig namespace after the application override directory).
+
+| `<subpath>` | What it renders | Blocks |
+| --- | --- | --- |
+| `search.html.twig` | The whole header search: assets, toggle, field, dropdown, status and icon templates | `nowo_search_assets`, `nowo_search_root`, `nowo_search_toggle`, `nowo_search_toggle_icon`, `nowo_search_footer` |
+
+**Procedure.**
+
+1. Create `templates/bundles/NowoSearchKitBundle/search.html.twig` in the application.
+2. Start it with `{% extends '@!NowoSearchKitBundle/search.html.twig' %}` (the `!` prefix always points at the bundle's
+   own file) and redefine only the blocks you need.
+3. Clear the cache: `php bin/console cache:clear`.
 
 ```twig
 {% extends '@!NowoSearchKitBundle/search.html.twig' %}
@@ -216,8 +230,21 @@ Create `templates/bundles/NowoSearchKitBundle/search.html.twig` (REQ-TWIG-001) a
 {% endblock %}
 ```
 
-The input is a Symfony Form widget (`SearchFieldType`, block prefix `nowo_search`, child `q`) — style it through a form
-theme if needed; it is never submitted (no CSRF token, read-only GET).
+**Freeze vs upgrade.** Extending the original and redefining single blocks keeps you on the bundle's markup for
+everything else, so upgrades bring fixes automatically. A full copy of `search.html.twig` (without `extends`) **freezes**
+that file: the application copy keeps hiding the bundle's version — and its fixes — until you delete it or merge the
+upstream changes by hand (check [UPGRADING.md](UPGRADING.md) on every upgrade). Prefer configuration (`assets.*`,
+`icons`, theme tokens) and the smallest block override. To return to the bundle's template, delete the override and clear
+the cache.
+
+### Forms
+
+The search input is a Symfony Form (`SearchFieldType`, block prefix `nowo_search`, child `q`), never a hand-written
+control: the template renders it with the `{% for child in form %}{% if not child.rendered %}…{% endif %}{% endfor %}`
+child loop (REQ-TWIG-003 / REQ-TWIG-005). Style it through a form theme if needed. It is never submitted — the browser
+module reads it and calls the read-only GET endpoint — so it has no `<form>` wrapper and no CSRF token. Overrides of
+`search.html.twig` must keep the form widget and never reintroduce raw `<form>` / `<input>` / `<textarea>` / `<select>`
+tags; `make check-no-raw-html-form` fails on them in the bundle and demo templates.
 
 ### Twig functions
 
