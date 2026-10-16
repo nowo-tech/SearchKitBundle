@@ -28,7 +28,7 @@ authentication and firewall, and the host's providers and scope resolver (they d
 
 | Input | Where | Who |
 | --- | --- | --- |
-| `GET /search?q=&scope=` | `SearchController` | Signed-in users granted `role` (401 / 403 otherwise) |
+| `GET /search?q=&scope=` | `SearchController` | Signed-in users granted `role` (JSON 401 / 403 otherwise, independent of the firewall entry point) |
 | Query text (≤ `max_length`), scope id (`[A-Za-z0-9._:-]{1,128}`) | `SearchEngine` → host providers | Same |
 | Host quick actions passed to the template | `SearchKitExtension::config()` | Host templates |
 | Configuration (`nowo_search_kit`), Flex recipe | DI extension | Deployer |
@@ -38,15 +38,15 @@ authentication and firewall, and the host's providers and scope resolver (they d
 
 | Threat | Mitigation |
 | --- | --- |
-| **Unauthenticated access** | The controller requires a signed-in user granted `role` (`AccessDeniedException`: 401 / login for guests, 403 otherwise); the template renders nothing for them. |
+| **Unauthenticated access** | The controller requires a signed-in user granted `role` and answers JSON `401 {error: unauthenticated}` / `403 {error: forbidden}` itself; the template renders nothing for them. Import the route behind your session firewall (otherwise there is no user and every call is 401). |
 | **Authorization / existence oracle** | The kit returns only what providers return; the SPI contract (documented on the interface and in USAGE.md) requires visible rows only, counts of visible matches only, and **no rows (never 403)** for an unknown or forbidden scope. The scope chip is resolved by the host after its access check. |
-| **XSS** | Titles, subtitles, badges, labels and the query are inserted with `textContent` / text nodes; matches are wrapped in `<mark>` elements created through the DOM. Only row icons (SVG rendered server side from the application's own UX icon set) use `innerHTML` — an ESLint rule forbids any other use. Badge tones and group keys are reduced to `[A-Za-z0-9_-]` before they reach a class or id. Twig auto-escapes everything else (`json_encode|e('html_attr')` for the config). |
-| **Open redirect / `javascript:` URLs** | `SearchItem` refuses URLs other than same-site paths (not `//host`, not `/\host`) and http(s); "See all" and host quick actions are filtered the same way; the browser re-checks every URL before rendering and before navigating; recents keep same-site paths only. |
+| **XSS** | Titles, subtitles, badges, labels and the query are inserted with `textContent` / text nodes; matches are wrapped in `<mark>` elements created through the DOM. Only row icons (SVG rendered server side from the application's own UX icon set) use `innerHTML` — an ESLint rule forbids every other `innerHTML` / `outerHTML` assignment and `insertAdjacentHTML`. Badge tones, kinds and group keys are reduced to `[A-Za-z0-9_-]` before they reach a class, an id or a selector. Twig auto-escapes everything else (`json_encode|e('html_attr')` for the config) except the icon SVG, output as trusted `Markup` from the configuration / UX Icons. |
+| **Open redirect / `javascript:` URLs** | `SearchItem` refuses URLs other than same-site paths (not `//host`, not `/\host`) and http(s), and any URL with a control character or a space (browsers strip TAB / CR / LF, so `/\t/host` would become `//host`); "See all", host quick actions (template) and configured `quick_actions[].url` (container compilation) are checked the same way; the browser re-checks every URL before rendering and before navigating; recents keep same-site paths only. |
 | **Injection** | The kit builds no SQL; providers must use parameters. No shell, no `eval`, no `unserialize`. |
-| **Information leaks** | Responses are `Cache-Control: no-store, private` and `X-Robots-Tag: noindex`; errors never include exception text; a failing provider is logged with its class and the exception class only — never the query (personal data). |
+| **Information leaks** | Responses are `Cache-Control: no-store, private` and `X-Robots-Tag: noindex`; error responses carry stable codes, never exception text; a failing provider is logged with its class and the exception class only — never the query (personal data); a row icon that cannot be rendered (unknown name, icon source failure) falls back to the kind icon instead of failing the search. |
 | **Abuse / DoS** | Per-user rate limiter (sliding window 30 / 10 s by default, 429), `min_length` / `max_length`, `per_group` rows, browser debounce and request abort. |
 | **CSRF** | Read-only GET with no side effect; the search field form is never submitted (no token by design, REQ-SEC-005 covers mutations). |
-| **Shared devices** | Recents hold titles and paths of pages the user opened from the box, in `localStorage` of that origin only; `recent.enabled: false` turns them off; "Clear" empties them. |
+| **Shared devices** | Recents hold titles and paths of pages the user opened from the box, in `localStorage` of that origin only, under a **per-user key** (`storage_key` + an HMAC of the user identifier keyed with `kernel.secret` — the identifier never reaches the browser), so the next account on the same browser does not see them; they survive logout for the same account; `recent.enabled: false` turns them off; "Clear" empties them. |
 | **Worker-mode state leaks** | No per-request data in shared services (see [FRANKENPHP-WORKER-AUDIT.md](FRANKENPHP-WORKER-AUDIT.md)); Igor audit in `release-check`. |
 
 ## Secrets and cryptography
@@ -80,7 +80,9 @@ dependencies current. Security fixes are released as patch versions of the suppo
 - **Scope resolver:** return a scope only after the access check (the chip shows its label).
 - **Rate limiter storage:** shared by every worker / replica (e.g. Redis), or the limit only holds per process.
 - **Icons:** row icons are SVG from your own UX icon set (local files or Iconify) — do not point UX Icons at an
-  untrusted icon source.
+  untrusted icon source, and let providers name icons from a fixed set (never from user data: with on-demand Iconify,
+  an unknown name triggers an outbound fetch).
+- **Firewall:** import the search route behind your session firewall; escape `LIKE` wildcards in provider queries.
 - **Browser:** a Content-Security-Policy is recommended (the bundle needs no inline script; assets load from the
   `nowo_search_kit` package).
 
@@ -89,9 +91,10 @@ dependencies current. Security fixes are released as patch versions of the suppo
 | Field | Value |
 | --- | --- |
 | Date | 2026-10-16 |
-| Method | AI static review (Claude Code agent) of the 1.0.0 code against BUNDLES_SECURITY_ANALYSIS.md §1 / REQ-SEC-004 |
-| Result | Overall **Low**, **Pass (good)** — no Critical / High / Medium |
-| Findings | SEARCH-SEC-01 (Low) protocol-relative recents accepted by the original application code → **fixed** (same-site paths only, `//` and `/\` refused, PHP and TS); SEARCH-SEC-02 (Low) `javascript:` / `data:` row URLs could reach `href` → **fixed** (`SearchItem::isSafeUrl()`, browser re-check); SEARCH-SEC-03 (Info) query text in logs → **avoided** (class names only); SEARCH-SEC-04 (Info) provider permission model → **documented** host responsibility |
+| Method | Independent AI static review (Claude Code agent) of the 1.0.0 code against BUNDLES_SECURITY_ANALYSIS.md §1 / REQ-SEC-004 |
+| First result | Overall **Low**, **Pass (good)** conditional on SEARCH-SEC-01 — no Critical / High / Medium |
+| Re-audit | All Low findings **fixed** before tagging 1.0.0 (same day) → Overall **Low**, **Pass (good)** |
+| Findings | SEARCH-SEC-01 (Low) TAB / CR / LF same-site path bypass (`/\t/host`) → **fixed** (control characters and spaces refused in PHP and TS, tests); SEARCH-SEC-02 (Low) icon rendering errors failed the whole search → **fixed** (any renderer error falls back); SEARCH-SEC-03 (Low) recents shared between accounts on one browser → **fixed** (per-user HMAC key suffix); SEARCH-SEC-04 (Info) configured quick-action URLs not checked server side → **fixed** (configuration validation); SEARCH-SEC-05 (Info) `innerHTML` for icon SVG → **accepted** (trusted icon set, documented); SEARCH-SEC-06 (Info) `$&` replacement patterns in messages → **fixed**; SEARCH-SEC-07 (Info) stale ESLint wording → **fixed**; SEARCH-SEC-08 (Info) guest status depended on the firewall → **fixed** (JSON 401 / 403); SEARCH-SEC-09 (Info, demo) demo-only settings → **documented** in `demo/README.md` |
 | Recorded in | `BUNDLES_SECURITY_ANALYSIS.md` (monorepo security report) |
 
 ## Reporting a vulnerability

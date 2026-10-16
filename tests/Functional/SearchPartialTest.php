@@ -70,7 +70,7 @@ final class SearchPartialTest extends TestCase
         self::assertTrue($config['shortcuts']);
         self::assertNull($config['scope']);
         self::assertSame('/bundles/nowosearchkit/css/nowo-search-popover.css', $config['popoverCss']);
-        self::assertSame(['enabled' => true, 'max' => 8, 'storageKey' => 'nowo.search.recent'], $config['recent']);
+        self::assertSame(['enabled' => true, 'max' => 8, 'storageKey' => 'nowo.search.recent.' . substr(hash_hmac('sha256', 'bob', 'search-kit-test'), 0, 16)], $config['recent'], 'per-user key, no identifier in the browser');
         self::assertSame([
             ['title' => 'Host action', 'subtitle' => 'from the host', 'url' => '/host', 'kind' => 'page'],
             ['title' => 'Configured page', 'subtitle' => '', 'url' => '/page?tab=x', 'kind' => 'action'],

@@ -6,6 +6,7 @@ namespace Nowo\SearchKitBundle\Tests\Unit\Icon;
 
 use Nowo\SearchKitBundle\Icon\SearchIcons;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 use Symfony\UX\Icons\Exception\IconNotFoundException;
 use Symfony\UX\Icons\IconRendererInterface;
 
@@ -16,6 +17,9 @@ final class SearchIconsTest extends TestCase
         $renderer = new class implements IconRendererInterface {
             public function renderIcon(string $name, array $attributes = []): string
             {
+                if ($name === 'tabler:broken') {
+                    throw new RuntimeException('icon source down');
+                }
                 if ($name !== 'tabler:search') {
                     throw new IconNotFoundException($name);
                 }
@@ -30,6 +34,7 @@ final class SearchIconsTest extends TestCase
         self::assertStringContainsString('r="3"', $icons->forKey('issues'), 'unknown kind: the generic item dot');
         self::assertStringContainsString('M14 3v4', $icons->forKey('pages'));
         self::assertNull($icons->render('tabler:bug'));
+        self::assertNull($icons->render('tabler:broken'), 'any renderer failure falls back');
 
         $all = $icons->all();
         self::assertSame(['search', 'close', 'loading', 'pages', 'recent', 'action', 'item', 'issues'], array_keys($all));

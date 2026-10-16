@@ -10,7 +10,7 @@ RUN apk add --no-cache \
     nodejs \
     npm \
     && docker-php-ext-configure intl \
-    && docker-php-ext-install -j$(nproc) zip intl pdo_mysql
+    && docker-php-ext-install -j$(nproc) zip intl
 
 RUN apk add --no-cache $PHPIZE_DEPS \
     && pecl install pcov \

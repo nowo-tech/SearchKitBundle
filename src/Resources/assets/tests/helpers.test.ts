@@ -16,6 +16,11 @@ describe('url helpers', () => {
     expect(isSafeUrl('javascript:alert(1)')).toBe(false);
     expect(isSafeUrl('data:text/html,x')).toBe(false);
     expect(isSafeUrl('https:///x')).toBe(false);
+    expect(isSameSitePath('/\t/evil.example')).toBe(false);
+    expect(isSameSitePath('/\n/evil.example')).toBe(false);
+    expect(isSafeUrl('/\r\\evil.example')).toBe(false);
+    expect(isSafeUrl('https://example.com/a b')).toBe(false);
+    expect(isSafeUrl('https://example.com/\u007f')).toBe(false);
   });
 });
 

@@ -44,6 +44,7 @@ final class SearchKitExtension extends AbstractExtension
     public const string DOMAIN = 'NowoSearchKitBundle';
 
     /**
+     * @param string $secret Keys the per-user suffix of the recents storage key (`kernel.secret`)
      * @param array{role: string, min_length: int, max_length: int, debounce_ms: int, keyboard_shortcuts: bool, recent: array{enabled: bool, max: int, storage_key: string}, quick_actions: list<array{label: string, translation_domain: string|null, route: string|null, route_parameters: array<string, scalar>, url: string|null, kind: string, role: string|null}>, assets: array{stylesheet: bool, script: bool}} $settings Bundle configuration
      */
     public function __construct(
@@ -56,6 +57,7 @@ final class SearchKitExtension extends AbstractExtension
         private readonly SearchIcons $icons,
         private readonly Packages $packages,
         private readonly array $settings,
+        private readonly string $secret = '',
     ) {
     }
 
@@ -88,6 +90,10 @@ final class SearchKitExtension extends AbstractExtension
             return null;
         }
         $settings = $this->settings;
+        $user     = $this->security->getUser();
+        // Recents are per browser: a per-user suffix keeps one account's picks away from the next on a shared device
+        // (keyed hash: the identifier itself never reaches the browser).
+        $storageKey = $settings['recent']['storage_key'] . '.' . substr(hash_hmac('sha256', $user instanceof UserInterface ? $user->getUserIdentifier() : '', $this->secret), 0, 16);
 
         return [
             'url'        => $this->urls->generate(SearchController::ROUTE),
@@ -100,7 +106,7 @@ final class SearchKitExtension extends AbstractExtension
             'recent'     => [
                 'enabled'    => $settings['recent']['enabled'],
                 'max'        => $settings['recent']['max'],
-                'storageKey' => $settings['recent']['storage_key'],
+                'storageKey' => $storageKey,
             ],
             'assets'     => $settings['assets'],
             'popoverCss' => $settings['assets']['stylesheet'] ? $this->packages->getUrl('css/nowo-search-popover.css', 'nowo_search_kit') : null,

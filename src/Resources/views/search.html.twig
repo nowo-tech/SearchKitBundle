@@ -51,6 +51,7 @@
                         </span>
                     {% endif %}
                     {% for child in nowo_search_form %}
+                        {% if not child.rendered %}
                         {{ form_widget(child, {
                             id: nowo_search_id ~ '-input',
                             full_name: 'q',
@@ -70,6 +71,7 @@
                                 tabindex: '-1',
                             },
                         }) }}
+                        {% endif %}
                     {% endfor %}
                     {% if nowo_search_config.shortcuts %}
                         <kbd class="nowo-search__kbd" data-part="shortcut" aria-hidden="true">Ctrl K</kbd>

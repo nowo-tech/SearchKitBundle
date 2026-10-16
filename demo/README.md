@@ -36,4 +36,8 @@ type `shop`, `api`, `doc` or `alice`; open a project page to try the scope chip 
 
 From `demo/`: `make up`, `make down`, `make test-symfony8`, `make release-check` (tests + e2e + healthcheck).
 
+**Demo-only settings — do not copy:** the plaintext password hasher, the `password` accounts, the GET logout link and the
+placeholder `APP_SECRET` exist for the demo only; use the `auto` hasher, a CSRF-protected logout and a real secret in an
+application.
+
 See [`docs/DEMO-FRANKENPHP.md`](../docs/DEMO-FRANKENPHP.md) for the FrankenPHP setup (worker / classic, Caddyfile, troubleshooting).

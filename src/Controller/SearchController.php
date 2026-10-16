@@ -16,13 +16,13 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Attribute\AsController;
 use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
 use Symfony\Component\Routing\Attribute\Route;
-use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 /**
  * `GET {prefix}?q=…&scope=…` → `{query, groups: [{key, label, total, items: [{title, subtitle, url, kind, icon, badge}], more}]}`.
  *
- * Read-only (no CSRF: nothing changes), signed-in users granted `role` only, rate limited per user (429
+ * Read-only (no CSRF: nothing changes), signed-in users granted `role` only (JSON 401 / 403 otherwise, whatever the
+ * firewall's entry point), rate limited per user (429
  * `{error: "rate_limited"}`), never cached (`Cache-Control: no-store, private`). The query is cut to `max_length`;
  * a `scope` that is not a valid id is ignored (unscoped search). Results come from the providers, which only return
  * what the user may open; an inaccessible scope therefore answers 200 with no groups, never 403.
@@ -60,16 +60,18 @@ final readonly class SearchController
      *
      * @param Request $request The request (`q`, optional `scope`)
      *
-     * @throws AccessDeniedException For guests and users without `role` (the firewall turns it into login / 403)
-     *
-     * @return JsonResponse The groups, or 429 when the user exceeded the rate limit
+     * @return JsonResponse The groups; 401 `{error: unauthenticated}` for guests, 403 `{error: forbidden}` without
+     *                      `role`, 429 `{error: rate_limited}` when the user exceeded the rate limit
      */
     #[Route('', name: self::ROUTE, methods: ['GET'])]
     public function __invoke(Request $request): JsonResponse
     {
         $user = $this->security->getUser();
-        if (!$user instanceof UserInterface || !$this->security->isGranted($this->role)) {
-            throw new AccessDeniedException('Search requires a signed-in user.');
+        if (!$user instanceof UserInterface) {
+            return new JsonResponse(['error' => 'unauthenticated'], Response::HTTP_UNAUTHORIZED, self::HEADERS);
+        }
+        if (!$this->security->isGranted($this->role)) {
+            return new JsonResponse(['error' => 'forbidden'], Response::HTTP_FORBIDDEN, self::HEADERS);
         }
         if ($this->limiter instanceof RateLimiterFactoryInterface
             && !$this->limiter->create(hash('sha256', $user->getUserIdentifier()))->consume()->isAccepted()) {

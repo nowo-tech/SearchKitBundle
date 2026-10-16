@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Nowo\SearchKitBundle\Icon;
 
-use Symfony\UX\Icons\Exception\IconNotFoundException;
 use Symfony\UX\Icons\IconRendererInterface;
+use Throwable;
 use Twig\Markup;
 
 /**
@@ -78,7 +78,7 @@ final readonly class SearchIcons
      *
      * @param string $name UX Icons name, e.g. `tabler:bug`
      *
-     * @return string|null SVG markup, or null with `svg_inline`, without symfony/ux-icons, or for an unknown name
+     * @return string|null SVG markup, or null with `svg_inline`, without symfony/ux-icons, or when the icon cannot be rendered
      */
     public function render(string $name): ?string
     {
@@ -87,7 +87,8 @@ final readonly class SearchIcons
         }
         try {
             return $this->renderer->renderIcon($name, ['aria-hidden' => 'true', 'focusable' => 'false', 'class' => 'nowo-search__svg']);
-        } catch (IconNotFoundException) {
+        } catch (Throwable) {
+            // Unknown name, invalid name or icon source failure: the row keeps its kind icon, the search still answers.
             return null;
         }
     }

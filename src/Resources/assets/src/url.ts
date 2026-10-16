@@ -1,3 +1,7 @@
+/** C0 controls, space and DEL: browsers strip TAB / CR / LF inside URLs, so "/\t/host" would become "//host". */
+// eslint-disable-next-line no-control-regex -- matching control characters is the point of this guard
+const CONTROL_OR_SPACE = /[\u0000-\u0020\u007f]/;
+
 /**
  * Whether a URL is a same-site path (`/…`, not `//host` or `/\host`).
  *
@@ -5,6 +9,9 @@
  * @returns True for a same-site path
  */
 export function isSameSitePath(url: string): boolean {
+  if (CONTROL_OR_SPACE.test(url)) {
+    return false;
+  }
   return url.startsWith('/') && !url.startsWith('//') && !url.startsWith('/\\');
 }
 
@@ -15,5 +22,5 @@ export function isSameSitePath(url: string): boolean {
  * @returns True when safe to navigate to
  */
 export function isSafeUrl(url: string): boolean {
-  return isSameSitePath(url) || /^https?:\/\/[^\s/]+/i.test(url);
+  return isSameSitePath(url) || (/^https?:\/\/[^\s/]+/i.test(url) && !CONTROL_OR_SPACE.test(url));
 }

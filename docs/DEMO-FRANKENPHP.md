@@ -18,7 +18,7 @@ This document describes how the **Search Kit Bundle** demo runs under **FrankenP
   - [Demo does not start](#demo-does-not-start)
   - [Browser console: 404 on `/build/…` or missing Vite entry](#browser-console-404-on-build-or-missing-vite-entry)
   - [Browser console: 404 on `nowo-search.js`](#browser-console-404-on-nowo-searchjs)
-  - [Database empty](#database-empty)
+  - [No results](#no-results)
 
 ## Overview
 
@@ -62,7 +62,7 @@ make -C demo up-symfony8
 - **Pentatrion Vite + pnpm** — only for the demo's own entry `assets/app.ts` (demo chrome); it does not compile the bundle TypeScript
 - **No database** — REQ-DEMO-011 does not apply (no `*.db` files either)
 
-Example `config/bundles.php`:
+Example `config/bundles.php` (abridged: the demo also registers Pentatrion Vite, WebProfiler and Debug):
 
 ```php
 return [

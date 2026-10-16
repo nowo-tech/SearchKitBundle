@@ -331,12 +331,12 @@ export class GlobalSearch {
 
   private renderGroups(groups: SearchGroup[], query: string): void {
     if (groups.length === 0) {
-      this.renderMessage(this.config.labels.empty.replace('__QUERY__', query));
+      this.renderMessage(this.config.labels.empty.replace('__QUERY__', () => query));
       return;
     }
     this.renderList(groups, query);
     const count = groups.reduce((sum, group) => sum + group.items.filter((row) => isSafeUrl(row.url)).length, 0);
-    this.status.textContent = this.config.labels.results.replace('__COUNT__', String(count));
+    this.status.textContent = this.config.labels.results.replace('__COUNT__', () => String(count));
     this.syncPopover();
   }
 

@@ -38,6 +38,13 @@ final class ExtensionTest extends TestCase
         (new Processor())->processConfiguration(new Configuration(), [['quick_actions' => [['label' => 'x', 'route' => 'r', 'url' => '/x']]]]);
     }
 
+    public function testQuickActionUrlMustBeSafe(): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('must be a path starting with "/" or an http(s) URL');
+        (new Processor())->processConfiguration(new Configuration(), [['quick_actions' => [['label' => 'x', 'url' => 'javascript:alert(1)']]]]);
+    }
+
     public function testStorageKeyIsValidated(): void
     {
         $this->expectException(InvalidConfigurationException::class);

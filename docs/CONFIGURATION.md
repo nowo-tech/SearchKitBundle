@@ -67,13 +67,13 @@ nowo_search_kit:
 
 | Key | Default | Description |
 | --- | --- | --- |
-| `role` | `IS_AUTHENTICATED` | Security attribute the user needs. Others get no box and 403 from the endpoint (guests 401 / login). |
+| `role` | `IS_AUTHENTICATED` | Security attribute the user needs. Others get no box and JSON 403 from the endpoint (guests JSON 401). |
 | `min_length` | `2` | Minimum trimmed length before the providers run. |
 | `max_length` | `200` | The query is cut to this many characters (also the input `maxlength`). |
 | `per_group` | `5` | Rows per group; a provider returning more is cut (its `total` is kept). |
 | `debounce_ms` | `150` | Browser debounce before a request; the previous request is aborted. |
 | `keyboard_shortcuts` | `true` | Ctrl/⌘ K and `/`; off also hides the shortcut hint. |
-| `recent.*` | on, 8, `nowo.search.recent` | Per-browser recent picks (text only, same-site paths only). |
+| `recent.*` | on, 8, `nowo.search.recent` | Per-browser recent picks (text only, same-site paths only), stored under `storage_key` + `.` + a 16-character HMAC of the user identifier (keyed with `kernel.secret`), so each account on a shared browser has its own list. |
 | `assets.*` | `true`, `true` | Whether the template prints the stylesheet / script tags. |
 | `icon_set` | `ux_icon` | `svg_inline` never calls UX Icons (built-in SVG, kind icons for rows). |
 
@@ -88,7 +88,8 @@ production). `token_bucket` refills `limit` tokens per `interval`.
 ## Quick actions
 
 Each entry needs `label` (translation key or plain text, translated in `translation_domain`, default `messages`) and
-**exactly one** of `route` (+ `route_parameters`) or `url` (a path or an http(s) URL). `kind` picks the icon (default
+**exactly one** of `route` (+ `route_parameters`) or `url` (a path or an http(s) URL; anything else fails container
+compilation). `kind` picks the icon (default
 `action`); `role` hides it from users without that attribute. Hosts can pass more actions from Twig (listed first):
 
 ```twig

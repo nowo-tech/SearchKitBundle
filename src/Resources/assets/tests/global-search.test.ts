@@ -249,6 +249,8 @@ describe('GlobalSearch', () => {
     key('Enter');
     expect(assign).not.toHaveBeenCalled();
     key('a');
+    await type('z$&');
+    expect(status()).toBe('No results for “z$&”');
 
     const ghost = document.createElement('a');
     ghost.setAttribute('role', 'option');

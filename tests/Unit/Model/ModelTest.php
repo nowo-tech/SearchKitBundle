@@ -36,6 +36,11 @@ final class ModelTest extends TestCase
         yield 'data' => ['data:text/html,x', false];
         yield 'relative' => ['projects/1', false];
         yield 'empty host' => ['https:///x', false];
+        yield 'tab smuggling' => ["/\t/evil.example", false];
+        yield 'newline smuggling' => ["/\n/evil.example", false];
+        yield 'carriage return' => ["/\r\\evil.example", false];
+        yield 'space in absolute URL' => ['https://example.com/a b', false];
+        yield 'DEL' => ["/a\x7F", false];
     }
 
     public function testItemRejectsUnsafeUrlsAndSerializes(): void

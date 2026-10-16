@@ -65,9 +65,9 @@ nowo_search_kit:
     trailing_slash_on_root: false
 ```
 
-The endpoint is `GET /search?q=…&scope=…` (route `nowo_search_kit_search`). `trailing_slash_on_root: false` keeps the
+The endpoint is `GET /search?q=…&scope=…` (route `nowo_search_kit_search`); import it behind your session firewall. `trailing_slash_on_root: false` keeps the
 path `/search` (without it the route is `/search/`; both work, the template always uses the generated URL). The
-controller checks the signed-in user itself (guests get 401 / your login redirect); you can also cover `^/search` in
+controller checks the signed-in user itself (JSON 401 for guests, 403 without `role`); you can also cover `^/search` in
 `access_control`.
 
 ## Providers

@@ -25,12 +25,12 @@ export default tseslint.config(
   {
     files: ['src/Resources/assets/src/**/*.ts'],
     rules: {
-      // Message HTML is sanitised on the server; every other string goes through textContent.
+      // Text goes through text nodes; only the server-rendered icon SVG (application icon set) may use innerHTML.
       'no-restricted-syntax': [
         'error',
         {
           selector: 'AssignmentExpression[left.property.name=/^(innerHTML|outerHTML)$/]',
-          message: 'Use textContent / DOM nodes. Only the server-sanitised message HTML and the fixed SVG icons may use innerHTML (eslint-disable-next-line with a reason).',
+          message: 'Use textContent / DOM nodes. Only the server-rendered icon SVG may use innerHTML (eslint-disable-next-line with a reason).',
         },
         {
           selector: "CallExpression[callee.property.name='insertAdjacentHTML']",

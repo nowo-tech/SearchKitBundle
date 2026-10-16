@@ -59,5 +59,6 @@ return static function (ContainerConfigurator $container): void {
 
     $services->set(SearchKitExtension::class)
         ->arg('$packages', service('assets.packages'))
-        ->arg('$settings', param('nowo_search_kit.settings'));
+        ->arg('$settings', param('nowo_search_kit.settings'))
+        ->arg('$secret', param('kernel.secret'));
 };

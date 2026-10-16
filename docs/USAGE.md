@@ -121,8 +121,8 @@ With autoconfiguration (default in `config/services.yaml`) nothing else is neede
   default row kind and the `data-group` attribute; `total` null means "the number of rows"; `moreUrl` adds a
   "See all" row (unsafe URLs are dropped).
 - `SearchItem(title, url, subtitle = '', icon = null, badge = null, kind = null)` — `url` must be a path (`/…`, not
-  `//host`) or an http(s) URL, otherwise the constructor throws; `icon` is a UX Icons name rendered server side (unknown
-  names fall back to the kind icon); `kind` overrides the group key for the icon / recents.
+  `//host`) or an http(s) URL without control characters or spaces, otherwise the constructor throws; `icon` is a UX Icons name rendered server side (unknown
+  names fall back to the kind icon — use a fixed set of names, never user data); `kind` overrides the group key for the icon / recents.
 - `SearchBadge(label, tone = 'neutral')` — `tone` becomes `nowo-search__badge--{tone}` (`error`, `fatal`, `warning`,
   `success`, `info` are styled).
 
@@ -335,8 +335,8 @@ labels of your providers use your own domain.
 }
 ```
 
-Statuses: 200 (also for an inaccessible scope: no groups), 401 / login redirect for guests, 403 without `role`, 429
-`{"error": "rate_limited"}`. Every response is `Cache-Control: no-store, private` and `X-Robots-Tag: noindex`.
+Statuses: 200 (also for an inaccessible scope: no groups), 401 `{"error": "unauthenticated"}` for guests, 403
+`{"error": "forbidden"}` without `role`, 429 `{"error": "rate_limited"}`. Every response is `Cache-Control: no-store, private` and `X-Robots-Tag: noindex`.
 
 ## Naming conventions
 

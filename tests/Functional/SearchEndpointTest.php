@@ -34,11 +34,13 @@ final class SearchEndpointTest extends TestCase
         $client = $this->client();
         $client->request(Request::METHOD_GET, '/search?q=shop');
         self::assertSame(401, $client->getResponse()->getStatusCode());
+        self::assertSame('{"error":"unauthenticated"}', $client->getResponse()->getContent());
 
         $client = $this->client(['role' => 'ROLE_ADMIN']);
         $client->loginUser(new InMemoryUser('alice', 'x', ['ROLE_USER']));
         $client->request(Request::METHOD_GET, '/search?q=shop');
         self::assertSame(403, $client->getResponse()->getStatusCode());
+        self::assertSame('{"error":"forbidden"}', $client->getResponse()->getContent());
     }
 
     public function testGroupsArePermissionAwareOrderedAndRendered(): void

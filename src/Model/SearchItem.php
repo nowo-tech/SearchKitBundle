@@ -43,10 +43,14 @@ final readonly class SearchItem
      *
      * @param string $url The URL
      *
-     * @return bool True for `/path…` (not `//host`) and `http(s)://…`
+     * @return bool True for `/path…` (not `//host`) and `http(s)://…`, without control characters or spaces
      */
     public static function isSafeUrl(string $url): bool
     {
+        // Browsers drop TAB / CR / LF inside URLs ("/\t/host" becomes "//host"): refuse control characters and spaces.
+        if (preg_match('/[\x00-\x20\x7F]/', $url) === 1) {
+            return false;
+        }
         if (str_starts_with($url, '/')) {
             return !str_starts_with($url, '//') && !str_starts_with($url, '/\\');
         }

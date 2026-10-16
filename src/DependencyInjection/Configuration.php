@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\SearchKitBundle\DependencyInjection;
 
+use Nowo\SearchKitBundle\Model\SearchItem;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\ConfigurationInterface;
 
@@ -139,6 +140,10 @@ final class Configuration implements ConfigurationInterface
                         ->validate()
                             ->ifTrue(static fn (array $action): bool => ($action['route'] === null) === ($action['url'] === null))
                             ->thenInvalid('Each nowo_search_kit.quick_actions entry needs exactly one of "route" or "url".')
+                        ->end()
+                        ->validate()
+                            ->ifTrue(static fn (array $action): bool => $action['url'] !== null && !SearchItem::isSafeUrl((string) $action['url']))
+                            ->thenInvalid('A nowo_search_kit.quick_actions "url" must be a path starting with "/" or an http(s) URL.')
                         ->end()
                     ->end()
                 ->end()

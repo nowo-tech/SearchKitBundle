@@ -93,7 +93,8 @@ only navigates to same-site paths or http(s) URLs.
 - **FR-SPI-002** — `SearchScopeResolverInterface::resolve(Request, UserInterface): ?SearchScope`; `NullScopeResolver`
   is the default.
 - **FR-MODEL-001** — `SearchQuery` (text, user, limit, scope, `isScoped()`, `matches()`), `SearchGroup` (`limit()`,
-  `toArray()` with sanitised key and safe "See all"), `SearchItem` (`isSafeUrl()`, rejects unsafe URLs), `SearchBadge`
+  `toArray()` with sanitised key and safe "See all"), `SearchItem` (`isSafeUrl()`: paths or http(s), no control
+  characters or spaces; rejects unsafe URLs), `SearchBadge`
   (CSS-safe tone), `SearchScope` (id pattern).
 
 ### Engine and providers
@@ -107,14 +108,15 @@ only navigates to same-site paths or http(s) URLs.
 ### HTTP
 
 - **FR-API-001** — `SearchController` (`GET`, route `nowo_search_kit_search`): signed-in user granted `role`
-  (`AccessDeniedException` otherwise), per-user limiter keyed by a SHA-256 of the identifier (429 JSON), `q` cut to
+  (JSON 401 `unauthenticated` / 403 `forbidden` otherwise), per-user limiter keyed by a SHA-256 of the identifier (429 JSON), `q` cut to
   `max_length`, `scope` kept only when it matches the id pattern, groups serialised with UX icons, headers
   `Cache-Control: no-store, private` and `X-Robots-Tag: noindex`.
 
 ### Twig, markup and theme
 
 - **FR-TWIG-001** — `SearchKitExtension`: `nowo_search_kit_config(actions)` (null for users who may not search;
-  endpoint, limits, shortcuts, scope, host + configured quick actions with safe URLs and role filter, recents, assets,
+  endpoint, limits, shortcuts, scope, host + configured quick actions with safe URLs and role filter, recents (per-user
+  HMAC storage key), assets,
   lazy stylesheet URL, labels), `nowo_search_kit_scope()`, `nowo_search_kit_form()`, `nowo_search_kit_icons()`.
 - **FR-TWIG-002** — `search.html.twig`: asset tags, root with `data-nowo-search-config`, toggle with three state icons,
   field with scope chip and Form widget (combobox attributes), shortcut hint, dropdown (listbox + key hints), live
