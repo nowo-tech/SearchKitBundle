@@ -249,6 +249,7 @@
     left: 0.5rem;
     width: auto;
     max-height: calc(100dvh - var(--nowo-search-mobile-top) - 3.5rem);
+    z-index: calc(var(--nowo-search-z) + 20);
   }
 
   .nowo-search__footer,

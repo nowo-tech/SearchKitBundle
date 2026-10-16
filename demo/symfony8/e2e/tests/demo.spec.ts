@@ -68,11 +68,21 @@ test.describe('search kit demo', () => {
     await expect(scope).toBeHidden();
   });
 
-  test('phones get the field across the header', async ({ page }) => {
+  test('phones get the field across the header above a dimmed backdrop that closes it', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await signIn(page, 'alice');
-    await page.keyboard.press('Control+k');
+    await page.getByTestId('nowo-search-toggle').click();
+    const search = page.getByTestId('nowo-search');
+    await expect(search).toHaveClass(/is-open/);
     const box = await page.locator('.nowo-search__box').boundingBox();
     expect(box?.width ?? 0).toBeGreaterThan(360);
+    const backdrop = await search.evaluate((el) => {
+      const style = getComputedStyle(el, '::before');
+      return { position: style.position, background: style.backgroundColor };
+    });
+    expect(backdrop.position).toBe('fixed');
+    expect(backdrop.background).not.toBe('rgba(0, 0, 0, 0)');
+    await page.mouse.click(195, 800);
+    await expect(search).not.toHaveClass(/is-open/);
   });
 });

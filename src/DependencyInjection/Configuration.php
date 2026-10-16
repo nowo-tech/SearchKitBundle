@@ -8,6 +8,9 @@ use Nowo\SearchKitBundle\Model\SearchItem;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\ConfigurationInterface;
 
+use function is_bool;
+use function is_string;
+
 /**
  * Configuration tree for `nowo_search_kit`.
  *
@@ -158,6 +161,14 @@ final class Configuration implements ConfigurationInterface
                         ->booleanNode('script')
                             ->info('nowo-search.js (IIFE that mounts every search box).')
                             ->defaultTrue()
+                        ->end()
+                        ->scalarNode('popover_stylesheet')
+                            ->info('Dropdown stylesheet injected on the first hover / focus. null: the bundle file when "stylesheet" is on; false: none (load it yourself, e.g. the JS loadPopoverStyles option); a path or http(s) URL: that file (e.g. your bundler chunk).')
+                            ->defaultNull()
+                            ->validate()
+                                ->ifTrue(static fn (mixed $value): bool => $value === true || (is_string($value) && !SearchItem::isSafeUrl($value)) || (!is_string($value) && !is_bool($value) && $value !== null))
+                                ->thenInvalid('nowo_search_kit.assets.popover_stylesheet must be null, false, a path starting with "/" or an http(s) URL.')
+                            ->end()
                         ->end()
                     ->end()
                 ->end()

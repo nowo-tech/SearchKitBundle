@@ -5,17 +5,17 @@
  * Stimulus wrapper from `./stimulus`.
  */
 import { GlobalSearch } from './global-search';
-import type { SearchConfig } from './types';
+import type { SearchConfig, SearchOptions } from './types';
 
 export { GlobalSearch } from './global-search';
 export type { NavigateDetail } from './global-search';
 export { appendHighlighted, isMac } from './highlight';
 export { readRecent, rememberRecent, writeRecent } from './recent';
 export { isSafeUrl, isSameSitePath } from './url';
-export type { SearchBadge, SearchConfig, SearchGroup, SearchItem, SearchLabels, SearchState } from './types';
+export type { SearchBadge, SearchConfig, SearchGroup, SearchItem, SearchLabels, SearchOptions, SearchState } from './types';
 
 /** Package version of the browser bundle. */
-export const VERSION = '1.0.1';
+export const VERSION = '1.0.2';
 
 /** Prefix of every CSS custom property (theme token) of the search box. */
 export const CSS_TOKEN_PREFIX = '--nowo-search-';
@@ -26,16 +26,17 @@ const mounted = new WeakMap<HTMLElement, GlobalSearch>();
  * Mounts the search box on one root (idempotent).
  *
  * @param root Element carrying the JSON `data-nowo-search-config`
+ * @param options JavaScript-only options (e.g. `loadPopoverStyles` for a bundler chunk)
  * @returns The search box of that root, or null when the configuration or a required part is missing
  */
-export function mount(root: HTMLElement): GlobalSearch | null {
+export function mount(root: HTMLElement, options: SearchOptions = {}): GlobalSearch | null {
   const existing = mounted.get(root);
   if (existing !== undefined) {
     return existing;
   }
   let search: GlobalSearch;
   try {
-    search = new GlobalSearch(root, JSON.parse(root.dataset.nowoSearchConfig ?? '') as SearchConfig);
+    search = new GlobalSearch(root, JSON.parse(root.dataset.nowoSearchConfig ?? '') as SearchConfig, options);
   } catch {
     return null;
   }
@@ -58,9 +59,10 @@ export function unmount(root: HTMLElement): void {
  * Mounts every search root in a scope.
  *
  * @param scope Where to look for `[data-nowo-search-config]` roots
+ * @param options JavaScript-only options passed to every mount()
  */
-export function mountAll(scope: ParentNode = document): void {
-  scope.querySelectorAll<HTMLElement>('[data-nowo-search-config]').forEach((root) => mount(root));
+export function mountAll(scope: ParentNode = document, options: SearchOptions = {}): void {
+  scope.querySelectorAll<HTMLElement>('[data-nowo-search-config]').forEach((root) => mount(root, options));
 }
 
 /** Auto start for the IIFE build: document ready, Turbo visits, and cleanup before Turbo swaps the body. */

@@ -1,7 +1,7 @@
 # Feature specification: Search Kit Bundle (baseline)
 
 **Package**: `nowo-tech/search-kit-bundle`
-**Status**: Active (1.0)
+**Status**: Active (1.0.2)
 **Last reviewed**: 2026-10-16
 **Inventory**: [`code-inventory.md`](code-inventory.md) — 100% of the production units under `src/`.
 
@@ -78,7 +78,7 @@ only navigates to same-site paths or http(s) URLs.
 - **FR-BUNDLE-001** — `NowoSearchKitBundle` registers the extension and `TwigPathsPass` (`@NowoSearchKitBundle`,
   application overrides in `templates/bundles/NowoSearchKitBundle/` first, `@!NowoSearchKitBundle` for the originals).
 - **FR-CFG-001** — `Configuration` defines the flat `nowo_search_kit` tree with safe defaults and validation (quick
-  action needs exactly one of `route` / `url`; storage key characters; numeric ranges).
+  action needs exactly one of `route` / `url`; storage key characters; numeric ranges). Since 1.0.2: `assets.popover_stylesheet` (`null` / `false` / safe path or URL).
 - **FR-CFG-002** — `NowoSearchKitExtension` prepends the `nowo_search_kit` asset package and the `nowo_search_kit`
   rate limiter (sliding / fixed window or token bucket), sets the parameters, autoconfigures providers with the tag
   `nowo_search_kit.provider` and registers `MenuPagesProvider` when `menu_pages` is enabled (auto: menus configured and
@@ -117,29 +117,29 @@ only navigates to same-site paths or http(s) URLs.
 - **FR-TWIG-001** — `SearchKitExtension`: `nowo_search_kit_config(actions)` (null for users who may not search;
   endpoint, limits, shortcuts, scope, host + configured quick actions with safe URLs and role filter, recents (per-user
   HMAC storage key), assets,
-  lazy stylesheet URL, labels), `nowo_search_kit_scope()`, `nowo_search_kit_form()`, `nowo_search_kit_icons()`.
+  lazy stylesheet URL, labels), `nowo_search_kit_scope()`, `nowo_search_kit_form()`, `nowo_search_kit_icons()`. `popoverCss` honours `assets.popover_stylesheet` (1.0.2).
 - **FR-TWIG-002** — `search.html.twig`: asset tags, root with `data-nowo-search-config`, toggle with three state icons,
   field with scope chip and Form widget (combobox attributes), shortcut hint, dropdown (listbox + key hints), live
   status, kind icon `<template>`s; blocks `nowo_search_assets`, `nowo_search_root`, `nowo_search_toggle`,
-  `nowo_search_toggle_icon`, `nowo_search_footer`.
+  `nowo_search_toggle_icon`, `nowo_search_footer`. Since 1.0.2: `nowo_search_root_attr` / block `nowo_search_root_attributes` add escaped host attributes to the root (class appended; reserved and invalid names ignored).
 - **FR-TWIG-003** — `SearchFieldType`: one `q` search field, no CSRF (never submitted), translation domain
   `NowoSearchKitBundle`.
 - **FR-ICON-001** — `SearchIcons`: icon keys rendered through UX Icons (`icon_set: ux_icon`) with built-in SVG fallback;
   row icons by name (null when unavailable).
 - **FR-THEME-001** — `nowo-search.css` (always): tokens (light, dark by media query or theme attribute), stretch,
   state icons, scope chip, phone layout, reduced motion. `nowo-search-popover.css` (lazy): dropdown, groups, options,
-  highlight, badges, thin scrollbar, footer, phone layout.
+  highlight, badges, thin scrollbar, footer, phone layout. Since 1.0.2: default tokens inside `:where()` (zero specificity); phone backdrop `--nowo-search-backdrop`.
 - **FR-I18N-001** — `NowoSearchKitBundle` translations in 7 locales (en, es, fr, de, it, pt, nl) with key parity.
 
 ### Browser (TypeScript)
 
 - **FR-TS-001** — `index.ts` / `iife.ts`: `mount` (idempotent, null for invalid config or missing parts), `unmount`,
   `mountAll`, `autoStart` (DOM ready, Turbo load / before-render), `VERSION`, `CSS_TOKEN_PREFIX`; IIFE global
-  `NowoSearch`.
+  `NowoSearch`. `mount` / `mountAll` accept `SearchOptions` (1.0.2).
 - **FR-TS-002** — `global-search.ts`: open / close / toggle, shortcuts, outside click, debounce + AbortController,
   fetch with 429 / error / abort handling, grouped rendering (ARIA group / option, `aria-activedescendant`, live count),
   arrows / Enter / Ctrl-⌘ Enter / Escape / Backspace scope removal, hover selection, recents and quick actions, lazy
-  stylesheet, `nowo-search:state` and cancelable `nowo-search:navigate` events.
+  stylesheet, `nowo-search:state` and cancelable `nowo-search:navigate` events. Since 1.0.2: initial `nowo-search:state` after mount, `loadPopoverStyles` option, tap on the phone backdrop closes.
 - **FR-TS-003** — `recent.ts`, `highlight.ts`, `url.ts`: storage helpers (try/catch, text only, same-site paths),
   `<mark>` highlighting through DOM nodes, `isMac`, URL guards.
 - **FR-TS-004** — `stimulus.ts`: `createSearchKitController(Controller)` and `STIMULUS_IDENTIFIER`.

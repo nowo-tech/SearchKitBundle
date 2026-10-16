@@ -8,6 +8,7 @@ use Nowo\SearchKitBundle\Contract\SearchProviderInterface;
 use Nowo\SearchKitBundle\DependencyInjection\Configuration;
 use Nowo\SearchKitBundle\DependencyInjection\NowoSearchKitExtension;
 use Nowo\SearchKitBundle\Provider\MenuPagesProvider;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Config\Definition\Processor;
@@ -43,6 +44,32 @@ final class ExtensionTest extends TestCase
         $this->expectException(InvalidConfigurationException::class);
         $this->expectExceptionMessage('must be a path starting with "/" or an http(s) URL');
         (new Processor())->processConfiguration(new Configuration(), [['quick_actions' => [['label' => 'x', 'url' => 'javascript:alert(1)']]]]);
+    }
+
+    /**
+     * @return iterable<string, array{mixed}>
+     */
+    public static function invalidPopoverStylesheets(): iterable
+    {
+        yield 'true' => [true];
+        yield 'javascript' => ['javascript:alert(1)'];
+        yield 'protocol relative' => ['//cdn.example/x.css'];
+        yield 'number' => [12];
+    }
+
+    #[DataProvider('invalidPopoverStylesheets')]
+    public function testPopoverStylesheetIsValidated(mixed $value): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+        (new Processor())->processConfiguration(new Configuration(), [['assets' => ['popover_stylesheet' => $value]]]);
+    }
+
+    public function testPopoverStylesheetAcceptsNullFalseAndUrls(): void
+    {
+        foreach ([null, false, '/build/x.css', 'https://cdn.example/x.css'] as $value) {
+            $config = (new Processor())->processConfiguration(new Configuration(), [['assets' => ['popover_stylesheet' => $value]]]);
+            self::assertSame($value, $config['assets']['popover_stylesheet']);
+        }
     }
 
     public function testStorageKeyIsValidated(): void

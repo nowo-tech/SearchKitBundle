@@ -48,6 +48,7 @@ nowo_search_kit:
     assets:
         stylesheet: true            # nowo-search.css + lazy nowo-search-popover.css
         script: true                # nowo-search.js (IIFE)
+        popover_stylesheet: ~       # null: bundle file when stylesheet is on | false: none | '/build/x.css' (1.0.2)
     icon_set: ux_icon               # ux_icon | svg_inline
     icons:                          # icon key / row kind → UX Icons name, merged over the defaults
         projects: 'tabler:folder'
@@ -74,7 +75,8 @@ nowo_search_kit:
 | `debounce_ms` | `150` | Browser debounce before a request; the previous request is aborted. |
 | `keyboard_shortcuts` | `true` | Ctrl/⌘ K and `/`; off also hides the shortcut hint. |
 | `recent.*` | on, 8, `nowo.search.recent` | Per-browser recent picks (text only, same-site paths only), stored under `storage_key` + `.` + a 16-character HMAC of the user identifier (keyed with `kernel.secret`), so each account on a shared browser has its own list. |
-| `assets.*` | `true`, `true` | Whether the template prints the stylesheet / script tags. |
+| `assets.stylesheet`, `assets.script` | `true`, `true` | Whether the template prints the stylesheet / script tags. |
+| `assets.popover_stylesheet` | `null` | Lazy dropdown stylesheet injected on the first hover / focus: `null` = the bundle file when `assets.stylesheet` is on (none otherwise), `false` = none, a path or http(s) URL = that file (e.g. your Vite chunk). The JS option `loadPopoverStyles` takes precedence (see USAGE). (1.0.2) |
 | `icon_set` | `ux_icon` | `svg_inline` never calls UX Icons (built-in SVG, kind icons for rows). |
 
 ## Rate limit

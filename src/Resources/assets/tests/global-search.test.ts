@@ -101,7 +101,7 @@ describe('GlobalSearch', () => {
     expect(popover().hidden).toBe(true);
     expect(document.activeElement).toBe(toggle());
     expect(input().tabIndex).toBe(-1);
-    expect(states).toEqual(['open', 'idle']);
+    expect(states, 'the initial state is announced once after mount').toEqual(['idle', 'open', 'idle']);
   });
 
   it('clears the recents from their group header, and hides recents when disabled', () => {
@@ -146,6 +146,35 @@ describe('GlobalSearch', () => {
     start(config({ shortcuts: false }));
     expect(key('k', { ctrlKey: true }, document.body).defaultPrevented).toBe(false);
     expect(isOpen()).toBe(false);
+  });
+
+  it('closes when the phone backdrop (the root itself) is tapped', () => {
+    start();
+    toggle().click();
+    root().dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    expect(isOpen()).toBe(false);
+  });
+
+  it('lets the host load the dropdown styles (bundler chunk) instead of the link', async () => {
+    document.body.innerHTML = markup(config());
+    const loader = vi.fn(() => Promise.reject(new Error('chunk failed')));
+    search = new GlobalSearch(root(), config(), { loadPopoverStyles: loader });
+    search.start();
+    root().dispatchEvent(new Event('pointerenter'));
+    root().dispatchEvent(new Event('focusin'));
+    await vi.runAllTimersAsync();
+    expect(loader).toHaveBeenCalledTimes(1);
+    expect(document.querySelectorAll('link[data-nowo-search-popover]')).toHaveLength(0);
+  });
+
+  it('announces the open state on mount when the root is already open', () => {
+    document.body.innerHTML = markup(config());
+    root().classList.add('is-open');
+    const seen: string[] = [];
+    root().addEventListener('nowo-search:state', (event) => seen.push((event as CustomEvent<{ state: string }>).detail.state));
+    search = new GlobalSearch(root(), config());
+    search.start();
+    expect(seen).toEqual(['open']);
   });
 
   it('closes on a click outside, not inside', () => {

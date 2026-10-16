@@ -77,5 +77,6 @@ Update README **Tests and coverage** percentages after each release when coverag
 
 | Version | Date | Notes |
 | --- | --- | --- |
+| 1.0.2 | 2026-10-16 | Host-integration patch: `nowo_search_root_attr`, `:where()` tokens, initial `nowo-search:state`, `assets.popover_stylesheet` + `loadPopoverStyles`, phone backdrop. |
 | 1.0.1 | 2026-10-16 | Compliance patch: icon SVG through `sanitizeSvg()` (no `innerHTML`, REQ-UX-001), override and Forms docs (REQ-TWIG-001 / REQ-TWIG-005), canonical bug report template (REQ-DOCS-010). |
 | 1.0.0 | 2026-10-16 | First release: header search box, provider and scope SPIs, Pages group (DashboardMenuBundle), rate-limited JSON endpoint, TypeScript module (IIFE + Stimulus wrapper), theme tokens, 7 locales, Spec Kit baseline, SEC-004 Pass (good). |

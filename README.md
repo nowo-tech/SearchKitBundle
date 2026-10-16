@@ -148,10 +148,10 @@ and `make -C demo/symfony8 demo-screenshots` (see [docs/CONTRIBUTING.md](docs/CO
 
 - Tests: PHPUnit (unit, integration, functional), Vitest (TypeScript), Playwright (demo e2e)
 - PHP: 100%
-- TS/JS: 97.5%
+- TS/JS: 97.57%
 - Python: N/A
 
-PHP line coverage: **100%** of includable `src/` (gate **≥ 99%**; strict gate `make test-coverage-100`). TypeScript coverage is the minimum of statements / branches / functions / lines (REQ-TEST-009): statements, functions and lines 100%, branches 97.5% (defensive fallbacks); Vitest thresholds 100 / 95 (branches), make gate **≥ 90%**.
+PHP line coverage: **100%** of includable `src/` (gate **≥ 99%**; strict gate `make test-coverage-100`). TypeScript coverage is the minimum of statements / branches / functions / lines (REQ-TEST-009): statements, functions and lines 100%, branches 97.57% (defensive fallbacks); Vitest thresholds 100 / 95 (branches), make gate **≥ 90%**.
 
 ```bash
 make test

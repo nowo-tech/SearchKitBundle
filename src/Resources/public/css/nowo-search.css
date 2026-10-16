@@ -4,7 +4,8 @@
  * Theme with the --nowo-search-* tokens (light defaults; dark under prefers-color-scheme or [data-theme="dark"] /
  * [data-bs-theme="dark"] on an ancestor).
  */
-.nowo-search {
+/* Default tokens at zero specificity (:where): any host rule such as `.nowo-search { --nowo-search-accent: … }` wins. */
+:where(.nowo-search) {
   --nowo-search-bg: #ffffff;
   --nowo-search-fg: #1f2328;
   --nowo-search-muted: #636c76;
@@ -28,14 +29,17 @@
   --nowo-search-badge-warning: #9a6700;
   --nowo-search-badge-success: #1a7f37;
   --nowo-search-badge-info: #0969da;
+  --nowo-search-backdrop: rgb(15 23 42 / 45%);
+}
 
+.nowo-search {
   position: relative;
   display: inline-flex;
   color: var(--nowo-search-fg);
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']):not([data-bs-theme='light']) .nowo-search {
+  :where(:root:not([data-theme='light']):not([data-bs-theme='light']) .nowo-search) {
     --nowo-search-bg: #161b22;
     --nowo-search-fg: #e6edf3;
     --nowo-search-muted: #8d96a0;
@@ -50,11 +54,11 @@
     --nowo-search-badge-warning: #d29922;
     --nowo-search-badge-success: #3fb950;
     --nowo-search-badge-info: #4493f8;
+    --nowo-search-backdrop: rgb(1 4 9 / 60%);
   }
 }
 
-[data-theme='dark'] .nowo-search,
-[data-bs-theme='dark'] .nowo-search {
+:where([data-theme='dark'] .nowo-search, [data-bs-theme='dark'] .nowo-search) {
   --nowo-search-bg: #161b22;
   --nowo-search-fg: #e6edf3;
   --nowo-search-muted: #8d96a0;
@@ -69,6 +73,7 @@
   --nowo-search-badge-warning: #d29922;
   --nowo-search-badge-success: #3fb950;
   --nowo-search-badge-info: #4493f8;
+  --nowo-search-backdrop: rgb(1 4 9 / 60%);
 }
 
 .nowo-search__box {
@@ -142,6 +147,12 @@
 
 .nowo-search[data-state='loading'] .nowo-search__toggle-icon--loading {
   animation: nowo-search-spin 0.8s linear infinite;
+}
+
+@keyframes nowo-search-fade {
+  from {
+    opacity: 0;
+  }
 }
 
 @keyframes nowo-search-spin {
@@ -278,8 +289,17 @@
   display: none;
 }
 
-/* Phones: the open field spans the screen, over the other header icons. */
+/* Phones: the open field spans the screen, over the other header icons, above a dimmed backdrop (tap it to close). */
 @media (width < 40rem) {
+  .nowo-search.is-open::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: calc(var(--nowo-search-z) + 10);
+    background: var(--nowo-search-backdrop);
+    animation: nowo-search-fade 0.16s ease-out;
+  }
+
   .nowo-search.is-open .nowo-search__box {
     position: fixed;
     top: var(--nowo-search-mobile-top);
@@ -303,6 +323,10 @@
 
   .nowo-search[data-state='loading'] .nowo-search__toggle-icon--loading {
     animation-duration: 2.4s;
+  }
+
+  .nowo-search.is-open::before {
+    animation: none;
   }
 }
 

@@ -10,7 +10,7 @@ describe('mounting', () => {
   });
 
   it('mounts once per root and ignores invalid configurations', () => {
-    expect(VERSION).toBe('1.0.1');
+    expect(VERSION).toBe('1.0.2');
     expect(CSS_TOKEN_PREFIX).toBe('--nowo-search-');
     document.body.innerHTML = markup();
     const first = mount(root());
@@ -28,11 +28,14 @@ describe('mounting', () => {
     expect(mount(document.createElement('div'))).toBeNull();
   });
 
-  it('mountAll finds every root', () => {
+  it('mountAll finds every root and passes the options', () => {
     document.body.innerHTML = markup();
-    mountAll();
+    const loadPopoverStyles = vi.fn();
+    mountAll(document, { loadPopoverStyles });
+    root().dispatchEvent(new Event('pointerenter'));
     root().querySelector<HTMLButtonElement>('[data-part="toggle"]')?.click();
     expect(root().classList.contains('is-open')).toBe(true);
+    return Promise.resolve().then(() => expect(loadPopoverStyles).toHaveBeenCalledTimes(1));
   });
 
   it('autoStart mounts on ready and Turbo visits, and unmounts before Turbo renders', () => {
@@ -54,7 +57,7 @@ describe('mounting', () => {
     class Base {
       constructor(readonly element: Element) {}
     }
-    const Controller = createSearchKitController(Base);
+    const Controller = createSearchKitController(Base, { loadPopoverStyles: () => undefined });
     const controller = new Controller(root()) as InstanceType<typeof Base> & { connect(): void; disconnect(): void };
     controller.connect();
     root().querySelector<HTMLButtonElement>('[data-part="toggle"]')?.click();

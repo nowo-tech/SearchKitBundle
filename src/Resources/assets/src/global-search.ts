@@ -2,7 +2,7 @@ import { appendHighlighted, isMac } from './highlight';
 import { readRecent, rememberRecent, writeRecent } from './recent';
 import { sanitizeSvg } from './svg';
 import { isSafeUrl } from './url';
-import type { SearchConfig, SearchGroup, SearchItem, SearchState } from './types';
+import type { SearchConfig, SearchGroup, SearchItem, SearchOptions, SearchState } from './types';
 
 /** Group keys rendered from the config (not from the endpoint): their rows use the kind `<template>` icons. */
 const LOCAL_GROUPS = new Set(['recent', 'actions']);
@@ -43,10 +43,12 @@ export class GlobalSearch {
   /**
    * @param root Element rendered by the header partial (carries `data-nowo-search-config`)
    * @param config Parsed configuration
+   * @param options JavaScript-only options (lazy dropdown styles)
    */
   constructor(
     private readonly root: HTMLElement,
     private readonly config: SearchConfig,
+    private readonly searchOptions: SearchOptions = {},
   ) {
     this.toggle = this.part<HTMLButtonElement>('toggle');
     this.field = this.part('field');
@@ -83,7 +85,8 @@ export class GlobalSearch {
       this.root.querySelectorAll('[data-part="shortcut"]').forEach((el) => (el.textContent = '⌘ K'));
       this.root.querySelectorAll('[data-part="mod-key"]').forEach((el) => (el.textContent = '⌘'));
     }
-    this.setState('idle');
+    // Announce the initial state once, so hosts can sync a custom toggle icon (the markup already says idle).
+    this.setState(this.isOpen ? 'open' : 'idle');
   }
 
   /** Removes every listener and aborts a pending request. */
@@ -144,6 +147,12 @@ export class GlobalSearch {
       return;
     }
     this.stylesLoaded = true;
+    if (this.searchOptions.loadPopoverStyles) {
+      void Promise.resolve()
+        .then(() => this.searchOptions.loadPopoverStyles?.())
+        .catch(() => undefined);
+      return;
+    }
     const href = this.config.popoverCss;
     if (href && !document.querySelector(`link[data-nowo-search-popover]`)) {
       const link = document.createElement('link');
@@ -182,7 +191,9 @@ export class GlobalSearch {
   }
 
   private outside(event: Event): void {
-    if (this.isOpen && !this.root.contains(event.target as Node | null)) {
+    const target = event.target as Node | null;
+    // The root itself is only hit through its phone backdrop (::before); its children are the box and the dropdown.
+    if (this.isOpen && (target === this.root || !this.root.contains(target))) {
       this.close(false);
     }
   }
@@ -297,10 +308,8 @@ export class GlobalSearch {
     this.results.setAttribute('aria-busy', loading ? 'true' : 'false');
   }
 
+  /** Sets `data-state` and announces it (every call is a real transition, plus the initial one after mount). */
   private setState(state: SearchState): void {
-    if (this.root.dataset.state === state) {
-      return;
-    }
     this.root.dataset.state = state;
     this.root.dispatchEvent(new CustomEvent('nowo-search:state', { bubbles: true, detail: { state } }));
   }

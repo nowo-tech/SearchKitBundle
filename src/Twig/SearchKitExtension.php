@@ -45,7 +45,7 @@ final class SearchKitExtension extends AbstractExtension
 
     /**
      * @param string $secret Keys the per-user suffix of the recents storage key (`kernel.secret`)
-     * @param array{role: string, min_length: int, max_length: int, debounce_ms: int, keyboard_shortcuts: bool, recent: array{enabled: bool, max: int, storage_key: string}, quick_actions: list<array{label: string, translation_domain: string|null, route: string|null, route_parameters: array<string, scalar>, url: string|null, kind: string, role: string|null}>, assets: array{stylesheet: bool, script: bool}} $settings Bundle configuration
+     * @param array{role: string, min_length: int, max_length: int, debounce_ms: int, keyboard_shortcuts: bool, recent: array{enabled: bool, max: int, storage_key: string}, quick_actions: list<array{label: string, translation_domain: string|null, route: string|null, route_parameters: array<string, scalar>, url: string|null, kind: string, role: string|null}>, assets: array{stylesheet: bool, script: bool, popover_stylesheet?: false|string|null}} $settings Bundle configuration
      */
     public function __construct(
         private readonly Security $security,
@@ -109,7 +109,7 @@ final class SearchKitExtension extends AbstractExtension
                 'storageKey' => $storageKey,
             ],
             'assets'     => $settings['assets'],
-            'popoverCss' => $settings['assets']['stylesheet'] ? $this->packages->getUrl('css/nowo-search-popover.css', 'nowo_search_kit') : null,
+            'popoverCss' => $this->popoverCss($settings['assets']),
             'labels'     => $this->labels(),
         ];
     }
@@ -138,6 +138,22 @@ final class SearchKitExtension extends AbstractExtension
     public function form(): FormView
     {
         return $this->forms->create(SearchFieldType::class)->createView();
+    }
+
+    /**
+     * URL of the lazy dropdown stylesheet: the configured one, none (`false`), or the bundle file when the bundle
+     * stylesheet is on.
+     *
+     * @param array{stylesheet: bool, script: bool, popover_stylesheet?: false|string|null} $assets
+     */
+    private function popoverCss(array $assets): ?string
+    {
+        $configured = $assets['popover_stylesheet'] ?? null;
+        if ($configured === false || is_string($configured)) {
+            return $configured === false ? null : $configured;
+        }
+
+        return $assets['stylesheet'] ? $this->packages->getUrl('css/nowo-search-popover.css', 'nowo_search_kit') : null;
     }
 
     /**

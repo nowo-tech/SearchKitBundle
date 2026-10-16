@@ -186,11 +186,16 @@ the translated menu `label`.
 {{ include('@NowoSearchKitBundle/search.html.twig', {
     nowo_search_actions: [{title: 'Billing', url: path('billing'), subtitle: '', kind: 'action'}],
     nowo_search_id: 'header-search',
+    nowo_search_root_attr: {'data-controller': 'nowo-search-kit', class: 'ms-2'},
 }) }}
 ```
 
 `nowo_search_actions` adds quick actions (before the configured ones; rows without a title or with an unsafe URL are
-dropped); `nowo_search_id` changes the element ids (default `nowo-search`) when you render two boxes.
+dropped); `nowo_search_id` changes the element ids (default `nowo-search`) when you render two boxes;
+`nowo_search_root_attr` (1.0.2) adds attributes to the root element without copying `nowo_search_root`: `class` is
+appended to `nowo-search`, values are escaped, `true` renders a bare attribute, `false` / `null` are skipped, invalid
+attribute names and the reserved `id`, `data-state`, `data-testid`, `data-nowo-search-config` are ignored. To compute them
+in an override, redefine the `nowo_search_root_attributes` block (it prints the extra attributes inside the root tag).
 
 ### Blocks
 
@@ -198,6 +203,7 @@ dropped); `nowo_search_id` changes the element ids (default `nowo-search`) when 
 | --- | --- |
 | `nowo_search_assets` | `<link>` / `<script>` tags (`assets.*`) |
 | `nowo_search_root` | The whole component |
+| `nowo_search_root_attributes` | Extra attributes of the root tag (from `nowo_search_root_attr`; 1.0.2) |
 | `nowo_search_toggle` | The magnifier button |
 | `nowo_search_toggle_icon` | The three state icons (search / close / loading) |
 | `nowo_search_footer` | The key hints under the results |
@@ -273,7 +279,12 @@ mountAll();
 
 Load the CSS yourself as well when `assets.stylesheet` is off:
 `vendor/nowo-tech/search-kit-bundle/src/Resources/public/css/nowo-search.css` (always) and `nowo-search-popover.css`
-(the dropdown; lazy-load it if you watch your CSS budget).
+(the dropdown). Keep the dropdown lazy (1.0.2) either with `assets.popover_stylesheet: '/build/…css'` (the box injects
+that `<link>` on the first hover / focus) or with the JavaScript option, which wins over the URL:
+
+```ts
+mountAll(document, { loadPopoverStyles: () => import('./search-popover.css') });
+```
 
 ### Stimulus
 
@@ -281,10 +292,13 @@ Load the CSS yourself as well when `assets.stylesheet` is off:
 import { Controller } from '@hotwired/stimulus';
 import { createSearchKitController } from '../../vendor/nowo-tech/search-kit-bundle/src/Resources/assets/src/stimulus';
 
-application.register('nowo-search-kit', createSearchKitController(Controller));
+application.register('nowo-search-kit', createSearchKitController(Controller, {
+  loadPopoverStyles: () => import('./search-popover.css'), // optional
+}));
 ```
 
-Then override `nowo_search_root` to add `data-controller="nowo-search-kit"` on the root and set `assets.script: false`.
+Then add the controller with `nowo_search_root_attr: {'data-controller': 'nowo-search-kit'}` and set
+`assets.script: false`.
 
 ### Events
 
@@ -293,7 +307,8 @@ Then override `nowo_search_root` to add `data-controller="nowo-search-kit"` on t
 | `nowo-search:state` | `{state: 'idle' \| 'open' \| 'loading'}` | Drive a morphing icon, analytics |
 | `nowo-search:navigate` (cancelable) | `{url, newTab}` | `preventDefault()` and navigate yourself (e.g. `Turbo.visit(url)`) |
 
-The root also carries `data-state` and the class `is-open`.
+`nowo-search:state` is also dispatched once right after mount with the initial state (1.0.2), so a host can sync its
+icon without waiting for the first interaction. The root also carries `data-state` and the class `is-open`.
 
 ### Morphing toggle icon
 
@@ -309,8 +324,11 @@ document.addEventListener('nowo-search:state', (event) => {
 
 ## Theme tokens
 
-Set them on `.nowo-search` (or any ancestor) — light defaults, dark under `prefers-color-scheme: dark` or
-`[data-theme="dark"]` / `[data-bs-theme="dark"]`:
+Set them on `.nowo-search` — light defaults, dark under `prefers-color-scheme: dark` or `[data-theme="dark"]` /
+`[data-bs-theme="dark"]`. Since 1.0.2 the defaults are declared inside `:where()` (zero specificity), so any host rule on
+the element wins, whatever the stylesheet order — `.nowo-search { … }` is enough (no `#nowo-search`). Declare the tokens
+on the element itself (or a more specific selector such as `.app-header .nowo-search`), not on an ancestor: the element's
+own defaults would hide inherited values. Override the dark values under your own dark selector when you change them.
 
 | Token | Role |
 | --- | --- |
@@ -321,6 +339,7 @@ Set them on `.nowo-search` (or any ancestor) — light defaults, dark under `pre
 | `--nowo-search-size`, `--nowo-search-open-width`, `--nowo-search-popover-width` | Closed box, open field, dropdown widths |
 | `--nowo-search-font-size`, `--nowo-search-icon-size` | Text and toggle icon size |
 | `--nowo-search-z`, `--nowo-search-mobile-top` | Stacking and phone offset from the top |
+| `--nowo-search-backdrop` | Dimmed backdrop behind the open field on phones (< 40rem; tap it to close; 1.0.2) |
 | `--nowo-search-badge-error`, `-warning`, `-success`, `-info` | Badge tones |
 
 ```css

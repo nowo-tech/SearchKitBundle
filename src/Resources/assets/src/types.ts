@@ -52,5 +52,14 @@ export interface SearchConfig {
   labels: SearchLabels;
 }
 
+/** Options of a mounted search box (JavaScript only; the Twig configuration covers everything else). */
+export interface SearchOptions {
+  /**
+   * Loads the dropdown styles on the first hover / focus instead of injecting `popoverCss` — e.g.
+   * `() => import('./search-popover.css')` for a bundler chunk. Called once per box.
+   */
+  loadPopoverStyles?: () => unknown;
+}
+
 /** State of the toggle (also `data-state` on the root and the `nowo-search:state` event detail). */
 export type SearchState = 'idle' | 'open' | 'loading';

@@ -7,10 +7,11 @@
  * application.register('nowo-search-kit', createSearchKitController(Controller));
  * ```
  *
- * Add `data-controller="nowo-search-kit"` on the root (override block `nowo_search_root`) and turn
+ * Add `data-controller="nowo-search-kit"` on the root (`nowo_search_root_attr` include variable) and turn
  * `assets.script` off so the IIFE does not mount the same root.
  */
 import { mount, unmount } from './index';
+import type { SearchOptions } from './types';
 
 /** Minimal shape of a Stimulus controller class (mixin constructor). */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -23,13 +24,14 @@ export const STIMULUS_IDENTIFIER = 'nowo-search-kit';
  * Builds a Stimulus controller that mounts the search box on `connect()` and stops it on `disconnect()`.
  *
  * @param Base Stimulus `Controller` class
+ * @param options JavaScript-only options (e.g. `loadPopoverStyles: () => import('./search-popover.css')`)
  * @returns The controller class to register
  */
-export function createSearchKitController<T extends StimulusControllerClass>(Base: T): T {
+export function createSearchKitController<T extends StimulusControllerClass>(Base: T, options: SearchOptions = {}): T {
   return class extends Base {
     /** Mounts the search box on the controller element. */
     connect(): void {
-      mount(this.element as HTMLElement);
+      mount(this.element as HTMLElement, options);
     }
 
     /** Stops the search box of the controller element. */

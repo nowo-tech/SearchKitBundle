@@ -7,13 +7,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.0.2] - 2026-10-16](#102---2026-10-16)
+  - [Added](#added)
+  - [Fixed](#fixed)
 - [[1.0.1] - 2026-10-16](#101---2026-10-16)
   - [Security](#security)
-  - [Fixed](#fixed)
+  - [Fixed](#fixed-1)
 - [[1.0.0] - 2026-10-16](#100---2026-10-16)
-  - [Added](#added)
+  - [Added](#added-1)
 
 ## [Unreleased]
+
+## [1.0.2] - 2026-10-16
+
+Host-integration patch from the first real adoption (Symfony Beacon). Backward compatible.
+
+### Added
+
+- `nowo_search_root_attr` include variable and `nowo_search_root_attributes` block: extra attributes on the root element
+  (e.g. a host `data-controller`) without copying `nowo_search_root`; `class` is appended, values escaped, reserved and
+  invalid names ignored.
+- `assets.popover_stylesheet` (`null` | `false` | path / http(s) URL): the lazy dropdown stylesheet also works with
+  `assets.stylesheet: false` (e.g. a Vite chunk), or can be turned off.
+- JavaScript options `SearchOptions` (`loadPopoverStyles`) for `mount(root, options)`, `mountAll(scope, options)`,
+  `new GlobalSearch(root, config, options)` and `createSearchKitController(Controller, options)`.
+- Phones (< 40rem): a dimmed backdrop (`--nowo-search-backdrop`) behind the open field and dropdown; tapping it closes
+  the box. Browser `VERSION` is `1.0.2`.
+
+### Fixed
+
+- Default `--nowo-search-*` tokens are declared inside `:where()` (zero specificity): a plain host
+  `.nowo-search { --nowo-search-accent: … }` now overrides them in light and dark mode (it needed `#nowo-search` before).
+- `nowo-search:state` is dispatched once right after mount with the initial state, so hosts can sync a custom toggle icon.
 
 ## [1.0.1] - 2026-10-16
 

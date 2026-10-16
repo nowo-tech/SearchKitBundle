@@ -3,6 +3,7 @@
  #
  #     {{ include('@NowoSearchKitBundle/search.html.twig') }}
  #     {{ include('@NowoSearchKitBundle/search.html.twig', {nowo_search_actions: [{title: 'Billing', url: path('billing')}]}) }}
+ #     {{ include('@NowoSearchKitBundle/search.html.twig', {nowo_search_root_attr: {'data-controller': 'nowo-search-kit', class: 'ms-2'}}) }}
  #
  # A magnifier that stretches into a field (button, Ctrl/⌘ K, "/"), with grouped results in a dropdown under it.
  # Guests and users without `nowo_search_kit.role` get nothing. To change part of it, create
@@ -24,8 +25,17 @@
         {% endif %}
     {% endblock %}
     {% block nowo_search_root %}
-        <div class="nowo-search" id="{{ nowo_search_id }}" data-state="idle" data-testid="nowo-search"
-            data-nowo-search-config="{{ nowo_search_config|json_encode|e('html_attr') }}">
+        {% set nowo_search_root_attr = nowo_search_root_attr ?? {} %}
+        <div class="nowo-search{{ (nowo_search_root_attr.class ?? '') is not empty ? ' ' ~ nowo_search_root_attr.class }}" id="{{ nowo_search_id }}"
+            data-state="idle" data-testid="nowo-search" data-nowo-search-config="{{ nowo_search_config|json_encode|e('html_attr') }}"
+            {%- block nowo_search_root_attributes -%}
+                {%- for name, value in nowo_search_root_attr -%}
+                    {%- if name not in ['class', 'id', 'data-state', 'data-testid', 'data-nowo-search-config'] and name matches '/^[A-Za-z_:][A-Za-z0-9_:.-]*$/' and value is not same as(false) and value is not null -%}
+                        {{ ' ' ~ name }}{% if value is not same as(true) %}="{{ value }}"{% endif %}
+                    {%- endif -%}
+                {%- endfor -%}
+            {%- endblock -%}
+        >
             <div class="nowo-search__box" role="search" data-part="box">
                 {% block nowo_search_toggle %}
                     <button type="button" class="nowo-search__toggle" data-part="toggle" data-testid="nowo-search-toggle"

@@ -122,6 +122,45 @@ final class SearchPartialTest extends TestCase
         self::assertNull($data['groups'][0]['items'][0]['icon'], 'svg_inline: rows use the kind templates');
     }
 
+    public function testHostAttributesOnTheRootAreMergedAndEscaped(): void
+    {
+        $client = $this->client();
+        $client->loginUser(new InMemoryUser('alice', 'x', ['ROLE_USER']));
+        $client->request(Request::METHOD_GET, '/page-attrs');
+        $html    = (string) $client->getResponse()->getContent();
+        $crawler = new Crawler($html);
+        $root    = $crawler->filter('[data-nowo-search-config]');
+
+        self::assertSame('nowo-search ms-2 header-search', $root->attr('class'));
+        self::assertSame('nowo-search-kit', $root->attr('data-controller'));
+        self::assertSame('a"b<c>', $root->attr('data-quote'));
+        self::assertStringContainsString('data-quote="a&quot;b&lt;c&gt;"', $html, 'values are escaped');
+        self::assertSame('', $root->attr('inert'), 'true renders a bare attribute');
+        self::assertNull($root->attr('hidden'), 'false is skipped');
+        self::assertNull($root->attr('data-null'), 'null is skipped');
+        self::assertSame('nowo-search', $root->attr('id'), 'reserved attributes cannot be overridden');
+        self::assertSame('idle', $root->attr('data-state'));
+        self::assertNotSame('{}', $root->attr('data-nowo-search-config'));
+        self::assertStringNotContainsString('bad name', $html);
+        self::assertStringNotContainsString('<script>', $html, 'invalid attribute names are dropped');
+    }
+
+    public function testPopoverStylesheetCanBeReplacedOrTurnedOff(): void
+    {
+        $client = $this->client(['assets' => ['stylesheet' => false, 'popover_stylesheet' => '/build/search-popover.css']]);
+        $client->loginUser(new InMemoryUser('alice', 'x', ['ROLE_USER']));
+        $crawler = $client->request(Request::METHOD_GET, '/page');
+        self::assertSame('/build/search-popover.css', $this->config($crawler)['popoverCss']);
+        self::assertCount(0, $crawler->filter('link'));
+        $this->kernel?->shutdown();
+
+        $client = $this->client(['assets' => ['popover_stylesheet' => false]]);
+        $client->loginUser(new InMemoryUser('alice', 'x', ['ROLE_USER']));
+        $crawler = $client->request(Request::METHOD_GET, '/page');
+        self::assertNull($this->config($crawler)['popoverCss']);
+        self::assertCount(1, $crawler->filter('link[href$="nowo-search.css"]'));
+    }
+
     public function testWithoutUxIconsTheBuiltInSvgIsUsed(): void
     {
         $this->kernel = new TestKernel([], false);

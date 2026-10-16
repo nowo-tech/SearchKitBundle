@@ -129,12 +129,19 @@ final class TestKernel extends Kernel
         $routes->import('@NowoSearchKitBundle/Resources/config/routes.php')->prefix('/search', false);
         $routes->add('test_page', '/page')->controller([self::class, 'page']);
         $routes->add('test_project_page', '/projects/{id}/page')->controller([self::class, 'page']);
+        $routes->add('test_attrs_page', '/page-attrs')->controller([self::class, 'attrsPage']);
     }
 
     /** A signed-in page of the host application: renders the header search. */
     public function page(Environment $twig): Response
     {
         return new Response($twig->render('@SearchKitTest/page.html.twig'));
+    }
+
+    /** A host page that adds attributes to the root element (`nowo_search_root_attr`). */
+    public function attrsPage(Environment $twig): Response
+    {
+        return new Response($twig->render('@SearchKitTest/page_attrs.html.twig'));
     }
 
     protected function build(ContainerBuilder $container): void
