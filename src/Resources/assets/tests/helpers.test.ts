@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { appendHighlighted, isMac } from '../src/highlight';
 import { readRecent, rememberRecent, writeRecent } from '../src/recent';
+import { sanitizeSvg } from '../src/svg';
 import { isSafeUrl, isSameSitePath } from '../src/url';
 
 const KEY = 'test.recent';
@@ -21,6 +22,48 @@ describe('url helpers', () => {
     expect(isSafeUrl('/\r\\evil.example')).toBe(false);
     expect(isSafeUrl('https://example.com/a b')).toBe(false);
     expect(isSafeUrl('https://example.com/\u007f')).toBe(false);
+  });
+});
+
+describe('sanitizeSvg', () => {
+  it('keeps a drawing-only icon and returns it as an element of the current document', () => {
+    const svg = sanitizeSvg(
+      ' <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="icon" fill="url(#g)"><title>Bug</title>'
+        + '<defs><linearGradient id="g"><stop offset="0"/></linearGradient></defs><g><path d="M1 1h2"/></g></svg> ',
+    );
+    expect(svg).not.toBeNull();
+    expect(svg?.ownerDocument).toBe(document);
+    expect(svg?.namespaceURI).toBe('http://www.w3.org/2000/svg');
+    expect(svg?.getAttribute('class')).toBe('icon');
+    expect(svg?.getAttribute('fill')).toBe('url(#g)');
+    expect(svg?.querySelector('title')?.textContent).toBe('Bug');
+    expect(svg?.querySelector('linearGradient stop')).not.toBeNull();
+    expect(svg?.querySelector('g path')?.getAttribute('d')).toBe('M1 1h2');
+  });
+
+  it('removes scripts, foreign content, links, animations and every handler or script / data URL', () => {
+    const svg = sanitizeSvg(
+      '<svg onload="alert(1)" ONMOUSEOVER="alert(2)"><script>alert(3)</script><style>*{}</style>'
+        + '<foreignObject><b>html</b></foreignObject><a href="javascript:alert(4)"><path d="M0 0"/></a>'
+        + '<image href="https://evil.example/x.png"/><animate attributeName="href" to="javascript:alert(5)"/>'
+        + '<use xlink:href="#x"/><rect fill="javascript:alert(6)" stroke=" data:x" width="2" onclick="alert(7)"/></svg>',
+    );
+    expect(svg).not.toBeNull();
+    expect(svg?.attributes.length).toBe(0);
+    expect(Array.from(svg?.querySelectorAll('*') ?? []).map((e) => e.localName)).toEqual(['rect']);
+    const rect = svg?.querySelector('rect');
+    expect(rect?.getAttribute('width')).toBe('2');
+    expect(rect?.hasAttribute('fill')).toBe(false);
+    expect(rect?.hasAttribute('stroke')).toBe(false);
+    expect(rect?.hasAttribute('onclick')).toBe(false);
+  });
+
+  it('refuses markup that is not a single <svg>', () => {
+    expect(sanitizeSvg('')).toBeNull();
+    expect(sanitizeSvg('plain text')).toBeNull();
+    expect(sanitizeSvg('<img src="x" onerror="alert(1)">')).toBeNull();
+    expect(sanitizeSvg('<svg></svg><svg></svg>')).toBeNull();
+    expect(sanitizeSvg('<math><mi>x</mi></math>')).toBeNull();
   });
 });
 

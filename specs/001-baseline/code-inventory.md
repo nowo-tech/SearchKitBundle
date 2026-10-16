@@ -2,7 +2,7 @@
 
 **Package**: `nowo-tech/search-kit-bundle`  
 **Last audited**: 2026-10-16  
-**Production units**: **38/38**  
+**Production units**: **39/39**  
 **Audit command**: `find src -type f \( -name '*.php' -o -name '*.twig' -o -name '*.yaml' -o -name '*.ts' -o -name '*.css' \) -not -path 'src/Resources/assets/tests/*' | wc -l`
 
 ## Scope notes
@@ -21,9 +21,9 @@
 | HTTP | 1 |
 | Twig, markup & theme | 3 |
 | Stylesheets | 2 |
-| Browser (TypeScript) | 8 |
+| Browser (TypeScript) | 9 |
 | Translations | 7 |
-| **Total** | **38** |
+| **Total** | **39** |
 
 
 ## Bundle, configuration & DI
@@ -89,6 +89,7 @@
 | `src/Resources/assets/src/index.ts` | US-01, US-07 | FR-TS-001 |
 | `src/Resources/assets/src/recent.ts` | US-05 | FR-TS-003 |
 | `src/Resources/assets/src/stimulus.ts` | US-07 | FR-TS-004 |
+| `src/Resources/assets/src/svg.ts` | US-02, US-08 | FR-TS-006 |
 | `src/Resources/assets/src/types.ts` | US-02, US-07 | FR-TS-005 |
 | `src/Resources/assets/src/url.ts` | US-08 | FR-TS-003 |
 

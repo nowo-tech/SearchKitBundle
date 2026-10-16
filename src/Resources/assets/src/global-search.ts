@@ -1,5 +1,6 @@
 import { appendHighlighted, isMac } from './highlight';
 import { readRecent, rememberRecent, writeRecent } from './recent';
+import { sanitizeSvg } from './svg';
 import { isSafeUrl } from './url';
 import type { SearchConfig, SearchGroup, SearchItem, SearchState } from './types';
 
@@ -409,10 +410,11 @@ export class GlobalSearch {
     const icon = document.createElement('span');
     icon.className = 'nowo-search__option-icon';
     icon.setAttribute('aria-hidden', 'true');
-    if (item.icon && !LOCAL_GROUPS.has(groupKey)) {
-      // Server-rendered SVG from the application's own icon set (UX Icons), never user text.
-      // eslint-disable-next-line no-restricted-syntax
-      icon.innerHTML = item.icon;
+    // Server-rendered SVG from the application's icon set (UX Icons), cleaned before it reaches the page; markup that
+    // is not a single drawing-only <svg> falls back to the kind icon.
+    const svg = item.icon && !LOCAL_GROUPS.has(groupKey) ? sanitizeSvg(item.icon) : null;
+    if (svg !== null) {
+      icon.append(svg);
     } else {
       const template =
         this.root.querySelector<HTMLTemplateElement>(`template[data-nowo-search-icon="${kind}"]`) ??

@@ -144,6 +144,9 @@ only navigates to same-site paths or http(s) URLs.
   `<mark>` highlighting through DOM nodes, `isMac`, URL guards.
 - **FR-TS-004** — `stimulus.ts`: `createSearchKitController(Controller)` and `STIMULUS_IDENTIFIER`.
 - **FR-TS-005** — `types.ts`: shared shapes.
+- **FR-TS-006** — `svg.ts`: `sanitizeSvg` turns a row icon's server SVG into a detached element (inert parse, single
+  `<svg>` root, drawing elements only, no event handler / `href` / `javascript:` or `data:` value); anything else falls
+  back to the kind icon. No HTML string is ever assigned to the page.
 - **FR-BUILD-001** — `vite build` produces `src/Resources/public/js/nowo-search.js` (IIFE, `NowoSearch`).
 
 ## Key entities
@@ -164,7 +167,7 @@ only navigates to same-site paths or http(s) URLs.
 
 ## Success criteria
 
-- **SC-01** — `code-inventory.md` maps **38/38** production units (see its audit command).
+- **SC-01** — `code-inventory.md` maps **39/39** production units (see its audit command).
 - **SC-02** — PHPUnit: 100% line coverage of `src/`.
 - **SC-03** — Vitest: 100% lines / statements / functions of `Resources/assets/src` (branches ≥ 95%).
 - **SC-04** — PHPStan level 8 (with the FrankenPHP rulesets), Rector and PHP-CS-Fixer report nothing; Igor passes.

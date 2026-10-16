@@ -15,7 +15,7 @@ export { isSafeUrl, isSameSitePath } from './url';
 export type { SearchBadge, SearchConfig, SearchGroup, SearchItem, SearchLabels, SearchState } from './types';
 
 /** Package version of the browser bundle. */
-export const VERSION = '1.0.0';
+export const VERSION = '1.0.1';
 
 /** Prefix of every CSS custom property (theme token) of the search box. */
 export const CSS_TOKEN_PREFIX = '--nowo-search-';

@@ -29,6 +29,7 @@
 
 - The application decides what a user may see; the kit never queries application data and never leaks counts.
 - Stateless services only (FrankenPHP worker mode); no per-request caches.
-- Text reaches the DOM through text nodes; only trusted SVG from the icon set uses `innerHTML` (lint rule).
+- Text reaches the DOM through text nodes; row icon SVG from the icon set is cleaned by `sanitizeSvg()` (`svg.ts`) and
+  appended as nodes — no HTML string is assigned anywhere (lint rule).
 - URLs are checked on both sides: `SearchItem` refuses anything but paths and http(s); the browser re-checks before
   rendering and navigating, and stores only same-site paths as recents.

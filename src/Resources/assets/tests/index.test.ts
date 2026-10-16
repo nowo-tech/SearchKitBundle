@@ -10,7 +10,7 @@ describe('mounting', () => {
   });
 
   it('mounts once per root and ignores invalid configurations', () => {
-    expect(VERSION).toBe('1.0.0');
+    expect(VERSION).toBe('1.0.1');
     expect(CSS_TOKEN_PREFIX).toBe('--nowo-search-');
     document.body.innerHTML = markup();
     const first = mount(root());

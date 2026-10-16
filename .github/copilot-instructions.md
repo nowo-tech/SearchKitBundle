@@ -32,7 +32,7 @@ Follow these rules when contributing PHP, TypeScript, Twig, and documentation to
 - Asset package: `nowo_search_kit` (`base_path: /bundles/nowosearchkit`); load `asset('js/nowo-search.js', 'nowo_search_kit')`.
 - CSS classes `.nowo-search__*`, CSS custom properties `--nowo-search-*`, DOM hooks `data-part` / `data-nowo-search-*`, Stimulus identifier `nowo-search-kit`.
 - Permissions come from the host providers (`SearchProviderInterface`); the scope id is untrusted input.
-- Never log query text; never render user text as HTML (text nodes only; only icon-set SVG may use innerHTML).
+- Never log query text; never render user text as HTML (text nodes only; icon-set SVG goes through `sanitizeSvg()`, never `innerHTML`).
 - No per-request state in services (FrankenPHP worker mode).
 
 ---
