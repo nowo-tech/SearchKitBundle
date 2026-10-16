@@ -1,0 +1,14 @@
+<bg=blue;fg=white>                           </>
+<bg=blue;fg=white> Search Kit Bundle installed </>
+<bg=blue;fg=white>                           </>
+
+Created: config/packages/nowo_search_kit.yaml and config/routes/nowo_search_kit.yaml.
+
+Next steps:
+  1. Add one service per group implementing Nowo\SearchKitBundle\Contract\SearchProviderInterface
+     (autoconfigured; return only what the user may open).
+  2. Optional: alias Nowo\SearchKitBundle\Contract\SearchScopeResolverInterface for a scope chip.
+  3. Render the search in your signed-in header: <comment>{{ include('@NowoSearchKitBundle/search.html.twig') }}</comment>
+  4. Publish the assets: <comment>php bin/console assets:install</comment>
+
+Read docs/INSTALLATION.md and docs/USAGE.md.

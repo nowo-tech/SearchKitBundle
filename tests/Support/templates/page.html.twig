@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head><title>Host page</title></head>
+    <body>
+        {{ include('@NowoSearchKitBundle/search.html.twig', {nowo_search_actions: [
+            {title: 'Host action', url: '/host', subtitle: 'from the host', kind: 'page'},
+            {title: 'Unsafe', url: 'javascript:alert(1)'},
+            'not an action',
+        ]}) }}
+    </body>
+</html>

@@ -1,0 +1,272 @@
+/*
+ * NowoSearchKitBundle — results dropdown (lazy: injected by nowo-search.js on first hover / focus of the box).
+ * Uses the --nowo-search-* tokens declared in nowo-search.css.
+ */
+.nowo-search__popover {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  z-index: var(--nowo-search-z);
+  display: flex;
+  flex-direction: column;
+  width: var(--nowo-search-popover-width);
+  max-height: min(30rem, calc(100dvh - 6rem));
+  overflow: hidden;
+  border: 1px solid var(--nowo-search-border);
+  border-radius: var(--nowo-search-popover-radius);
+  background: var(--nowo-search-bg);
+  color: var(--nowo-search-fg);
+  box-shadow: var(--nowo-search-shadow);
+  animation: nowo-search-drop 0.16s ease-out;
+}
+
+.nowo-search__popover[hidden] {
+  display: none;
+}
+
+@keyframes nowo-search-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-0.35rem);
+  }
+}
+
+.nowo-search__popover kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.15rem;
+  padding: 0.05rem 0.25rem;
+  border: 1px solid var(--nowo-search-border);
+  border-bottom-width: 2px;
+  border-radius: 0.25rem;
+  background: var(--nowo-search-bg);
+  color: inherit;
+  font-family: inherit;
+  font-size: 0.625rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.nowo-search__results {
+  flex: 1;
+  min-height: 0;
+  padding: 0.35rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--nowo-search-border) transparent;
+}
+
+.nowo-search__results::-webkit-scrollbar {
+  width: 6px;
+}
+
+.nowo-search__results::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: var(--nowo-search-border);
+}
+
+.nowo-search__group + .nowo-search__group {
+  margin-top: 0.35rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--nowo-search-border);
+}
+
+.nowo-search__group-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.35rem 0.6rem 0.25rem;
+  color: var(--nowo-search-muted);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.nowo-search__group-action {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--nowo-search-accent-fg);
+  font: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+  cursor: pointer;
+}
+
+.nowo-search__group-action:hover {
+  text-decoration: underline;
+}
+
+.nowo-search__option {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.5rem;
+  color: inherit;
+  text-decoration: none;
+  scroll-margin: 0.35rem;
+}
+
+.nowo-search__option:hover {
+  color: inherit;
+  text-decoration: none;
+}
+
+.nowo-search__option[aria-selected='true'] {
+  background: var(--nowo-search-accent-soft);
+  box-shadow: inset 2px 0 0 var(--nowo-search-accent);
+}
+
+.nowo-search__option[aria-selected='true'] .nowo-search__option-enter {
+  visibility: visible;
+}
+
+.nowo-search__option mark {
+  padding: 0;
+  border-radius: 0.15rem;
+  background: var(--nowo-search-mark);
+  color: inherit;
+}
+
+.nowo-search__option--more {
+  color: var(--nowo-search-accent-fg);
+  font-weight: 600;
+}
+
+.nowo-search__option-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid var(--nowo-search-border);
+  border-radius: 0.4rem;
+  background: var(--nowo-search-surface);
+  color: var(--nowo-search-muted);
+}
+
+.nowo-search__option-icon svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.nowo-search__option-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.nowo-search__option-title,
+.nowo-search__option-subtitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nowo-search__option-title {
+  font-size: var(--nowo-search-font-size);
+  font-weight: 500;
+}
+
+.nowo-search__option-subtitle {
+  color: var(--nowo-search-muted);
+  font-size: 0.7rem;
+}
+
+.nowo-search__badge {
+  flex-shrink: 0;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--nowo-search-fg) 9%, transparent);
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.nowo-search__badge--fatal,
+.nowo-search__badge--error {
+  background: color-mix(in srgb, var(--nowo-search-badge-error) 16%, transparent);
+  color: var(--nowo-search-badge-error);
+}
+
+.nowo-search__badge--warning {
+  background: color-mix(in srgb, var(--nowo-search-badge-warning) 20%, transparent);
+  color: var(--nowo-search-badge-warning);
+}
+
+.nowo-search__badge--success {
+  background: color-mix(in srgb, var(--nowo-search-badge-success) 16%, transparent);
+  color: var(--nowo-search-badge-success);
+}
+
+.nowo-search__badge--info {
+  background: color-mix(in srgb, var(--nowo-search-badge-info) 16%, transparent);
+  color: var(--nowo-search-badge-info);
+}
+
+.nowo-search__option-enter {
+  visibility: hidden;
+  flex-shrink: 0;
+}
+
+.nowo-search__empty {
+  margin: 0;
+  padding: 1.5rem 1rem;
+  color: var(--nowo-search-muted);
+  font-size: var(--nowo-search-font-size);
+  text-align: center;
+}
+
+.nowo-search__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  padding: 0.45rem 0.85rem;
+  border-top: 1px solid var(--nowo-search-border);
+  background: var(--nowo-search-surface);
+  color: var(--nowo-search-muted);
+  font-size: 0.68rem;
+}
+
+.nowo-search__footer span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* Phones: the dropdown spans the screen under the stretched field; no keyboard hints. */
+@media (width < 40rem) {
+  .nowo-search__popover {
+    position: fixed;
+    top: calc(var(--nowo-search-mobile-top) + 2.25rem + 0.4rem);
+    right: 0.5rem;
+    left: 0.5rem;
+    width: auto;
+    max-height: calc(100dvh - var(--nowo-search-mobile-top) - 3.5rem);
+  }
+
+  .nowo-search__footer,
+  .nowo-search__option-enter {
+    display: none;
+  }
+
+  .nowo-search__option {
+    padding-block: 0.6rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nowo-search__popover {
+    animation: none;
+  }
+}
+
+[data-motion='reduce'] .nowo-search__popover {
+  animation: none;
+}

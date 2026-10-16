@@ -1,0 +1,6 @@
+# Search Kit Bundle — see docs/CONFIGURATION.md for every option.
+nowo_search_kit:
+    role: IS_AUTHENTICATED
+    rate_limit:
+        limit: 30
+        interval: '10 seconds'

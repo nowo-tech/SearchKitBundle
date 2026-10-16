@@ -1,0 +1,23 @@
+# NowoSearchKitBundle — nl. Override any key in translations/NowoSearchKitBundle.nl.yaml of your application.
+search:
+    label: "Zoeken"
+    placeholder: "Zoeken…"
+    shortcut: "Druk op %keys% om overal te zoeken"
+    loading: "Zoeken…"
+    empty: "Geen resultaten voor “%query%”"
+    min_chars: "Typ minstens %min% tekens."
+    error: "Zoeken is nu niet beschikbaar. Probeer het opnieuw."
+    rate_limited: "Te veel zoekopdrachten. Wacht even en probeer het opnieuw."
+    results: "%count% resultaten"
+    scope_in: "In %scope%"
+    scope_remove: "Overal zoeken"
+    clear_recent: "Wissen"
+    group:
+        pages: "Pagina’s"
+        recent: "Recent"
+        actions: "Snelkoppelingen"
+    hint:
+        move: "om te bewegen"
+        open: "om te openen"
+        close: "om te sluiten"
+        new_tab: "nieuw tabblad"

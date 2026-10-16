@@ -1,0 +1,41 @@
+demo:
+  title: 'Search Kit Bundle'
+  brand: 'Search Kit'
+  heading: 'Search Kit Bundle'
+  lead: 'A global header search for Symfony: a magnifier that stretches into a field, with grouped, permission-aware results.'
+  language: Language
+  logout: 'Sign out'
+  features:
+    title: 'What you can try'
+    open: 'Open it with the magnifier, Ctrl/⌘ K or "/"'
+    groups: 'Projects, Documentation and Users groups from three demo providers'
+    permissions: 'bob only sees public projects; alice (admin) also sees private ones and the Users group'
+    scope: 'On a project page the search starts scoped to it (remove the chip with Backspace)'
+    keyboard: 'Arrows, Enter, Ctrl/⌘ Enter for a new tab, Escape'
+    recent: 'Recent picks and quick actions while the field is empty'
+    theming: 'Overridable Twig blocks and --nowo-search-* CSS tokens (light and dark)'
+  try:
+    title: 'Try it'
+    guest: 'Sign in as alice (admin) or bob — password “password”.'
+    signed_in: 'Press Ctrl/⌘ K and type "shop", "api" or "doc". Open a project to try the scope:'
+    project: 'Project %id%'
+  page:
+    hint: 'Press Ctrl/⌘ K to search from here.'
+  group:
+    projects: Projects
+    docs: Documentation
+    users: Users
+  badge:
+    private: private
+  see_all_docs: 'All documentation'
+  action:
+    home: Home
+    docs: 'Read the documentation'
+    users: 'Manage users'
+  login:
+    nav: 'Sign in'
+    hint: 'Accounts alice (admin) and bob — password “password”.'
+    username: Username
+    password: Password
+    submit: 'Sign in'
+    signed_in: 'Signed in as %user%.'

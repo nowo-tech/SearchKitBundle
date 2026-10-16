@@ -1,0 +1,23 @@
+# NowoSearchKitBundle — es. Override any key in translations/NowoSearchKitBundle.es.yaml of your application.
+search:
+    label: "Buscar"
+    placeholder: "Buscar…"
+    shortcut: "Pulsa %keys% para buscar desde cualquier sitio"
+    loading: "Buscando…"
+    empty: "Sin resultados para «%query%»"
+    min_chars: "Escribe al menos %min% caracteres para buscar."
+    error: "La búsqueda no está disponible ahora. Inténtalo de nuevo."
+    rate_limited: "Demasiadas búsquedas. Espera un momento y vuelve a intentarlo."
+    results: "%count% resultados"
+    scope_in: "En %scope%"
+    scope_remove: "Buscar en todo"
+    clear_recent: "Borrar"
+    group:
+        pages: "Páginas"
+        recent: "Recientes"
+        actions: "Accesos rápidos"
+    hint:
+        move: "para moverte"
+        open: "para abrir"
+        close: "para cerrar"
+        new_tab: "nueva pestaña"

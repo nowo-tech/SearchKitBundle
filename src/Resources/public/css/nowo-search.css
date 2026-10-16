@@ -1,0 +1,312 @@
+/*
+ * NowoSearchKitBundle — header search field (always loaded: the stretch must paint on the first click).
+ * The results dropdown lives in nowo-search-popover.css, fetched on first hover / focus.
+ * Theme with the --nowo-search-* tokens (light defaults; dark under prefers-color-scheme or [data-theme="dark"] /
+ * [data-bs-theme="dark"] on an ancestor).
+ */
+.nowo-search {
+  --nowo-search-bg: #ffffff;
+  --nowo-search-fg: #1f2328;
+  --nowo-search-muted: #636c76;
+  --nowo-search-border: #d0d7de;
+  --nowo-search-surface: #f6f8fa;
+  --nowo-search-accent: #0969da;
+  --nowo-search-accent-fg: #0550ae;
+  --nowo-search-accent-soft: rgb(9 105 218 / 12%);
+  --nowo-search-mark: rgb(212 167 44 / 35%);
+  --nowo-search-shadow: 0 18px 50px rgb(31 35 40 / 22%);
+  --nowo-search-radius: 0.375rem;
+  --nowo-search-popover-radius: 0.75rem;
+  --nowo-search-size: 2rem;
+  --nowo-search-open-width: min(26rem, 42vw);
+  --nowo-search-popover-width: min(36rem, calc(100vw - 1rem));
+  --nowo-search-font-size: 0.8125rem;
+  --nowo-search-icon-size: 14px;
+  --nowo-search-z: 60;
+  --nowo-search-mobile-top: 0.6rem;
+  --nowo-search-badge-error: #cf222e;
+  --nowo-search-badge-warning: #9a6700;
+  --nowo-search-badge-success: #1a7f37;
+  --nowo-search-badge-info: #0969da;
+
+  position: relative;
+  display: inline-flex;
+  color: var(--nowo-search-fg);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']):not([data-bs-theme='light']) .nowo-search {
+    --nowo-search-bg: #161b22;
+    --nowo-search-fg: #e6edf3;
+    --nowo-search-muted: #8d96a0;
+    --nowo-search-border: #30363d;
+    --nowo-search-surface: #0d1117;
+    --nowo-search-accent: #4493f8;
+    --nowo-search-accent-fg: #79b8ff;
+    --nowo-search-accent-soft: rgb(68 147 248 / 18%);
+    --nowo-search-mark: rgb(210 153 34 / 40%);
+    --nowo-search-shadow: 0 18px 50px rgb(0 0 0 / 55%);
+    --nowo-search-badge-error: #ff7b72;
+    --nowo-search-badge-warning: #d29922;
+    --nowo-search-badge-success: #3fb950;
+    --nowo-search-badge-info: #4493f8;
+  }
+}
+
+[data-theme='dark'] .nowo-search,
+[data-bs-theme='dark'] .nowo-search {
+  --nowo-search-bg: #161b22;
+  --nowo-search-fg: #e6edf3;
+  --nowo-search-muted: #8d96a0;
+  --nowo-search-border: #30363d;
+  --nowo-search-surface: #0d1117;
+  --nowo-search-accent: #4493f8;
+  --nowo-search-accent-fg: #79b8ff;
+  --nowo-search-accent-soft: rgb(68 147 248 / 18%);
+  --nowo-search-mark: rgb(210 153 34 / 40%);
+  --nowo-search-shadow: 0 18px 50px rgb(0 0 0 / 55%);
+  --nowo-search-badge-error: #ff7b72;
+  --nowo-search-badge-warning: #d29922;
+  --nowo-search-badge-success: #3fb950;
+  --nowo-search-badge-info: #4493f8;
+}
+
+.nowo-search__box {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  width: var(--nowo-search-size);
+  height: var(--nowo-search-size);
+  overflow: hidden;
+  border: 1px solid var(--nowo-search-border);
+  border-radius: var(--nowo-search-radius);
+  background: var(--nowo-search-bg);
+  color: inherit;
+  transition: width 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.1), border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.nowo-search__box:hover {
+  border-color: color-mix(in srgb, var(--nowo-search-accent) 40%, var(--nowo-search-border));
+}
+
+.nowo-search.is-open .nowo-search__box {
+  width: var(--nowo-search-open-width);
+  border-color: color-mix(in srgb, var(--nowo-search-accent) 55%, var(--nowo-search-border));
+  box-shadow: 0 0 0 3px var(--nowo-search-accent-soft);
+}
+
+.nowo-search__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: calc(var(--nowo-search-size) - 2px);
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  appearance: none;
+}
+
+.nowo-search__toggle:focus-visible {
+  outline: 2px solid var(--nowo-search-accent);
+  outline-offset: -2px;
+  border-radius: calc(var(--nowo-search-radius) - 1px);
+}
+
+.nowo-search.is-open .nowo-search__toggle {
+  color: var(--nowo-search-accent);
+}
+
+.nowo-search__svg,
+.nowo-search__toggle svg {
+  width: var(--nowo-search-icon-size);
+  height: var(--nowo-search-icon-size);
+}
+
+/* Toggle icon per state: magnifier (idle) ↔ ✕ (open) ↔ spinner (loading). */
+.nowo-search__toggle-icon {
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.nowo-search[data-state='idle'] .nowo-search__toggle-icon--search,
+.nowo-search[data-state='open'] .nowo-search__toggle-icon--close,
+.nowo-search[data-state='loading'] .nowo-search__toggle-icon--loading {
+  display: inline-flex;
+}
+
+.nowo-search[data-state='loading'] .nowo-search__toggle-icon--loading {
+  animation: nowo-search-spin 0.8s linear infinite;
+}
+
+@keyframes nowo-search-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.nowo-search__field {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  height: 100%;
+  padding-right: 0.3rem;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.15s ease, visibility 0s linear 0.15s;
+}
+
+.nowo-search.is-open .nowo-search__field {
+  visibility: visible;
+  opacity: 1;
+  transition: opacity 0.2s ease 0.08s, visibility 0s;
+}
+
+.nowo-search__input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--nowo-search-font-size);
+  border-radius: 0;
+  outline: none;
+  box-shadow: none;
+  appearance: none;
+}
+
+.nowo-search__input:focus,
+.nowo-search__input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.nowo-search__input::placeholder {
+  color: var(--nowo-search-muted);
+}
+
+.nowo-search__input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.nowo-search__kbd {
+  flex-shrink: 0;
+  padding: 0.1rem 0.3rem;
+  border: 1px solid var(--nowo-search-border);
+  border-radius: 0.25rem;
+  background: var(--nowo-search-surface);
+  color: var(--nowo-search-muted);
+  font-family: inherit;
+  font-size: 0.625rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.nowo-search__scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 45%;
+  padding: 0.1rem 0.1rem 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: var(--nowo-search-accent-soft);
+  color: var(--nowo-search-accent-fg);
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.nowo-search__scope[hidden] {
+  display: none;
+}
+
+.nowo-search__scope-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nowo-search__scope-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.nowo-search__scope-remove svg {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+.nowo-search__scope-remove:hover,
+.nowo-search__scope-remove:focus-visible {
+  background: var(--nowo-search-accent-soft);
+}
+
+/* Announcements only (the list is the visual feedback). */
+.nowo-search__status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.nowo-search__popover[hidden] {
+  display: none;
+}
+
+/* Phones: the open field spans the screen, over the other header icons. */
+@media (width < 40rem) {
+  .nowo-search.is-open .nowo-search__box {
+    position: fixed;
+    top: var(--nowo-search-mobile-top);
+    right: 0.5rem;
+    left: 0.5rem;
+    z-index: calc(var(--nowo-search-z) + 20);
+    width: auto;
+    height: 2.25rem;
+  }
+
+  .nowo-search__kbd {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nowo-search__box,
+  .nowo-search__field {
+    transition: none;
+  }
+
+  .nowo-search[data-state='loading'] .nowo-search__toggle-icon--loading {
+    animation-duration: 2.4s;
+  }
+}
+
+[data-motion='reduce'] .nowo-search__box,
+[data-motion='reduce'] .nowo-search__field {
+  transition: none;
+}

@@ -1,0 +1,14 @@
+parameters:
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    App\:
+        resource: '../src/'
+        exclude:
+            - '../src/Kernel.php'
+
+    # The search starts scoped to the project of /{_locale}/projects/{id} pages.
+    Nowo\SearchKitBundle\Contract\SearchScopeResolverInterface: '@App\Search\DemoScopeResolver'

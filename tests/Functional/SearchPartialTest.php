@@ -1,0 +1,161 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Nowo\SearchKitBundle\Tests\Functional;
+
+use Nowo\SearchKitBundle\Tests\Support\TestKernel;
+use PHPUnit\Framework\TestCase;
+use Symfony\Bundle\FrameworkBundle\KernelBrowser;
+use Symfony\Component\DomCrawler\Crawler;
+use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\Security\Core\User\InMemoryUser;
+
+use function assert;
+use function is_array;
+
+use const JSON_THROW_ON_ERROR;
+
+/**
+ * The header partial: nothing for guests; for users the field (Form widget), the browser configuration, the scope
+ * chip, quick actions, kind icon templates and the asset tags.
+ */
+final class SearchPartialTest extends TestCase
+{
+    private ?TestKernel $kernel = null;
+
+    protected function tearDown(): void
+    {
+        $this->kernel?->shutdown();
+        (new Filesystem())->remove(sys_get_temp_dir() . '/nowo-search-kit-bundle');
+    }
+
+    public function testGuestsGetNothing(): void
+    {
+        $crawler = $this->client()->request(Request::METHOD_GET, '/page');
+        self::assertCount(0, $crawler->filter('.nowo-search'));
+    }
+
+    public function testSignedInUsersGetTheSearchBox(): void
+    {
+        $client = $this->client();
+        $client->loginUser(new InMemoryUser('bob', 'x', ['ROLE_USER']));
+        $crawler = $client->request(Request::METHOD_GET, '/page');
+
+        $root = $crawler->filter('.nowo-search');
+        self::assertCount(1, $root);
+        self::assertSame('idle', $root->attr('data-state'));
+        $input = $crawler->filter('input[data-part="input"]');
+        self::assertSame('q', $input->attr('name'));
+        self::assertSame('search', $input->attr('type'));
+        self::assertSame('combobox', $input->attr('role'));
+        self::assertSame('nowo-search-results', $input->attr('aria-controls'));
+        self::assertSame('200', $input->attr('maxlength'));
+        self::assertSame('Search…', $input->attr('placeholder'));
+        self::assertCount(0, $crawler->filter('input[name*="_token"]'), 'no CSRF field: read-only GET');
+        self::assertCount(0, $crawler->filter('[data-part="scope"]'));
+        self::assertSame('Control+K Meta+K /', $crawler->filter('[data-part="toggle"]')->attr('aria-keyshortcuts'));
+        self::assertSame('/bundles/nowosearchkit/css/nowo-search.css', $crawler->filter('link[rel="stylesheet"]')->attr('href'));
+        self::assertSame('/bundles/nowosearchkit/js/nowo-search.js', $crawler->filter('script')->attr('src'));
+
+        $kinds = $crawler->filter('template[data-nowo-search-icon]')->each(static fn (Crawler $node): string => (string) $node->attr('data-nowo-search-icon'));
+        self::assertSame(['search', 'close', 'loading', 'pages', 'recent', 'action', 'item'], $kinds);
+        self::assertStringContainsString('<circle cx="10" cy="10" r="7"', $crawler->filter('.nowo-search__toggle-icon--search')->html(), 'search comes from the UX icon set');
+
+        $config = $this->config($crawler);
+        self::assertSame('/search', $config['url']);
+        self::assertSame(2, $config['minLength']);
+        self::assertSame(150, $config['debounceMs']);
+        self::assertTrue($config['shortcuts']);
+        self::assertNull($config['scope']);
+        self::assertSame('/bundles/nowosearchkit/css/nowo-search-popover.css', $config['popoverCss']);
+        self::assertSame(['enabled' => true, 'max' => 8, 'storageKey' => 'nowo.search.recent'], $config['recent']);
+        self::assertSame([
+            ['title' => 'Host action', 'subtitle' => 'from the host', 'url' => '/host', 'kind' => 'page'],
+            ['title' => 'Configured page', 'subtitle' => '', 'url' => '/page?tab=x', 'kind' => 'action'],
+            ['title' => 'Docs', 'subtitle' => '', 'url' => 'https://example.com/docs', 'kind' => 'page'],
+        ], $config['actions']);
+        self::assertSame('No results for “__QUERY__”', $config['labels']['empty']);
+        self::assertSame('Type at least 2 characters to search.', $config['labels']['minChars']);
+        self::assertSame('__COUNT__ results', $config['labels']['results']);
+    }
+
+    public function testScopeChipAndRoleFilteredActions(): void
+    {
+        $client = $this->client();
+        $client->loginUser(new InMemoryUser('admin', 'x', ['ROLE_ADMIN']));
+        $crawler = $client->request(Request::METHOD_GET, '/projects/beta/page');
+
+        self::assertSame('In Beta Shop', trim($crawler->filter('.nowo-search__scope-label')->text()));
+        $config = $this->config($crawler);
+        self::assertSame(['id' => 'beta', 'label' => 'Beta Shop'], $config['scope']);
+        self::assertContains('/admin', array_column($config['actions'], 'url'));
+
+        $client->loginUser(new InMemoryUser('bob', 'x', ['ROLE_USER']));
+        $crawler = $client->request(Request::METHOD_GET, '/projects/acme/page');
+        self::assertCount(0, $crawler->filter('[data-part="scope"]'), 'the chip never names a project the user cannot open');
+        $crawler = $client->request(Request::METHOD_GET, '/projects/unknown/page');
+        self::assertNull($this->config($crawler)['scope']);
+    }
+
+    public function testAssetsShortcutsAndSvgInlineCanBeTurnedOff(): void
+    {
+        $client = $this->client([
+            'assets'             => ['stylesheet' => false, 'script' => false],
+            'keyboard_shortcuts' => false,
+            'icon_set'           => 'svg_inline',
+            'icons'              => ['projects' => 'tabler:bug'],
+        ]);
+        $client->loginUser(new InMemoryUser('alice', 'x', ['ROLE_USER']));
+        $crawler = $client->request(Request::METHOD_GET, '/page');
+
+        self::assertCount(0, $crawler->filter('link, script'));
+        self::assertCount(0, $crawler->filter('[data-part="shortcut"]'));
+        self::assertNull($crawler->filter('[data-part="toggle"]')->attr('aria-keyshortcuts'));
+        self::assertNull($this->config($crawler)['popoverCss']);
+        self::assertStringContainsString('class="nowo-search__svg"', $crawler->filter('template[data-nowo-search-icon="projects"]')->html());
+
+        $client->request(Request::METHOD_GET, '/search?q=acme');
+        $data = json_decode((string) $client->getResponse()->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        assert(is_array($data));
+        self::assertNull($data['groups'][0]['items'][0]['icon'], 'svg_inline: rows use the kind templates');
+    }
+
+    public function testWithoutUxIconsTheBuiltInSvgIsUsed(): void
+    {
+        $this->kernel = new TestKernel([], false);
+        $this->kernel->boot();
+        $client = $this->kernel->getContainer()->get('test.client');
+        assert($client instanceof KernelBrowser);
+        $client->loginUser(new InMemoryUser('alice', 'x', ['ROLE_USER']));
+        $crawler = $client->request(Request::METHOD_GET, '/page');
+        self::assertStringContainsString('class="nowo-search__svg"', $crawler->filter('.nowo-search__toggle-icon--search')->html());
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     */
+    private function client(array $config = []): KernelBrowser
+    {
+        $this->kernel = new TestKernel($config);
+        $this->kernel->boot();
+        $client = $this->kernel->getContainer()->get('test.client');
+        assert($client instanceof KernelBrowser);
+        $client->disableReboot();
+
+        return $client;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function config(Crawler $crawler): array
+    {
+        $config = json_decode((string) $crawler->filter('.nowo-search')->attr('data-nowo-search-config'), true, 512, JSON_THROW_ON_ERROR);
+        assert(is_array($config));
+
+        /* @var array<string, mixed> $config */
+        return $config;
+    }
+}

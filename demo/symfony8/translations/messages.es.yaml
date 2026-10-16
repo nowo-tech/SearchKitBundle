@@ -1,0 +1,41 @@
+demo:
+  title: 'Search Kit Bundle'
+  brand: 'Search Kit'
+  heading: 'Search Kit Bundle'
+  lead: 'Un buscador global de cabecera para Symfony: una lupa que se estira en un campo, con resultados agrupados que respetan los permisos.'
+  language: Idioma
+  logout: 'Cerrar sesión'
+  features:
+    title: 'Qué puedes probar'
+    open: 'Ábrelo con la lupa, Ctrl/⌘ K o "/"'
+    groups: 'Grupos Proyectos, Documentación y Usuarios de tres proveedores de ejemplo'
+    permissions: 'bob solo ve los proyectos públicos; alice (admin) también los privados y el grupo Usuarios'
+    scope: 'En la página de un proyecto la búsqueda empieza acotada a él (quita la etiqueta con Retroceso)'
+    keyboard: 'Flechas, Intro, Ctrl/⌘ Intro para una pestaña nueva, Escape'
+    recent: 'Elecciones recientes y accesos rápidos con el campo vacío'
+    theming: 'Bloques Twig sobrescribibles y tokens CSS --nowo-search-* (claro y oscuro)'
+  try:
+    title: 'Pruébalo'
+    guest: 'Entra como alice (admin) o bob — contraseña «password».'
+    signed_in: 'Pulsa Ctrl/⌘ K y escribe "shop", "api" o "doc". Abre un proyecto para probar el ámbito:'
+    project: 'Proyecto %id%'
+  page:
+    hint: 'Pulsa Ctrl/⌘ K para buscar desde aquí.'
+  group:
+    projects: Proyectos
+    docs: Documentación
+    users: Usuarios
+  badge:
+    private: privado
+  see_all_docs: 'Toda la documentación'
+  action:
+    home: Inicio
+    docs: 'Leer la documentación'
+    users: 'Gestionar usuarios'
+  login:
+    nav: 'Entrar'
+    hint: 'Cuentas alice (admin) y bob — contraseña «password».'
+    username: Usuario
+    password: Contraseña
+    submit: 'Entrar'
+    signed_in: 'Sesión iniciada como %user%.'

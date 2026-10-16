@@ -1,0 +1,13 @@
+# NowoSearchKitBundle demo configuration (see docs/CONFIGURATION.md for every key).
+nowo_search_kit:
+    role: ROLE_USER
+    rate_limit:
+        limit: 30
+        interval: '10 seconds'
+    quick_actions:
+        - { label: 'demo.action.docs', url: '/en/docs/installation', kind: docs }
+        - { label: 'demo.action.users', url: '/en/users', kind: users, role: ROLE_ADMIN }
+    icons:
+        projects: 'tabler:folder'
+        docs: 'tabler:book'
+        users: 'tabler:users'

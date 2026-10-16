@@ -1,0 +1,96 @@
+{#
+ # NowoSearchKitBundle header search. Include it where your header icons live (signed-in layout):
+ #
+ #     {{ include('@NowoSearchKitBundle/search.html.twig') }}
+ #     {{ include('@NowoSearchKitBundle/search.html.twig', {nowo_search_actions: [{title: 'Billing', url: path('billing')}]}) }}
+ #
+ # A magnifier that stretches into a field (button, Ctrl/⌘ K, "/"), with grouped results in a dropdown under it.
+ # Guests and users without `nowo_search_kit.role` get nothing. To change part of it, create
+ # templates/bundles/NowoSearchKitBundle/search.html.twig with {% extends '@!NowoSearchKitBundle/search.html.twig' %}
+ # and redefine the blocks you need (e.g. `nowo_search_toggle_icon` for a morphing icon).
+ #}
+{% trans_default_domain 'NowoSearchKitBundle' %}
+{% set nowo_search_config = nowo_search_kit_config(nowo_search_actions ?? []) %}
+{% if nowo_search_config %}
+    {% set nowo_search_id = nowo_search_id ?? 'nowo-search' %}
+    {% set nowo_search_icons = nowo_search_kit_icons() %}
+    {% set nowo_search_form = nowo_search_kit_form() %}
+    {% block nowo_search_assets %}
+        {% if nowo_search_config.assets.stylesheet %}
+            <link rel="stylesheet" href="{{ asset('css/nowo-search.css', 'nowo_search_kit') }}">
+        {% endif %}
+        {% if nowo_search_config.assets.script %}
+            <script src="{{ asset('js/nowo-search.js', 'nowo_search_kit') }}" defer></script>
+        {% endif %}
+    {% endblock %}
+    {% block nowo_search_root %}
+        <div class="nowo-search" id="{{ nowo_search_id }}" data-state="idle" data-testid="nowo-search"
+            data-nowo-search-config="{{ nowo_search_config|json_encode|e('html_attr') }}">
+            <div class="nowo-search__box" role="search" data-part="box">
+                {% block nowo_search_toggle %}
+                    <button type="button" class="nowo-search__toggle" data-part="toggle" data-testid="nowo-search-toggle"
+                        aria-expanded="false" aria-controls="{{ nowo_search_id }}-field"
+                        {% if nowo_search_config.shortcuts %}aria-keyshortcuts="Control+K Meta+K /"{% endif %}
+                        aria-label="{{ 'search.label'|trans }}"
+                        title="{{ nowo_search_config.shortcuts ? 'search.shortcut'|trans({'%keys%': 'Ctrl K'}) : 'search.label'|trans }}">
+                        {% block nowo_search_toggle_icon %}
+                            <span class="nowo-search__toggle-icon nowo-search__toggle-icon--search">{{ nowo_search_icons.search }}</span>
+                            <span class="nowo-search__toggle-icon nowo-search__toggle-icon--close">{{ nowo_search_icons.close }}</span>
+                            <span class="nowo-search__toggle-icon nowo-search__toggle-icon--loading">{{ nowo_search_icons.loading }}</span>
+                        {% endblock %}
+                    </button>
+                {% endblock %}
+                <div class="nowo-search__field" id="{{ nowo_search_id }}-field" data-part="field">
+                    {% if nowo_search_config.scope %}
+                        <span class="nowo-search__scope" data-part="scope" data-testid="nowo-search-scope">
+                            <span class="nowo-search__scope-label">{{ 'search.scope_in'|trans({'%scope%': nowo_search_config.scope.label}) }}</span>
+                            <button type="button" class="nowo-search__scope-remove" data-part="scope-remove" tabindex="-1"
+                                title="{{ 'search.scope_remove'|trans }}" aria-label="{{ 'search.scope_remove'|trans }}">
+                                {{- nowo_search_icons.close -}}
+                            </button>
+                        </span>
+                    {% endif %}
+                    {% for child in nowo_search_form %}
+                        {{ form_widget(child, {
+                            id: nowo_search_id ~ '-input',
+                            full_name: 'q',
+                            attr: {
+                                class: 'nowo-search__input',
+                                'data-part': 'input',
+                                placeholder: 'search.placeholder'|trans,
+                                'aria-label': 'search.label'|trans,
+                                role: 'combobox',
+                                'aria-expanded': 'false',
+                                'aria-controls': nowo_search_id ~ '-results',
+                                'aria-autocomplete': 'list',
+                                autocomplete: 'off',
+                                spellcheck: 'false',
+                                maxlength: nowo_search_config.maxLength,
+                                enterkeyhint: 'go',
+                                tabindex: '-1',
+                            },
+                        }) }}
+                    {% endfor %}
+                    {% if nowo_search_config.shortcuts %}
+                        <kbd class="nowo-search__kbd" data-part="shortcut" aria-hidden="true">Ctrl K</kbd>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="nowo-search__popover" data-part="popover" data-testid="nowo-search-popover" hidden>
+                <div class="nowo-search__results" id="{{ nowo_search_id }}-results" role="listbox" aria-label="{{ 'search.label'|trans }}" data-part="results"></div>
+                {% block nowo_search_footer %}
+                    <div class="nowo-search__footer" aria-hidden="true">
+                        <span><kbd>↑</kbd><kbd>↓</kbd> {{ 'search.hint.move'|trans }}</span>
+                        <span><kbd>↵</kbd> {{ 'search.hint.open'|trans }}</span>
+                        <span class="nowo-search__footer-wide"><kbd data-part="mod-key">Ctrl</kbd><kbd>↵</kbd> {{ 'search.hint.new_tab'|trans }}</span>
+                        <span><kbd>Esc</kbd> {{ 'search.hint.close'|trans }}</span>
+                    </div>
+                {% endblock %}
+            </div>
+            <p class="nowo-search__status" data-part="status" role="status" aria-live="polite"></p>
+            {% for kind, svg in nowo_search_icons %}
+                <template data-nowo-search-icon="{{ kind }}">{{ svg }}</template>
+            {% endfor %}
+        </div>
+    {% endblock %}
+{% endif %}

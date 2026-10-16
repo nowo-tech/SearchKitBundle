@@ -1,0 +1,4 @@
+nowo_search_kit:
+    resource: '@NowoSearchKitBundle/Resources/config/routes.php'
+    prefix: /search
+    trailing_slash_on_root: false

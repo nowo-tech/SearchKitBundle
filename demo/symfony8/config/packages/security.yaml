@@ -1,0 +1,29 @@
+security:
+    password_hashers:
+        # Demo only: plain-text passwords for the in-memory accounts.
+        Symfony\Component\Security\Core\User\InMemoryUser: plaintext
+    providers:
+        demo_users:
+            memory:
+                users:
+                    alice: { password: password, roles: [ROLE_ADMIN] }
+                    bob: { password: password, roles: [ROLE_USER] }
+    role_hierarchy:
+        ROLE_ADMIN: [ROLE_USER]
+    firewalls:
+        dev:
+            pattern: ^/(_(profiler|wdt)|css|images|js)/
+            security: false
+        main:
+            lazy: true
+            provider: demo_users
+            form_login:
+                login_path: demo_login
+                check_path: demo_login
+                enable_csrf: true
+                default_target_path: /en
+            logout:
+                path: demo_logout
+                target: /en
+    access_control:
+        - { path: ^/, roles: PUBLIC_ACCESS }
