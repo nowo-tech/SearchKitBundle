@@ -4,7 +4,14 @@ This guide lists the changes integrators must apply when upgrading between versi
 
 ## Table of contents
 
+- [1.0.1 (2026-10-16)](#101-2026-10-16)
 - [1.0.0 (2026-10-16)](#100-2026-10-16)
+
+## 1.0.1 (2026-10-16)
+
+No breaking changes since 1.0.0: run `assets:install` (or your asset build) so the new `js/nowo-search.js` is served.
+Row icons now go through `sanitizeSvg()`: an icon whose markup is not a single drawing-only `<svg>` (for example an
+`<img>` or `<foreignObject>` from a custom icon source) shows the kind icon instead. Template overrides need no change.
 
 ## 1.0.0 (2026-10-16)
 

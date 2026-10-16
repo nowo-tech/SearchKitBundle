@@ -7,10 +7,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.0.1] - 2026-10-16](#101---2026-10-16)
+  - [Security](#security)
+  - [Fixed](#fixed)
 - [[1.0.0] - 2026-10-16](#100---2026-10-16)
   - [Added](#added)
 
 ## [Unreleased]
+
+## [1.0.1] - 2026-10-16
+
+Compliance patch from an independent audit against the Nowo bundle standards. No configuration, template block or PHP API
+change.
+
+### Security
+
+- Row icons are no longer written with `innerHTML`: the new `sanitizeSvg()` (`svg.ts`) parses the server SVG into an
+  inert document and appends it as nodes, keeping only drawing elements (no script, `foreignObject`, animation, link or
+  external reference) and dropping event handlers, `href` and `javascript:` / `data:` values; markup that is not a single
+  `<svg>` falls back to the kind icon (REQ-UX-001, closes SEARCH-SEC-05). The ESLint rule now forbids every `innerHTML` /
+  `outerHTML` assignment. Browser `VERSION` is `1.0.1`.
+
+### Fixed
+
+- `docs/USAGE.md`: the overridable template table, the override procedure, the "application copy always wins" rule and
+  the freeze-vs-upgrade trade-off (REQ-TWIG-001); a **Forms** section on the Symfony Form search field and the ban on raw
+  form controls in overrides (REQ-TWIG-005), also stated for the demo login in `demo/README.md`.
+- Bug report issue template matches the canonical template again (`Database` row, REQ-DOCS-010).
+- Spec Kit baseline: `svg.ts` mapped as `FR-TS-006` (inventory 39/39).
 
 ## [1.0.0] - 2026-10-16
 
