@@ -22,6 +22,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-18
+
+Header search widget reads UiKit theme slots and tokens when UiKit is installed (optional), new override blocks. See [UPGRADING](UPGRADING.md#to-110).
+
 ### Added
 
 - **Optional UiKit theme integration (REQ-UI-003)** — with `nowo-tech/ui-kit-bundle` ^2.2 installed (suggested, not

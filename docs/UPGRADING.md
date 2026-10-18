@@ -5,6 +5,7 @@ This guide lists the changes integrators must apply when upgrading between versi
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.1.0](#to-110)
   - [Template contract (1.1)](#template-contract-11)
 - [1.0.3 (2026-10-18)](#103-2026-10-18)
 - [1.0.2 (2026-10-16)](#102-2026-10-16)
@@ -12,6 +13,14 @@ This guide lists the changes integrators must apply when upgrading between versi
 - [1.0.0 (2026-10-16)](#100-2026-10-16)
 
 ## Unreleased
+
+## To 1.1.0
+
+From **1.0.3**:
+
+```bash
+composer update nowo-tech/search-kit-bundle
+```
 
 ### Template contract (1.1)
 
