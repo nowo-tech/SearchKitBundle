@@ -8,15 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - [[Unreleased]](#unreleased)
 - [[1.0.3] - 2026-10-18](#103---2026-10-18)
-  - [Fixed](#fixed)
 - [[1.0.2] - 2026-10-16](#102---2026-10-16)
-  - [Added](#added)
-  - [Fixed](#fixed-1)
 - [[1.0.1] - 2026-10-16](#101---2026-10-16)
-  - [Security](#security)
-  - [Fixed](#fixed-2)
 - [[1.0.0] - 2026-10-16](#100---2026-10-16)
-  - [Added](#added-1)
 
 ## [Unreleased]
 
