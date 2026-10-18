@@ -4,9 +4,15 @@ This guide lists the changes integrators must apply when upgrading between versi
 
 ## Table of contents
 
+- [1.0.3 (2026-10-18)](#103-2026-10-18)
 - [1.0.2 (2026-10-16)](#102-2026-10-16)
 - [1.0.1 (2026-10-16)](#101-2026-10-16)
 - [1.0.0 (2026-10-16)](#100-2026-10-16)
+
+## 1.0.3 (2026-10-18)
+
+No changes required. If you override `nowo_search_root` (or copy `search.html.twig`) and pass an already translated
+`placeholder` (or `title`) to `form_widget`, add `translation_domain: false` as the bundle template now does.
 
 ## 1.0.2 (2026-10-16)
 

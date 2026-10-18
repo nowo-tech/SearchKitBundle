@@ -62,9 +62,11 @@
                     {% endif %}
                     {% for child in nowo_search_form %}
                         {% if not child.rendered %}
+                        {# translation_domain false: the placeholder is translated here; the form theme would look it up again. #}
                         {{ form_widget(child, {
                             id: nowo_search_id ~ '-input',
                             full_name: 'q',
+                            translation_domain: false,
                             attr: {
                                 class: 'nowo-search__input',
                                 'data-part': 'input',

@@ -7,16 +7,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.0.3] - 2026-10-18](#103---2026-10-18)
+  - [Fixed](#fixed)
 - [[1.0.2] - 2026-10-16](#102---2026-10-16)
   - [Added](#added)
-  - [Fixed](#fixed)
+  - [Fixed](#fixed-1)
 - [[1.0.1] - 2026-10-16](#101---2026-10-16)
   - [Security](#security)
-  - [Fixed](#fixed-1)
+  - [Fixed](#fixed-2)
 - [[1.0.0] - 2026-10-16](#100---2026-10-16)
   - [Added](#added-1)
 
 ## [Unreleased]
+
+## [1.0.3] - 2026-10-18
+
+### Fixed
+
+- The search field placeholder is translated once: `search.html.twig` renders the widget with
+  `translation_domain: false`, so the form theme no longer looks the already translated text up again in the
+  `NowoSearchKitBundle` domain (a "missing message" in the Symfony profiler, e.g. `Search pages, projects…`).
 
 ## [1.0.2] - 2026-10-16
 

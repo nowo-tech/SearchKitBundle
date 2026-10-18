@@ -11,6 +11,7 @@ use Symfony\Component\DomCrawler\Crawler;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Security\Core\User\InMemoryUser;
+use Symfony\Component\Translation\DataCollectorTranslator;
 
 use function assert;
 use function is_array;
@@ -79,6 +80,26 @@ final class SearchPartialTest extends TestCase
         self::assertSame('No results for “__QUERY__”', $config['labels']['empty']);
         self::assertSame('Type at least 2 characters to search.', $config['labels']['minChars']);
         self::assertSame('__COUNT__ results', $config['labels']['results']);
+    }
+
+    /**
+     * The placeholder is translated by the template: the form theme must not look the translated text up again in
+     * the field domain (it showed as a "missing message" in the profiler).
+     */
+    public function testTheTranslatedPlaceholderIsNotTranslatedAgain(): void
+    {
+        $client = $this->client();
+        $client->loginUser(new InMemoryUser('bob', 'x', ['ROLE_USER']));
+        $crawler = $client->request(Request::METHOD_GET, '/page');
+        self::assertSame('Search…', $crawler->filter('input[data-part="input"]')->attr('placeholder'));
+
+        $collector = $client->getContainer()->get(TestKernel::TRANSLATOR_COLLECTOR);
+        assert($collector instanceof DataCollectorTranslator);
+        $messages = $collector->getCollectedMessages();
+        self::assertNotSame([], $messages);
+        // Quick action labels come from the host configuration (`Configured page`, `Docs`): only the bundle domain.
+        $missing = array_values(array_filter($messages, static fn (array $message): bool => $message['state'] === DataCollectorTranslator::MESSAGE_MISSING && $message['domain'] === 'NowoSearchKitBundle'));
+        self::assertSame([], array_map(static fn (array $message): string => $message['domain'] . ': ' . $message['id'], $missing));
     }
 
     public function testScopeChipAndRoleFilteredActions(): void

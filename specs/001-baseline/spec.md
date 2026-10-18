@@ -1,7 +1,7 @@
 # Feature specification: Search Kit Bundle (baseline)
 
 **Package**: `nowo-tech/search-kit-bundle`
-**Status**: Active (1.0.2)
+**Status**: Active (1.0.3)
 **Last reviewed**: 2026-10-16
 **Inventory**: [`code-inventory.md`](code-inventory.md) — 100% of the production units under `src/`.
 

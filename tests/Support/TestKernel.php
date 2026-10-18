@@ -20,11 +20,13 @@ use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigura
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Kernel;
 use Symfony\Component\Routing\Loader\Configurator\RoutingConfigurator;
+use Symfony\Component\Translation\DataCollectorTranslator;
 use Symfony\UX\Icons\UXIconsBundle;
 use Twig\Environment;
 use Twig\Extra\TwigExtraBundle\TwigExtraBundle;
 
 use function dirname;
+use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
 
 /**
  * Kernel for integration and functional tests: in-memory users (alice, bob, admin), the test providers, a fake
@@ -38,6 +40,9 @@ final class TestKernel extends Kernel
     use MicroKernelTrait;
 
     public const string ASSET_PACKAGES_ALIAS = 'nowo_search_kit_test.assets_packages';
+
+    /** Records every translation lookup, like the profiler does (missing messages included). */
+    public const string TRANSLATOR_COLLECTOR = 'nowo_search_kit_test.translator_collector';
 
     /**
      * @param array<string, mixed> $searchKitConfig Merged over the default test configuration
@@ -122,6 +127,8 @@ final class TestKernel extends Kernel
         $services->alias(SearchScopeResolverInterface::class, TestScopeResolver::class);
         $services->set('app.fake_menu', FakeMenu::class)->factory([FakeMenu::class, 'demo']);
         $services->alias(self::ASSET_PACKAGES_ALIAS, 'assets.packages')->public();
+        $services->set(self::TRANSLATOR_COLLECTOR, DataCollectorTranslator::class)
+            ->decorate('translator')->args([service('.inner')])->public();
     }
 
     protected function configureRoutes(RoutingConfigurator $routes): void
