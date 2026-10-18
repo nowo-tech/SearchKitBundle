@@ -11,6 +11,7 @@ use Nowo\SearchKitBundle\Icon\SearchIcons;
 use Nowo\SearchKitBundle\Scope\NullScopeResolver;
 use Nowo\SearchKitBundle\Search\SearchEngine;
 use Nowo\SearchKitBundle\Twig\SearchKitExtension;
+use Nowo\SearchKitBundle\Twig\SearchKitThemeExtension;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 use Symfony\UX\Icons\IconRendererInterface;
 
@@ -56,6 +57,10 @@ return static function (ContainerConfigurator $container): void {
         ->tag('controller.service_arguments');
 
     $services->set(SearchFieldType::class);
+
+    // Optional UiKit theme (REQ-UI-003): null when nowo-tech/ui-kit-bundle is not installed.
+    $services->set(SearchKitThemeExtension::class)
+        ->args([service('nowo_ui_kit.theme')->nullOnInvalid()]);
 
     $services->set(SearchKitExtension::class)
         ->arg('$packages', service('assets.packages'))

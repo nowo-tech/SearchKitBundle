@@ -143,6 +143,40 @@ final class SearchPartialTest extends TestCase
         self::assertNull($data['groups'][0]['items'][0]['icon'], 'svg_inline: rows use the kind templates');
     }
 
+    public function testWithoutUiKitTheWidgetKeepsItsOwnClasses(): void
+    {
+        $client = $this->client();
+        $client->loginUser(new InMemoryUser('bob', 'x', ['ROLE_USER']));
+        $crawler = $client->request(Request::METHOD_GET, '/page');
+
+        self::assertSame('NowoSearchKitBundle', $crawler->filter('.nowo-search')->attr('data-nowo-ui-bundle'));
+        self::assertSame('nowo-search__toggle', $crawler->filter('[data-part="toggle"]')->attr('class'));
+        self::assertSame('nowo-search__input', $crawler->filter('[data-part="input"]')->attr('class'));
+        self::assertSame('nowo-search__popover', $crawler->filter('[data-part="popover"]')->attr('class'));
+        self::assertSame('nowo-search__footer', $crawler->filter('.nowo-search__footer')->attr('class'));
+    }
+
+    public function testUiKitThemeSlotsAddTheHostClassesOnly(): void
+    {
+        $client = $this->client([], [
+            'css_framework' => 'bootstrap5',
+            'theme'         => [
+                'classes'    => ['btn_icon' => 'host-icon-btn', 'input' => 'host-input', 'card' => 'host-card', 'muted' => 'host-muted'],
+                'attributes' => ['card' => ['data-host-card' => 'yes']],
+                'bundles'    => ['NowoSearchKitBundle' => ['classes' => ['input' => 'search-only-input']]],
+            ],
+        ]);
+        $client->loginUser(new InMemoryUser('bob', 'x', ['ROLE_USER']));
+        $crawler = $client->request(Request::METHOD_GET, '/page');
+
+        self::assertSame('nowo-search__toggle host-icon-btn', $crawler->filter('[data-part="toggle"]')->attr('class'));
+        // Per-bundle exception wins; no UiKit framework default (form-control) on the compact field.
+        self::assertSame('nowo-search__input search-only-input', $crawler->filter('[data-part="input"]')->attr('class'));
+        self::assertSame('nowo-search__popover host-card', $crawler->filter('[data-part="popover"]')->attr('class'));
+        self::assertSame('yes', $crawler->filter('[data-part="popover"]')->attr('data-host-card'));
+        self::assertSame('nowo-search__footer host-muted', $crawler->filter('.nowo-search__footer')->attr('class'));
+    }
+
     public function testHostAttributesOnTheRootAreMergedAndEscaped(): void
     {
         $client = $this->client();
@@ -196,9 +230,13 @@ final class SearchPartialTest extends TestCase
     /**
      * @param array<string, mixed> $config
      */
-    private function client(array $config = []): KernelBrowser
+    /**
+     * @param array<string, mixed> $config
+     * @param array<string, mixed>|null $uiKitConfig
+     */
+    private function client(array $config = [], ?array $uiKitConfig = null): KernelBrowser
     {
-        $this->kernel = new TestKernel($config);
+        $this->kernel = new TestKernel($config, true, $uiKitConfig);
         $this->kernel->boot();
         $client = $this->kernel->getContainer()->get('test.client');
         assert($client instanceof KernelBrowser);

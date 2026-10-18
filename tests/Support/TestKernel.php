@@ -10,6 +10,7 @@ use Nowo\SearchKitBundle\Tests\Support\Provider\FailingProvider;
 use Nowo\SearchKitBundle\Tests\Support\Provider\FakeMenu;
 use Nowo\SearchKitBundle\Tests\Support\Provider\ProjectsProvider;
 use Nowo\SearchKitBundle\Tests\Support\Provider\TestScopeResolver;
+use Nowo\UiKitBundle\NowoUiKitBundle;
 use Symfony\Bundle\FrameworkBundle\FrameworkBundle;
 use Symfony\Bundle\FrameworkBundle\Kernel\MicroKernelTrait;
 use Symfony\Bundle\SecurityBundle\SecurityBundle;
@@ -47,8 +48,9 @@ final class TestKernel extends Kernel
     /**
      * @param array<string, mixed> $searchKitConfig Merged over the default test configuration
      * @param bool $withUxIcons Register symfony/ux-icons
+     * @param array<string, mixed>|null $uiKitConfig Register nowo-tech/ui-kit-bundle with this `nowo_ui_kit` config (null: no UiKit)
      */
-    public function __construct(private readonly array $searchKitConfig = [], private readonly bool $withUxIcons = true)
+    public function __construct(private readonly array $searchKitConfig = [], private readonly bool $withUxIcons = true, private readonly ?array $uiKitConfig = null)
     {
         parent::__construct('test', false);
     }
@@ -63,6 +65,9 @@ final class TestKernel extends Kernel
         if ($this->withUxIcons) {
             yield new UXIconsBundle();
         }
+        if ($this->uiKitConfig !== null) {
+            yield new NowoUiKitBundle();
+        }
         yield new NowoSearchKitBundle();
     }
 
@@ -73,7 +78,7 @@ final class TestKernel extends Kernel
 
     public function getCacheDir(): string
     {
-        return sys_get_temp_dir() . '/nowo-search-kit-bundle/' . md5(serialize([$this->searchKitConfig, $this->withUxIcons])) . '/cache';
+        return sys_get_temp_dir() . '/nowo-search-kit-bundle/' . md5(serialize([$this->searchKitConfig, $this->withUxIcons, $this->uiKitConfig])) . '/cache';
     }
 
     public function getLogDir(): string
@@ -110,6 +115,9 @@ final class TestKernel extends Kernel
         if ($this->withUxIcons) {
             // Only `search` and `bug` exist: every other icon falls back to the built-in SVG.
             $container->extension('ux_icons', ['icon_dir' => __DIR__ . '/icons', 'iconify' => ['enabled' => false]]);
+        }
+        if ($this->uiKitConfig !== null) {
+            $container->extension('nowo_ui_kit', $this->uiKitConfig);
         }
         $container->extension('nowo_search_kit', array_replace_recursive([
             'quick_actions' => [

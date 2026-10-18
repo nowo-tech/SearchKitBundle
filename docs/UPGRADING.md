@@ -4,10 +4,31 @@ This guide lists the changes integrators must apply when upgrading between versi
 
 ## Table of contents
 
+- [Unreleased](#unreleased)
+  - [Template contract (1.1)](#template-contract-11)
 - [1.0.3 (2026-10-18)](#103-2026-10-18)
 - [1.0.2 (2026-10-16)](#102-2026-10-16)
 - [1.0.1 (2026-10-16)](#101-2026-10-16)
 - [1.0.0 (2026-10-16)](#100-2026-10-16)
+
+## Unreleased
+
+### Template contract (1.1)
+
+No breaking change; UiKit stays optional. Hosts may notice:
+
+1. **With UiKit installed**, the header search follows the UiKit theme: the `--nowo-search-*` colour / radius
+   defaults read `--nowo-ui-surface`, `--nowo-ui-text`, `--nowo-ui-muted`, `--nowo-ui-border`,
+   `--nowo-ui-surface-muted`, `--nowo-ui-primary`, `--nowo-ui-link` and `--nowo-ui-radius` when the page defines them
+   (`nowo-ui.css` or `nowo_ui_kit.theme.tokens`). Hosts that set `--nowo-search-*` on `.nowo-search` keep their values.
+2. **Host theme classes** for the slots `btn_icon`, `badge_neutral`, `input`, `card` and `muted` (from
+   `nowo_ui_kit.theme.classes` / `.attributes`) are appended to the toggle, scope chip / remove, input, dropdown and
+   footer. If a host class meant for admin pages does not suit the header search, clear it for this bundle:
+   `nowo_ui_kit.theme.bundles.NowoSearchKitBundle.classes.input: ''`.
+3. **Markup.** New blocks `nowo_search_scope`, `nowo_search_field`, `nowo_search_shortcut`, `nowo_search_popover` wrap
+   existing markup (no element changed); the root has `data-nowo-ui-bundle="NowoSearchKitBundle"` (reserved in
+   `nowo_search_root_attr`). Overrides of `nowo_search_toggle_icon`, `nowo_search_root_attributes`,
+   `nowo_search_footer` keep working.
 
 ## 1.0.3 (2026-10-18)
 

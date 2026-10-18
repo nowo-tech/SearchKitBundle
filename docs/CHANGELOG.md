@@ -7,18 +7,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+  - [Added](#added)
+  - [Changed](#changed)
 - [[1.0.3] - 2026-10-18](#103---2026-10-18)
   - [Fixed](#fixed)
 - [[1.0.2] - 2026-10-16](#102---2026-10-16)
-  - [Added](#added)
+  - [Added](#added-1)
   - [Fixed](#fixed-1)
 - [[1.0.1] - 2026-10-16](#101---2026-10-16)
   - [Security](#security)
   - [Fixed](#fixed-2)
 - [[1.0.0] - 2026-10-16](#100---2026-10-16)
-  - [Added](#added-1)
+  - [Added](#added-2)
 
 ## [Unreleased]
+
+### Added
+
+- **Optional UiKit theme integration (REQ-UI-003)** — with `nowo-tech/ui-kit-bundle` ^2.2 installed (suggested, not
+  required) the header search parts carry the host classes / attributes of the UiKit theme slots of
+  `NowoSearchKitBundle`: toggle and scope remove `btn_icon`, scope chip `badge_neutral`, input `input`, dropdown `card`,
+  footer `muted` (host part only, never UiKit framework defaults). Twig functions `nowo_search_kit_ui_class()` /
+  `nowo_search_kit_ui_attrs()` (`''` without UiKit).
+- Blocks `nowo_search_scope`, `nowo_search_field`, `nowo_search_shortcut`, `nowo_search_popover` (one-block `@!`
+  overrides); root attribute `data-nowo-ui-bundle="NowoSearchKitBundle"`.
+- `docs/TEMPLATES.md`; functional tests of the widget with and without a UiKit stub theme.
+
+### Changed
+
+- `nowo-search.css`: the light / dark defaults of `--nowo-search-bg`, `-fg`, `-muted`, `-border`, `-surface`, `-accent`,
+  `-accent-fg` and `-radius` read the UiKit `--nowo-ui-*` tokens first (1.0 values as fallbacks);
+  `--nowo-search-accent-soft` is derived from the accent.
+- Demo: UiKit host layout and theme tokens (the header search follows them).
 
 ## [1.0.3] - 2026-10-18
 

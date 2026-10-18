@@ -2,21 +2,23 @@
  * NowoSearchKitBundle — header search field (always loaded: the stretch must paint on the first click).
  * The results dropdown lives in nowo-search-popover.css, fetched on first hover / focus.
  * Theme with the --nowo-search-* tokens (light defaults; dark under prefers-color-scheme or [data-theme="dark"] /
- * [data-bs-theme="dark"] on an ancestor).
+ * [data-bs-theme="dark"] on an ancestor). Tokens first (REQ-UI-003): the surface, text, muted, border, accent, link
+ * and radius tokens default to the UiKit --nowo-ui-* tokens when the page defines them (nowo-ui.css or
+ * nowo_ui_kit.theme.tokens); the values below are the fallbacks without UiKit.
  */
 /* Default tokens at zero specificity (:where): any host rule such as `.nowo-search { --nowo-search-accent: … }` wins. */
 :where(.nowo-search) {
-  --nowo-search-bg: #ffffff;
-  --nowo-search-fg: #1f2328;
-  --nowo-search-muted: #636c76;
-  --nowo-search-border: #d0d7de;
-  --nowo-search-surface: #f6f8fa;
-  --nowo-search-accent: #0969da;
-  --nowo-search-accent-fg: #0550ae;
-  --nowo-search-accent-soft: rgb(9 105 218 / 12%);
+  --nowo-search-bg: var(--nowo-ui-surface, #ffffff);
+  --nowo-search-fg: var(--nowo-ui-text, #1f2328);
+  --nowo-search-muted: var(--nowo-ui-muted, #636c76);
+  --nowo-search-border: var(--nowo-ui-border, #d0d7de);
+  --nowo-search-surface: var(--nowo-ui-surface-muted, #f6f8fa);
+  --nowo-search-accent: var(--nowo-ui-primary, #0969da);
+  --nowo-search-accent-fg: var(--nowo-ui-link, var(--nowo-ui-primary, #0550ae));
+  --nowo-search-accent-soft: color-mix(in srgb, var(--nowo-search-accent) 12%, transparent);
   --nowo-search-mark: rgb(212 167 44 / 35%);
   --nowo-search-shadow: 0 18px 50px rgb(31 35 40 / 22%);
-  --nowo-search-radius: 0.375rem;
+  --nowo-search-radius: var(--nowo-ui-radius, 0.375rem);
   --nowo-search-popover-radius: 0.75rem;
   --nowo-search-size: 2rem;
   --nowo-search-open-width: min(26rem, 42vw);
@@ -40,14 +42,14 @@
 
 @media (prefers-color-scheme: dark) {
   :where(:root:not([data-theme='light']):not([data-bs-theme='light']) .nowo-search) {
-    --nowo-search-bg: #161b22;
-    --nowo-search-fg: #e6edf3;
-    --nowo-search-muted: #8d96a0;
-    --nowo-search-border: #30363d;
-    --nowo-search-surface: #0d1117;
-    --nowo-search-accent: #4493f8;
-    --nowo-search-accent-fg: #79b8ff;
-    --nowo-search-accent-soft: rgb(68 147 248 / 18%);
+    --nowo-search-bg: var(--nowo-ui-surface, #161b22);
+    --nowo-search-fg: var(--nowo-ui-text, #e6edf3);
+    --nowo-search-muted: var(--nowo-ui-muted, #8d96a0);
+    --nowo-search-border: var(--nowo-ui-border, #30363d);
+    --nowo-search-surface: var(--nowo-ui-surface-muted, #0d1117);
+    --nowo-search-accent: var(--nowo-ui-primary, #4493f8);
+    --nowo-search-accent-fg: var(--nowo-ui-link, var(--nowo-ui-primary, #79b8ff));
+    --nowo-search-accent-soft: color-mix(in srgb, var(--nowo-search-accent) 18%, transparent);
     --nowo-search-mark: rgb(210 153 34 / 40%);
     --nowo-search-shadow: 0 18px 50px rgb(0 0 0 / 55%);
     --nowo-search-badge-error: #ff7b72;
@@ -59,14 +61,14 @@
 }
 
 :where([data-theme='dark'] .nowo-search, [data-bs-theme='dark'] .nowo-search) {
-  --nowo-search-bg: #161b22;
-  --nowo-search-fg: #e6edf3;
-  --nowo-search-muted: #8d96a0;
-  --nowo-search-border: #30363d;
-  --nowo-search-surface: #0d1117;
-  --nowo-search-accent: #4493f8;
-  --nowo-search-accent-fg: #79b8ff;
-  --nowo-search-accent-soft: rgb(68 147 248 / 18%);
+  --nowo-search-bg: var(--nowo-ui-surface, #161b22);
+  --nowo-search-fg: var(--nowo-ui-text, #e6edf3);
+  --nowo-search-muted: var(--nowo-ui-muted, #8d96a0);
+  --nowo-search-border: var(--nowo-ui-border, #30363d);
+  --nowo-search-surface: var(--nowo-ui-surface-muted, #0d1117);
+  --nowo-search-accent: var(--nowo-ui-primary, #4493f8);
+  --nowo-search-accent-fg: var(--nowo-ui-link, var(--nowo-ui-primary, #79b8ff));
+  --nowo-search-accent-soft: color-mix(in srgb, var(--nowo-search-accent) 18%, transparent);
   --nowo-search-mark: rgb(210 153 34 / 40%);
   --nowo-search-shadow: 0 18px 50px rgb(0 0 0 / 55%);
   --nowo-search-badge-error: #ff7b72;

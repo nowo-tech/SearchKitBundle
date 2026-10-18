@@ -8,7 +8,15 @@
  # A magnifier that stretches into a field (button, Ctrl/⌘ K, "/"), with grouped results in a dropdown under it.
  # Guests and users without `nowo_search_kit.role` get nothing. To change part of it, create
  # templates/bundles/NowoSearchKitBundle/search.html.twig with {% extends '@!NowoSearchKitBundle/search.html.twig' %}
- # and redefine the blocks you need (e.g. `nowo_search_toggle_icon` for a morphing icon).
+ # and redefine the blocks you need (e.g. `nowo_search_toggle_icon` for a morphing icon). Blocks: nowo_search_assets,
+ # nowo_search_root, nowo_search_root_attributes, nowo_search_toggle, nowo_search_toggle_icon, nowo_search_scope,
+ # nowo_search_field, nowo_search_shortcut, nowo_search_popover, nowo_search_footer.
+ #
+ # Theme (REQ-UI-003, optional UiKit): with nowo-tech/ui-kit-bundle installed, the parts also carry the HOST classes /
+ # attributes of the UiKit theme slots of NowoSearchKitBundle (toggle and scope remove `btn_icon`, scope chip
+ # `badge_neutral`, input `input`, dropdown `card`, footer `muted`) through nowo_search_kit_ui_class() /
+ # nowo_search_kit_ui_attrs() — never UiKit framework defaults, so the compact widget keeps its geometry. Colours come
+ # from the --nowo-search-* tokens, which default to the UiKit --nowo-ui-* tokens.
  #}
 {% trans_default_domain 'NowoSearchKitBundle' %}
 {% set nowo_search_config = nowo_search_kit_config(nowo_search_actions ?? []) %}
@@ -27,10 +35,10 @@
     {% block nowo_search_root %}
         {% set nowo_search_root_attr = nowo_search_root_attr ?? {} %}
         <div class="nowo-search{{ (nowo_search_root_attr.class ?? '') is not empty ? ' ' ~ nowo_search_root_attr.class }}" id="{{ nowo_search_id }}"
-            data-state="idle" data-testid="nowo-search" data-nowo-search-config="{{ nowo_search_config|json_encode|e('html_attr') }}"
+            data-state="idle" data-testid="nowo-search" data-nowo-ui-bundle="NowoSearchKitBundle" data-nowo-search-config="{{ nowo_search_config|json_encode|e('html_attr') }}"
             {%- block nowo_search_root_attributes -%}
                 {%- for name, value in nowo_search_root_attr -%}
-                    {%- if name not in ['class', 'id', 'data-state', 'data-testid', 'data-nowo-search-config'] and name matches '/^[A-Za-z_:][A-Za-z0-9_:.-]*$/' and value is not same as(false) and value is not null -%}
+                    {%- if name not in ['class', 'id', 'data-state', 'data-testid', 'data-nowo-ui-bundle', 'data-nowo-search-config'] and name matches '/^[A-Za-z_:][A-Za-z0-9_:.-]*$/' and value is not same as(false) and value is not null -%}
                         {{ ' ' ~ name }}{% if value is not same as(true) %}="{{ value }}"{% endif %}
                     {%- endif -%}
                 {%- endfor -%}
@@ -38,7 +46,7 @@
         >
             <div class="nowo-search__box" role="search" data-part="box">
                 {% block nowo_search_toggle %}
-                    <button type="button" class="nowo-search__toggle" data-part="toggle" data-testid="nowo-search-toggle"
+                    <button type="button" class="nowo-search__toggle{{ nowo_search_kit_ui_class('btn_icon') }}"{{ nowo_search_kit_ui_attrs('btn_icon') }} data-part="toggle" data-testid="nowo-search-toggle"
                         aria-expanded="false" aria-controls="{{ nowo_search_id }}-field"
                         {% if nowo_search_config.shortcuts %}aria-keyshortcuts="Control+K Meta+K /"{% endif %}
                         aria-label="{{ 'search.label'|trans }}"
@@ -51,56 +59,64 @@
                     </button>
                 {% endblock %}
                 <div class="nowo-search__field" id="{{ nowo_search_id }}-field" data-part="field">
-                    {% if nowo_search_config.scope %}
-                        <span class="nowo-search__scope" data-part="scope" data-testid="nowo-search-scope">
-                            <span class="nowo-search__scope-label">{{ 'search.scope_in'|trans({'%scope%': nowo_search_config.scope.label}) }}</span>
-                            <button type="button" class="nowo-search__scope-remove" data-part="scope-remove" tabindex="-1"
-                                title="{{ 'search.scope_remove'|trans }}" aria-label="{{ 'search.scope_remove'|trans }}">
-                                {{- nowo_search_icons.close -}}
-                            </button>
-                        </span>
-                    {% endif %}
-                    {% for child in nowo_search_form %}
-                        {% if not child.rendered %}
-                        {# translation_domain false: the placeholder is translated here; the form theme would look it up again. #}
-                        {{ form_widget(child, {
-                            id: nowo_search_id ~ '-input',
-                            full_name: 'q',
-                            translation_domain: false,
-                            attr: {
-                                class: 'nowo-search__input',
-                                'data-part': 'input',
-                                placeholder: 'search.placeholder'|trans,
-                                'aria-label': 'search.label'|trans,
-                                role: 'combobox',
-                                'aria-expanded': 'false',
-                                'aria-controls': nowo_search_id ~ '-results',
-                                'aria-autocomplete': 'list',
-                                autocomplete: 'off',
-                                spellcheck: 'false',
-                                maxlength: nowo_search_config.maxLength,
-                                enterkeyhint: 'go',
-                                tabindex: '-1',
-                            },
-                        }) }}
+                    {% block nowo_search_scope %}
+                        {% if nowo_search_config.scope %}
+                            <span class="nowo-search__scope{{ nowo_search_kit_ui_class('badge_neutral') }}" data-part="scope" data-testid="nowo-search-scope">
+                                <span class="nowo-search__scope-label">{{ 'search.scope_in'|trans({'%scope%': nowo_search_config.scope.label}) }}</span>
+                                <button type="button" class="nowo-search__scope-remove{{ nowo_search_kit_ui_class('btn_icon') }}" data-part="scope-remove" tabindex="-1"
+                                    title="{{ 'search.scope_remove'|trans }}" aria-label="{{ 'search.scope_remove'|trans }}">
+                                    {{- nowo_search_icons.close -}}
+                                </button>
+                            </span>
                         {% endif %}
-                    {% endfor %}
-                    {% if nowo_search_config.shortcuts %}
-                        <kbd class="nowo-search__kbd" data-part="shortcut" aria-hidden="true">Ctrl K</kbd>
-                    {% endif %}
+                    {% endblock %}
+                    {% block nowo_search_field %}
+                        {% for child in nowo_search_form %}
+                            {% if not child.rendered %}
+                            {# translation_domain false: the placeholder is translated here; the form theme would look it up again. #}
+                            {{ form_widget(child, {
+                                id: nowo_search_id ~ '-input',
+                                full_name: 'q',
+                                translation_domain: false,
+                                attr: {
+                                    class: 'nowo-search__input' ~ nowo_search_kit_ui_class('input'),
+                                    'data-part': 'input',
+                                    placeholder: 'search.placeholder'|trans,
+                                    'aria-label': 'search.label'|trans,
+                                    role: 'combobox',
+                                    'aria-expanded': 'false',
+                                    'aria-controls': nowo_search_id ~ '-results',
+                                    'aria-autocomplete': 'list',
+                                    autocomplete: 'off',
+                                    spellcheck: 'false',
+                                    maxlength: nowo_search_config.maxLength,
+                                    enterkeyhint: 'go',
+                                    tabindex: '-1',
+                                },
+                            }) }}
+                            {% endif %}
+                        {% endfor %}
+                    {% endblock %}
+                    {% block nowo_search_shortcut %}
+                        {% if nowo_search_config.shortcuts %}
+                            <kbd class="nowo-search__kbd" data-part="shortcut" aria-hidden="true">Ctrl K</kbd>
+                        {% endif %}
+                    {% endblock %}
                 </div>
             </div>
-            <div class="nowo-search__popover" data-part="popover" data-testid="nowo-search-popover" hidden>
-                <div class="nowo-search__results" id="{{ nowo_search_id }}-results" role="listbox" aria-label="{{ 'search.label'|trans }}" data-part="results"></div>
-                {% block nowo_search_footer %}
-                    <div class="nowo-search__footer" aria-hidden="true">
-                        <span><kbd>↑</kbd><kbd>↓</kbd> {{ 'search.hint.move'|trans }}</span>
-                        <span><kbd>↵</kbd> {{ 'search.hint.open'|trans }}</span>
-                        <span class="nowo-search__footer-wide"><kbd data-part="mod-key">Ctrl</kbd><kbd>↵</kbd> {{ 'search.hint.new_tab'|trans }}</span>
-                        <span><kbd>Esc</kbd> {{ 'search.hint.close'|trans }}</span>
-                    </div>
-                {% endblock %}
-            </div>
+            {% block nowo_search_popover %}
+                <div class="nowo-search__popover{{ nowo_search_kit_ui_class('card') }}"{{ nowo_search_kit_ui_attrs('card') }} data-part="popover" data-testid="nowo-search-popover" hidden>
+                    <div class="nowo-search__results" id="{{ nowo_search_id }}-results" role="listbox" aria-label="{{ 'search.label'|trans }}" data-part="results"></div>
+                    {% block nowo_search_footer %}
+                        <div class="nowo-search__footer{{ nowo_search_kit_ui_class('muted') }}" aria-hidden="true">
+                            <span><kbd>↑</kbd><kbd>↓</kbd> {{ 'search.hint.move'|trans }}</span>
+                            <span><kbd>↵</kbd> {{ 'search.hint.open'|trans }}</span>
+                            <span class="nowo-search__footer-wide"><kbd data-part="mod-key">Ctrl</kbd><kbd>↵</kbd> {{ 'search.hint.new_tab'|trans }}</span>
+                            <span><kbd>Esc</kbd> {{ 'search.hint.close'|trans }}</span>
+                        </div>
+                    {% endblock %}
+                </div>
+            {% endblock %}
             <p class="nowo-search__status" data-part="status" role="status" aria-live="polite"></p>
             {% for kind, svg in nowo_search_icons %}
                 <template data-nowo-search-icon="{{ kind }}">{{ svg }}</template>

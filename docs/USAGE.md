@@ -23,6 +23,7 @@
   - [Stimulus](#stimulus)
   - [Events](#events)
   - [Morphing toggle icon](#morphing-toggle-icon)
+- [UiKit theme (optional)](#uikit-theme-optional)
 - [Theme tokens](#theme-tokens)
 - [Translations](#translations)
 - [JSON endpoint](#json-endpoint)
@@ -206,6 +207,10 @@ in an override, redefine the `nowo_search_root_attributes` block (it prints the 
 | `nowo_search_root_attributes` | Extra attributes of the root tag (from `nowo_search_root_attr`; 1.0.2) |
 | `nowo_search_toggle` | The magnifier button |
 | `nowo_search_toggle_icon` | The three state icons (search / close / loading) |
+| `nowo_search_scope` | The scope chip and its remove button (1.1) |
+| `nowo_search_field` | The search input (Form widget child loop; 1.1) |
+| `nowo_search_shortcut` | The `Ctrl K` hint in the field (1.1) |
+| `nowo_search_popover` | The results dropdown (results list + footer; 1.1) |
 | `nowo_search_footer` | The key hints under the results |
 
 The script needs these `data-part` elements inside the root: `toggle`, `field`, `input`, `popover`, `results`, `status`
@@ -219,7 +224,7 @@ application (REQ-TWIG-001); the application's copy **always wins** over the bund
 
 | `<subpath>` | What it renders | Blocks |
 | --- | --- | --- |
-| `search.html.twig` | The whole header search: assets, toggle, field, dropdown, status and icon templates | `nowo_search_assets`, `nowo_search_root`, `nowo_search_toggle`, `nowo_search_toggle_icon`, `nowo_search_footer` |
+| `search.html.twig` | The whole header search: assets, toggle, field, dropdown, status and icon templates | `nowo_search_assets`, `nowo_search_root`, `nowo_search_root_attributes`, `nowo_search_toggle`, `nowo_search_toggle_icon`, `nowo_search_scope`, `nowo_search_field`, `nowo_search_shortcut`, `nowo_search_popover`, `nowo_search_footer` |
 
 **Procedure.**
 
@@ -260,6 +265,8 @@ tags; `make check-no-raw-html-form` fails on them in the bundle and demo templat
 | `nowo_search_kit_scope()` | `{id, label}` of the current page, or null |
 | `nowo_search_kit_form()` | The `FormView` of the field |
 | `nowo_search_kit_icons()` | Icon key → SVG markup |
+| `nowo_search_kit_ui_class(slot)` | `' '` + the host classes of a UiKit theme slot (1.1; `''` without UiKit or without host classes) |
+| `nowo_search_kit_ui_attrs(slot)` | The host attributes of a UiKit theme slot, escaped (1.1; `''` without UiKit) |
 
 ## Browser module
 
@@ -322,6 +329,20 @@ document.addEventListener('nowo-search:state', (event) => {
 });
 ```
 
+## UiKit theme (optional)
+
+REQ-UI-003 (details: [TEMPLATES.md](TEMPLATES.md)). UiKit is **optional**: without `nowo-tech/ui-kit-bundle` the widget
+renders exactly as before. With UiKit ^2.2 installed:
+
+1. the parts also carry the **host** classes / attributes you configured for the UiKit theme slots, read for the bundle
+   `NowoSearchKitBundle` — toggle and scope remove `btn_icon`, scope chip `badge_neutral`, input `input`, dropdown
+   `card`, footer `muted`. Only host classes: never UiKit's semantic / framework defaults (`form-control`, `btn` …), so
+   the compact widget keeps its geometry. A host class meant for admin pages that does not suit the header search is
+   cleared per bundle: `nowo_ui_kit.theme.bundles.NowoSearchKitBundle.classes.input: ''`;
+2. the `--nowo-search-*` colour and radius tokens default to the UiKit `--nowo-ui-*` tokens (below), so the widget
+   follows `nowo_ui_kit.theme.tokens`;
+3. the root carries `data-nowo-ui-bundle="NowoSearchKitBundle"` (per-bundle UiKit tokens).
+
 ## Theme tokens
 
 Set them on `.nowo-search` — light defaults, dark under `prefers-color-scheme: dark` or `[data-theme="dark"]` /
@@ -341,6 +362,11 @@ own defaults would hide inherited values. Override the dark values under your ow
 | `--nowo-search-z`, `--nowo-search-mobile-top` | Stacking and phone offset from the top |
 | `--nowo-search-backdrop` | Dimmed backdrop behind the open field on phones (< 40rem; tap it to close; 1.0.2) |
 | `--nowo-search-badge-error`, `-warning`, `-success`, `-info` | Badge tones |
+
+Since 1.1 the light and dark defaults of `--nowo-search-bg`, `-fg`, `-muted`, `-border`, `-surface`, `-accent`,
+`-accent-fg` and `-radius` read the UiKit tokens first (`--nowo-ui-surface`, `--nowo-ui-text`, `--nowo-ui-muted`,
+`--nowo-ui-border`, `--nowo-ui-surface-muted`, `--nowo-ui-primary`, `--nowo-ui-link`, `--nowo-ui-radius`) and fall back
+to the values above; `--nowo-search-accent-soft` is derived from the accent.
 
 ```css
 .app-header .nowo-search {
