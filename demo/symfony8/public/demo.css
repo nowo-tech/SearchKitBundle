@@ -1,0 +1,4 @@
+/* Demo host styles: colours from the UiKit tokens (config/packages/nowo_ui_kit.yaml). */
+body.nowo-ui-body { padding: 0; background: var(--nowo-ui-surface-muted); color: var(--nowo-ui-text); }
+.demo-navbar { background: var(--nowo-ui-primary); }
+.demo-search-toggle { color: var(--nowo-ui-primary); }

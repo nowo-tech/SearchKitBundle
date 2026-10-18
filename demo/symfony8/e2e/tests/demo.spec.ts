@@ -28,6 +28,9 @@ test.describe('search kit demo', () => {
     const field = search.getByRole('combobox');
     await expect(field).not.toBeVisible();
 
+    // Optional UiKit integration (REQ-UI-003): the host class of the btn_icon slot reaches the toggle.
+    await expect(page.getByTestId('nowo-search-toggle')).toHaveClass('nowo-search__toggle demo-search-toggle');
+    await expect(search).toHaveAttribute('data-nowo-ui-bundle', 'NowoSearchKitBundle');
     await page.getByTestId('nowo-search-toggle').click();
     await expect(search).toHaveClass(/is-open/);
     await expect(field).toBeFocused();

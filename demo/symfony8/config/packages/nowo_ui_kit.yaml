@@ -1,0 +1,20 @@
+# Optional UiKit integration of the header search (REQ-UI-003): the same host tokens as the other bundle demos; the
+# search widget's --nowo-search-* defaults read them. Host classes on the widget slots (here btn_icon on the toggle)
+# are appended to the bundle's own classes, never UiKit framework defaults.
+nowo_ui_kit:
+    css_framework: bootstrap5
+    theme:
+        tokens:
+            primary: '#0f766e'
+            primary-contrast: '#ffffff'
+            surface: '#fffdf8'
+            surface-muted: '#f5efe4'
+            border: '#e8dfd0'
+            border-strong: '#d6c8b2'
+            text: '#1c2a27'
+            muted: '#6b6a5e'
+            radius: '0.75rem'
+        bundles:
+            NowoSearchKitBundle:
+                classes:
+                    btn_icon: 'demo-search-toggle'

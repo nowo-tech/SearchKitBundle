@@ -25,6 +25,7 @@ This bundle is **FrankenPHP worker mode friendly**. See [docs/FRANKENPHP-WORKER-
 - **Recents** (per browser, `localStorage`, text only — never HTML) and configurable **quick actions** while the query is empty
 - **Safe rendering**: user text is escaped and highlighted with `<mark>` through DOM nodes; only same-site paths or http(s) URLs are ever navigated
 - **Debounced, aborted requests**; JSON endpoint rate limited per user, `Cache-Control: no-store, private`, 429 `{"error": "rate_limited"}`
+- **Optional UiKit integration** (REQ-UI-003): with `nowo-tech/ui-kit-bundle` ^2.2 the widget takes the host classes of the UiKit theme slots and the `--nowo-search-*` tokens follow the UiKit tokens ([templates](docs/TEMPLATES.md))
 - **Overridable Twig blocks**, **theme tokens** (`--nowo-search-*`, light / dark), **Symfony UX Icons** with a built-in SVG fallback
 - Framework-agnostic browser module (auto-mounted IIFE), an optional **Stimulus** wrapper and `nowo-search:state` / `nowo-search:navigate` events (morphing icons, Turbo)
 - **FrankenPHP worker mode** friendly; 7 locales (en, es, fr, de, it, pt, nl)
@@ -124,6 +125,7 @@ and `make -C demo/symfony8 demo-screenshots` (see [docs/CONTRIBUTING.md](docs/CO
 - [Installation](docs/INSTALLATION.md)
 - [Configuration](docs/CONFIGURATION.md)
 - [Usage](docs/USAGE.md)
+- [Templates (UiKit page contract)](docs/TEMPLATES.md)
 - [Contributing](docs/CONTRIBUTING.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [Changelog](docs/CHANGELOG.md)
