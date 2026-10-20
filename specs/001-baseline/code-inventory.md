@@ -1,8 +1,8 @@
 # Search Kit Bundle — baseline code inventory
 
 **Package**: `nowo-tech/search-kit-bundle`  
-**Last audited**: 2026-10-16  
-**Production units**: **39/39**  
+**Last audited**: 2026-10-20  
+**Production units**: **40/40**  
 **Audit command**: `find src -type f \( -name '*.php' -o -name '*.twig' -o -name '*.yaml' -o -name '*.ts' -o -name '*.css' \) -not -path 'src/Resources/assets/tests/*' | wc -l`
 
 ## Scope notes
@@ -19,11 +19,11 @@
 | Contracts & model | 8 |
 | Engine & providers | 3 |
 | HTTP | 1 |
-| Twig, markup & theme | 3 |
+| Twig, markup & theme | 4 |
 | Stylesheets | 2 |
 | Browser (TypeScript) | 9 |
 | Translations | 7 |
-| **Total** | **39** |
+| **Total** | **40** |
 
 
 ## Bundle, configuration & DI
@@ -69,6 +69,7 @@
 | Source path | Spec section | Requirement ID(s) |
 | --- | --- | --- |
 | `src/Twig/SearchKitExtension.php` | US-01, US-04, US-05 | FR-TWIG-001 |
+| `src/Twig/SearchKitThemeExtension.php` | US-01 | FR-TWIG-004 |
 | `src/Form/SearchFieldType.php` | US-01 | FR-TWIG-003 |
 | `src/Resources/views/search.html.twig` | US-01, US-03, US-04, US-07 | FR-TWIG-002 |
 

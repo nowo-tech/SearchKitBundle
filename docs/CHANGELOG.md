@@ -7,8 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
-  - [Added](#added)
   - [Changed](#changed)
+- [[1.1.0] - 2026-10-18](#110---2026-10-18)
+  - [Added](#added)
+  - [Changed](#changed-1)
 - [[1.0.3] - 2026-10-18](#103---2026-10-18)
   - [Fixed](#fixed)
 - [[1.0.2] - 2026-10-16](#102---2026-10-16)
@@ -21,6 +23,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   - [Added](#added-2)
 
 ## [Unreleased]
+
+### Changed
+
+- Documentation: wave-1 REQ compliance — README Templates link moved under Additional documentation, tables of contents completed, Spec Kit inventory refresh (40/40, `SearchKitThemeExtension` mapped as FR-TWIG-004).
 
 ## [1.1.0] - 2026-10-18
 

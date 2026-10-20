@@ -124,6 +124,10 @@ only navigates to same-site paths or http(s) URLs.
   `nowo_search_toggle_icon`, `nowo_search_footer`. Since 1.0.2: `nowo_search_root_attr` / block `nowo_search_root_attributes` add escaped host attributes to the root (class appended; reserved and invalid names ignored).
 - **FR-TWIG-003** — `SearchFieldType`: one `q` search field, no CSRF (never submitted), translation domain
   `NowoSearchKitBundle`.
+- **FR-TWIG-004** — `SearchKitThemeExtension` (1.1.0, REQ-UI-003 theme slots): `nowo_search_kit_ui_class(slot)` and
+  `nowo_search_kit_ui_attrs(slot)` return the host classes / escaped attributes configured for a UiKit theme slot
+  (`nowo_ui_kit.theme.classes.<slot>` or the per-bundle `theme.bundles.NowoSearchKitBundle` exception); both return an
+  empty string when `nowo-tech/ui-kit-bundle` is not installed.
 - **FR-ICON-001** — `SearchIcons`: icon keys rendered through UX Icons (`icon_set: ux_icon`) with built-in SVG fallback;
   row icons by name (null when unavailable).
 - **FR-THEME-001** — `nowo-search.css` (always): tokens (light, dark by media query or theme attribute), stretch,
@@ -167,7 +171,7 @@ only navigates to same-site paths or http(s) URLs.
 
 ## Success criteria
 
-- **SC-01** — `code-inventory.md` maps **39/39** production units (see its audit command).
+- **SC-01** — `code-inventory.md` maps **40/40** production units (see its audit command).
 - **SC-02** — PHPUnit: 100% line coverage of `src/`.
 - **SC-03** — Vitest: 100% lines / statements / functions of `Resources/assets/src` (branches ≥ 95%).
 - **SC-04** — PHPStan level 8 (with the FrankenPHP rulesets), Rector and PHP-CS-Fixer report nothing; Igor passes.

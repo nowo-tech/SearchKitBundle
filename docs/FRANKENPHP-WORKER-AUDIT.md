@@ -8,6 +8,12 @@
 | Method | Manual review of every service under `src/` (17 production units, see `specs/001-baseline/code-inventory.md`) + Igor deep audit (`make igor`: 21 service files, 0 KO) + PHPStan FrankenPHP rulesets |
 | **Verdict** | ✅ **Viable under scenario B** — every service is stateless; nothing is memoized |
 
+## Table of contents
+
+- [Execution model assumed](#execution-model-assumed)
+- [Summary](#summary)
+- [Rules for future code](#rules-for-future-code)
+
 ## Execution model assumed
 
 FrankenPHP worker mode boots the Symfony kernel once per worker and serves many requests with the same container. This audit assumes the **strict** variant: the kernel is **not** rebooted between requests.

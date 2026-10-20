@@ -1,5 +1,11 @@
 # Architecture
 
+## Table of contents
+
+- [Layers](#layers)
+- [Request flow](#request-flow)
+- [Design rules](#design-rules)
+
 ## Layers
 
 | Layer | Namespace / path | Role |

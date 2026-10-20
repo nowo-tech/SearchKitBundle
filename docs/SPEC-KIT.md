@@ -206,7 +206,7 @@ find src -type f \( -name '*.php' -o -name '*.twig' -o -name '*.yaml' -o -name '
   -not -path 'src/Resources/assets/tests/*' | wc -l
 ```
 
-The **Total** row of the coverage summary in [`specs/001-baseline/code-inventory.md`](../specs/001-baseline/code-inventory.md) must match this count: **39** in **SearchKitBundle** (PHP, Twig, translations, TypeScript sources and the two stylesheets). The Vite output `src/Resources/public/js/nowo-search.js` is documented as `FR-BUILD-001` (an output of `index.ts` / `iife.ts`), not an extra row.
+The **Total** row of the coverage summary in [`specs/001-baseline/code-inventory.md`](../specs/001-baseline/code-inventory.md) must match this count: **40** in **SearchKitBundle** (PHP, Twig, translations, TypeScript sources and the two stylesheets). The Vite output `src/Resources/public/js/nowo-search.js` is documented as `FR-BUILD-001` (an output of `index.ts` / `iife.ts`), not an extra row.
 
 ---
 
