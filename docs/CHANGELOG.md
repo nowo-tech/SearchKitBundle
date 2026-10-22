@@ -7,22 +7,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.1.1] - 2026-10-22](#111---2026-10-22)
   - [Changed](#changed)
+  - [Fixed](#fixed)
 - [[1.1.0] - 2026-10-18](#110---2026-10-18)
   - [Added](#added)
   - [Changed](#changed-1)
 - [[1.0.3] - 2026-10-18](#103---2026-10-18)
-  - [Fixed](#fixed)
+  - [Fixed](#fixed-1)
 - [[1.0.2] - 2026-10-16](#102---2026-10-16)
   - [Added](#added-1)
-  - [Fixed](#fixed-1)
+  - [Fixed](#fixed-2)
 - [[1.0.1] - 2026-10-16](#101---2026-10-16)
   - [Security](#security)
-  - [Fixed](#fixed-2)
+  - [Fixed](#fixed-3)
 - [[1.0.0] - 2026-10-16](#100---2026-10-16)
   - [Added](#added-2)
 
 ## [Unreleased]
+
+## [1.1.1] - 2026-10-22
+
+Dependency refresh, wave-1 docs, autoconfigured controller, worktree-safe co-author check. See [UPGRADING](UPGRADING.md#to-111).
 
 ### Changed
 
