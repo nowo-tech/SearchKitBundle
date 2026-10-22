@@ -28,7 +28,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Dependencies refreshed (Composer and pnpm/npm lock files of the bundle and its demos, campaign 2026-10-19).
 - `.php-cs-fixer.dist.php`: `new ParallelConfig(2)` (REQ-CS-001).
+- `SearchController` relies on `#[AsController]` + autoconfigure; the duplicate manual `controller.service_arguments` tag is removed (REQ-SF-003).
 - Documentation: wave-1 REQ compliance — README Templates link moved under Additional documentation, tables of contents completed, Spec Kit inventory refresh (40/40, `SearchKitThemeExtension` mapped as FR-TWIG-004).
+
+### Fixed
+
+- `.scripts/check-no-cursor-coauthor.sh` also runs inside git worktrees (`.git` file instead of directory).
 
 ## [1.1.0] - 2026-10-18
 

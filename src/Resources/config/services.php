@@ -53,8 +53,8 @@ return static function (ContainerConfigurator $container): void {
         ->public()
         ->arg('$role', param('nowo_search_kit.role'))
         ->arg('$maxLength', param('nowo_search_kit.max_length'))
-        ->arg('$limiter', service('limiter.' . NowoSearchKitExtension::LIMITER)->nullOnInvalid())
-        ->tag('controller.service_arguments');
+        ->arg('$limiter', service('limiter.' . NowoSearchKitExtension::LIMITER)->nullOnInvalid());
+    // controller.service_arguments comes from #[AsController] + autoconfigure (REQ-SF-003).
 
     $services->set(SearchFieldType::class);
 
