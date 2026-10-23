@@ -301,6 +301,7 @@ import { createSearchKitController } from '../../vendor/nowo-tech/search-kit-bun
 
 application.register('nowo-search-kit', createSearchKitController(Controller, {
   loadPopoverStyles: () => import('./search-popover.css'), // optional
+  onState: (state, root) => morphToggle(root, state), // optional (1.2): idle / open / loading, initial one included
 }));
 ```
 

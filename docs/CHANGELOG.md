@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.2.0] - 2026-10-23](#120---2026-10-23)
 - [[1.1.1] - 2026-10-22](#111---2026-10-22)
   - [Changed](#changed)
   - [Fixed](#fixed)
@@ -25,6 +26,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   - [Added](#added-2)
 
 ## [Unreleased]
+
+## [1.2.0] - 2026-10-23
+
+### Added
+
+- `createSearchKitController(Controller, { onState })`: the Stimulus controller calls `onState(state, root)` on every
+  `nowo-search:state` (the initial state included) and stops on disconnect, so a host that morphs its toggle icon no
+  longer writes its own controller around `mount()` / `unmount()`.
 
 ## [1.1.1] - 2026-10-22
 

@@ -5,6 +5,7 @@ This guide lists the changes integrators must apply when upgrading between versi
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.2.0](#to-120)
 - [To 1.1.1](#to-111)
 - [To 1.1.0](#to-110)
   - [Template contract (1.1)](#template-contract-11)
@@ -14,6 +15,11 @@ This guide lists the changes integrators must apply when upgrading between versi
 - [1.0.0 (2026-10-16)](#100-2026-10-16)
 
 ## Unreleased
+
+## To 1.2.0
+
+From **1.1.1**: `composer update nowo-tech/search-kit-bundle`. Optional: a host controller that only mounts the box and
+listens to `nowo-search:state` can be replaced by `createSearchKitController(Controller, { loadPopoverStyles, onState })`.
 
 ## To 1.1.1
 

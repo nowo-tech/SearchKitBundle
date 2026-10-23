@@ -65,4 +65,24 @@ describe('mounting', () => {
     controller.disconnect();
     expect(STIMULUS_IDENTIFIER).toBe('nowo-search-kit');
   });
+
+  it('reports every state to onState, the initial one included, until disconnect', () => {
+    document.body.innerHTML = markup();
+    class Base {
+      constructor(readonly element: Element) {}
+    }
+    const states: string[] = [];
+    const Controller = createSearchKitController(Base, { onState: (state, element) => states.push(`${state}:${element === root()}`) });
+    const controller = new Controller(root()) as InstanceType<typeof Base> & { connect(): void; disconnect(): void };
+    controller.connect();
+    root().querySelector<HTMLButtonElement>('[data-part="toggle"]')?.click();
+    expect(states).toEqual(['idle:true', 'open:true']);
+    controller.disconnect();
+    root().dispatchEvent(new CustomEvent('nowo-search:state', { detail: { state: 'loading' } }));
+    expect(states).toHaveLength(2);
+
+    const silent = new (createSearchKitController(Base))(root()) as InstanceType<typeof Base> & { connect(): void; disconnect(): void };
+    silent.connect();
+    silent.disconnect();
+  });
 });
