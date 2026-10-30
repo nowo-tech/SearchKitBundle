@@ -7,17 +7,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
-- [[1.2.1] - 2026-10-30](#121---2026-10-30)
+- [[1.3.0] - 2026-10-30](#130---2026-10-30)
   - [Changed](#changed)
+- [[1.2.1] - 2026-10-30](#121---2026-10-30)
+  - [Changed](#changed-1)
   - [Fixed](#fixed)
 - [[1.2.0] - 2026-10-23](#120---2026-10-23)
   - [Added](#added)
 - [[1.1.1] - 2026-10-22](#111---2026-10-22)
-  - [Changed](#changed-1)
+  - [Changed](#changed-2)
   - [Fixed](#fixed-1)
 - [[1.1.0] - 2026-10-18](#110---2026-10-18)
   - [Added](#added-1)
-  - [Changed](#changed-2)
+  - [Changed](#changed-3)
 - [[1.0.3] - 2026-10-18](#103---2026-10-18)
   - [Fixed](#fixed-2)
 - [[1.0.2] - 2026-10-16](#102---2026-10-16)
@@ -30,6 +32,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   - [Added](#added-3)
 
 ## [Unreleased]
+
+## [1.3.0] - 2026-10-30
+
+Page forms are FormKit types with a bundle FormKit profile; requires nowo-tech/form-kit-bundle (REQ-TWIG-005 rule 11). See [UPGRADING](UPGRADING.md#to-130).
 
 ### Changed
 
