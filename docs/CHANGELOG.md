@@ -7,25 +7,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
-- [[1.2.0] - 2026-10-23](#120---2026-10-23)
-- [[1.1.1] - 2026-10-22](#111---2026-10-22)
+- [[1.2.1] - 2026-10-30](#121---2026-10-30)
   - [Changed](#changed)
   - [Fixed](#fixed)
-- [[1.1.0] - 2026-10-18](#110---2026-10-18)
+- [[1.2.0] - 2026-10-23](#120---2026-10-23)
   - [Added](#added)
+- [[1.1.1] - 2026-10-22](#111---2026-10-22)
   - [Changed](#changed-1)
-- [[1.0.3] - 2026-10-18](#103---2026-10-18)
   - [Fixed](#fixed-1)
-- [[1.0.2] - 2026-10-16](#102---2026-10-16)
+- [[1.1.0] - 2026-10-18](#110---2026-10-18)
   - [Added](#added-1)
+  - [Changed](#changed-2)
+- [[1.0.3] - 2026-10-18](#103---2026-10-18)
   - [Fixed](#fixed-2)
+- [[1.0.2] - 2026-10-16](#102---2026-10-16)
+  - [Added](#added-2)
+  - [Fixed](#fixed-3)
 - [[1.0.1] - 2026-10-16](#101---2026-10-16)
   - [Security](#security)
-  - [Fixed](#fixed-3)
+  - [Fixed](#fixed-4)
 - [[1.0.0] - 2026-10-16](#100---2026-10-16)
-  - [Added](#added-2)
+  - [Added](#added-3)
 
 ## [Unreleased]
+
+## [1.2.1] - 2026-10-30
+
+Bundle routes are opt-in again: controllers are no longer autoconfigured, so a host's routing.controllers import does not expose them (REQ-SF-004 rule 7). See [UPGRADING](UPGRADING.md#to-121).
 
 ### Changed
 

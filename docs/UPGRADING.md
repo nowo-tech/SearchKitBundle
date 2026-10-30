@@ -5,6 +5,7 @@ This guide lists the changes integrators must apply when upgrading between versi
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.2.1](#to-121)
 - [To 1.2.0](#to-120)
 - [To 1.1.1](#to-111)
 - [To 1.1.0](#to-110)
@@ -15,6 +16,14 @@ This guide lists the changes integrators must apply when upgrading between versi
 - [1.0.0 (2026-10-16)](#100-2026-10-16)
 
 ## Unreleased
+
+## To 1.2.1
+
+From **1.2.0**:
+
+```bash
+composer update nowo-tech/search-kit-bundle
+```
 
 The search endpoint is no longer picked up by the Symfony >= 7.3 default `routing.controllers` import. If your
 application never imported the bundle routes and the search box worked anyway (endpoint on `/`), import them explicitly:
