@@ -250,9 +250,9 @@ the cache.
 
 ### Forms
 
-The search input is a Symfony Form (`SearchFieldType`, block prefix `nowo_search`, child `q`), never a hand-written
+The search input is a Symfony Form and a **FormKit Type** (`SearchFieldType`, `#[FormKitConfig('search_kit')]`, block prefix `nowo_search`, child `q`; profile `nowo_form_kit.profiles.search_kit`, see [CONFIGURATION](CONFIGURATION.md#formkit-profile)), never a hand-written
 control: the template renders it with the `{% for child in form %}{% if not child.rendered %}…{% endif %}{% endfor %}`
-child loop (REQ-TWIG-003 / REQ-TWIG-005). Style it through a form theme if needed. It is never submitted — the browser
+child loop (REQ-TWIG-003 / REQ-TWIG-005). Style it through the FormKit profile or the UiKit theme slots. It is never submitted — the browser
 module reads it and calls the read-only GET endpoint — so it has no `<form>` wrapper and no CSRF token. Overrides of
 `search.html.twig` must keep the form widget and never reintroduce raw `<form>` / `<input>` / `<textarea>` / `<select>`
 tags; `make check-no-raw-html-form` fails on them in the bundle and demo templates.

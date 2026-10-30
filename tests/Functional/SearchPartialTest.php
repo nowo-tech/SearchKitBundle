@@ -143,6 +143,21 @@ final class SearchPartialTest extends TestCase
         self::assertNull($data['groups'][0]['items'][0]['icon'], 'svg_inline: rows use the kind templates');
     }
 
+    public function testTheFieldIsAFormKitTypeOnTheBundleProfile(): void
+    {
+        $client   = $this->client();
+        $profiles = $client->getContainer()->getParameter('nowo_form_kit.profiles');
+        self::assertIsArray($profiles);
+        self::assertSame('NowoSearchKitBundle', $profiles['search_kit']['translation_domain']);
+
+        $client->loginUser(new InMemoryUser('bob', 'x', ['ROLE_USER']));
+        $crawler = $client->request(Request::METHOD_GET, '/page');
+        $input   = $crawler->filter('input[data-part="input"]');
+        self::assertSame('nowo-search__input', $input->attr('class'), 'the type class wins over the profile class');
+        self::assertCount(0, $crawler->filter('label'), 'label: false stays off');
+        self::assertDoesNotMatchRegularExpression('/(placeholder|aria-label|title)="(search|nowo_search)\.[a-z_.]+"/', (string) $client->getResponse()->getContent());
+    }
+
     public function testWithoutUiKitTheWidgetKeepsItsOwnClasses(): void
     {
         $client = $this->client();

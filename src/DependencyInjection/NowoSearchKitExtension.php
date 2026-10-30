@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\SearchKitBundle\DependencyInjection;
 
 use Nowo\SearchKitBundle\Contract\SearchProviderInterface;
+use Nowo\SearchKitBundle\NowoSearchKitBundle;
 use Nowo\SearchKitBundle\Provider\MenuPagesProvider;
 use Symfony\Component\Config\Definition\Processor;
 use Symfony\Component\Config\FileLocator;
@@ -13,6 +14,9 @@ use Symfony\Component\DependencyInjection\Extension\Extension;
 use Symfony\Component\DependencyInjection\Extension\PrependExtensionInterface;
 use Symfony\Component\DependencyInjection\Loader\PhpFileLoader;
 use Symfony\Component\DependencyInjection\Reference;
+
+use function array_key_exists;
+use function is_array;
 
 /**
  * Loads `nowo_search_kit`, registers the asset package and the rate limiter, tags the providers and wires the
@@ -38,6 +42,7 @@ final class NowoSearchKitExtension extends Extension implements PrependExtension
      */
     public function prepend(ContainerBuilder $container): void
     {
+        $this->prependFormKitProfile($container);
         if (!$container->hasExtension('framework')) {
             return;
         }
@@ -58,6 +63,51 @@ final class NowoSearchKitExtension extends Extension implements PrependExtension
             $limiter['interval'] = $limit['interval'];
         }
         $container->prependExtensionConfig('framework', ['rate_limiter' => [self::LIMITER => $limiter]]);
+    }
+
+    /**
+     * Default FormKit profile of the bundle form: translation domain, no auto help / placeholder convention keys.
+     * REQ-UI-003: no framework classes; the type keeps `nowo-search__input` / `data-part` and UiKit theme slots add
+     * host classes.
+     *
+     * @return array<string, mixed>
+     */
+    public static function formKitProfile(): array
+    {
+        return [
+            'alias'              => NowoSearchKitBundle::FORM_KIT_PROFILE,
+            'translation_domain' => NowoSearchKitBundle::TRANSLATION_DOMAIN,
+            'auto_help'          => false,
+            'auto_placeholder'   => false,
+            'defaults'           => [
+                'attr'     => [],
+                'row_attr' => [],
+            ],
+            'field_types' => [],
+        ];
+    }
+
+    /**
+     * Registers the FormKit profile {@see NowoSearchKitBundle::FORM_KIT_PROFILE} used by `SearchFieldType`
+     * (#[FormKitConfig]). A host overrides it by defining `nowo_form_kit.profiles.search_kit` itself (nothing is
+     * prepended then). Does not change the host `default_profile`.
+     */
+    private function prependFormKitProfile(ContainerBuilder $container): void
+    {
+        if (!$container->hasExtension('nowo_form_kit')) {
+            return;
+        }
+
+        foreach ($container->getExtensionConfig('nowo_form_kit') as $config) {
+            $profiles = $config['profiles'] ?? null;
+            if (is_array($profiles) && array_key_exists(NowoSearchKitBundle::FORM_KIT_PROFILE, $profiles)) {
+                return;
+            }
+        }
+
+        $container->prependExtensionConfig('nowo_form_kit', [
+            'profiles' => [NowoSearchKitBundle::FORM_KIT_PROFILE => self::formKitProfile()],
+        ]);
     }
 
     /**

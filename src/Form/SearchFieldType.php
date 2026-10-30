@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Nowo\SearchKitBundle\Form;
 
+use Nowo\FormKitBundle\Attribute\FormKitConfig;
+use Nowo\FormKitBundle\Form\FormOptionsTrait;
+use Nowo\SearchKitBundle\NowoSearchKitBundle;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\SearchType;
 use Symfony\Component\Form\FormBuilderInterface;
@@ -16,8 +19,12 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
  *
  * @extends AbstractType<array{q?: string|null}|null>
  */
+#[FormKitConfig(NowoSearchKitBundle::FORM_KIT_PROFILE)]
 final class SearchFieldType extends AbstractType
 {
+    use FormKitFieldTrait;
+    use FormOptionsTrait;
+
     /**
      * Adds the `q` search input.
      *
@@ -26,7 +33,7 @@ final class SearchFieldType extends AbstractType
      */
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
-        $builder->add('q', SearchType::class, [
+        $this->addKitField($builder, 'q', SearchType::class, [
             'label'    => false,
             'required' => false,
             'attr'     => ['class' => 'nowo-search__input', 'data-part' => 'input', 'autocomplete' => 'off'],
@@ -41,7 +48,7 @@ final class SearchFieldType extends AbstractType
     public function configureOptions(OptionsResolver $resolver): void
     {
         $resolver->setDefaults([
-            'translation_domain' => 'NowoSearchKitBundle',
+            'translation_domain' => NowoSearchKitBundle::TRANSLATION_DOMAIN,
             'csrf_protection'    => false,
             'method'             => 'GET',
         ]);

@@ -19,6 +19,12 @@ use Symfony\Component\HttpKernel\Bundle\Bundle;
  */
 final class NowoSearchKitBundle extends Bundle
 {
+    /** FormKit profile (nowo_form_kit.profiles.search_kit) used by the bundle form type (REQ-TWIG-005 rule 11). */
+    public const string FORM_KIT_PROFILE = 'search_kit';
+
+    /** Translation domain of the bundle. */
+    public const string TRANSLATION_DOMAIN = 'NowoSearchKitBundle';
+
     /**
      * Registers the Twig template paths compiler pass.
      *

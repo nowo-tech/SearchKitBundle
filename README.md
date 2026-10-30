@@ -41,6 +41,7 @@ With **Symfony Flex**, the recipe registers the bundle and creates `config/packa
 ```php
 // config/bundles.php
 return [
+    Nowo\FormKitBundle\NowoFormKitBundle::class => ['all' => true], // required dependency: the search field is a FormKit Type
     Nowo\SearchKitBundle\NowoSearchKitBundle::class => ['all' => true],
 ];
 ```
