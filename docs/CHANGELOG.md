@@ -31,6 +31,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **Developer tooling (REQ-CS-001):** `make validate-phpdoc` is read-only and now part of `make release-check`: it fails when a class or public method in `src/` has no PHPDoc block (the former `@return` check asked for tags that `cs-fix` (`no_superfluous_phpdoc_tags`) removes; `make fix-phpdoc` is gone).
 
+### Fixed
+
+- **Routes are opt-in (REQ-SF-004 rule 7):** `SearchController` is no longer autoconfigured nor `#[AsController]`; it is tagged `controller.service_arguments` explicitly. On Symfony >= 7.3 the host's default `config/routes.yaml` (`routing.controllers`) no longer registers `nowo_search_kit_search` on `/` without the `/search` prefix; the route only exists when the host imports `@NowoSearchKitBundle/Resources/config/routes.php`.
+
 ## [1.2.0] - 2026-10-23
 
 ### Added

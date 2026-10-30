@@ -49,12 +49,15 @@ return static function (ContainerConfigurator $container): void {
         ])
         ->tag('monolog.logger', ['channel' => 'nowo_search_kit']);
 
+    // Routes stay opt-in (REQ-SF-004 rule 7): not autoconfigured, so the #[Route] class never gets the
+    // `routing.controller` tag and a host `routing.controllers` import does not mount it without the prefix.
     $services->set(SearchController::class)
         ->public()
+        ->autoconfigure(false)
+        ->tag('controller.service_arguments')
         ->arg('$role', param('nowo_search_kit.role'))
         ->arg('$maxLength', param('nowo_search_kit.max_length'))
         ->arg('$limiter', service('limiter.' . NowoSearchKitExtension::LIMITER)->nullOnInvalid());
-    // controller.service_arguments comes from #[AsController] + autoconfigure (REQ-SF-003).
 
     $services->set(SearchFieldType::class);
 

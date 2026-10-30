@@ -16,6 +16,17 @@ This guide lists the changes integrators must apply when upgrading between versi
 
 ## Unreleased
 
+The search endpoint is no longer picked up by the Symfony >= 7.3 default `routing.controllers` import. If your
+application never imported the bundle routes and the search box worked anyway (endpoint on `/`), import them explicitly:
+
+```yaml
+# config/routes/nowo_search_kit.yaml
+nowo_search_kit:
+    resource: '@NowoSearchKitBundle/Resources/config/routes.php'
+    prefix: /search
+    trailing_slash_on_root: false
+```
+
 ## To 1.2.0
 
 From **1.1.1**: `composer update nowo-tech/search-kit-bundle`. Optional: a host controller that only mounts the box and
