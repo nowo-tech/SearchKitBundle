@@ -31,6 +31,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **The search field is a FormKit Type (REQ-TWIG-005 rule 11):** `nowo-tech/form-kit-bundle` (`^2.16`) is now a required dependency. `SearchFieldType` carries `#[FormKitConfig('search_kit')]` + `FormOptionsTrait` and adds `q` through FormKit, themed by the FormKit profile `nowo_form_kit.profiles.search_kit` the bundle prepends (translation domain `NowoSearchKitBundle`, no auto help / placeholder keys). Host override: define `nowo_form_kit.profiles.search_kit` yourself. The rendered input (`nowo-search__input`, `data-part`, no label) is unchanged.
+
 ## [1.2.1] - 2026-10-30
 
 Bundle routes are opt-in again: controllers are no longer autoconfigured, so a host's routing.controllers import does not expose them (REQ-SF-004 rule 7). See [UPGRADING](UPGRADING.md#to-121).

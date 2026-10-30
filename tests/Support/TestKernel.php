@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\SearchKitBundle\Tests\Support;
 
+use Nowo\FormKitBundle\NowoFormKitBundle;
 use Nowo\SearchKitBundle\Contract\SearchScopeResolverInterface;
 use Nowo\SearchKitBundle\NowoSearchKitBundle;
 use Nowo\SearchKitBundle\Tests\Support\Provider\FailingProvider;
@@ -68,6 +69,7 @@ final class TestKernel extends Kernel
         if ($this->uiKitConfig !== null) {
             yield new NowoUiKitBundle();
         }
+        yield new NowoFormKitBundle();
         yield new NowoSearchKitBundle();
     }
 

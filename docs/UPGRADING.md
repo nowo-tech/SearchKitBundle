@@ -17,6 +17,13 @@ This guide lists the changes integrators must apply when upgrading between versi
 
 ## Unreleased
 
+**New required dependency `nowo-tech/form-kit-bundle` (`^2.16`, REQ-TWIG-005 rule 11).** Register
+`Nowo\FormKitBundle\NowoFormKitBundle::class => ['all' => true]` in `config/bundles.php` (Symfony Flex does it on
+`composer update`); `SearchFieldType` gets its field options from FormKit and fails with an uninitialized
+`FormOptionsMerger` without it. Field defaults of the search input now come from the FormKit profile
+`nowo_form_kit.profiles.search_kit` ([CONFIGURATION](CONFIGURATION.md#formkit-profile)) instead of a `form_themes`
+override; the rendered markup is unchanged.
+
 ## To 1.2.1
 
 From **1.2.0**:

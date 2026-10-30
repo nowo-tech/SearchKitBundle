@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\SearchKitBundle\Tests\Support;
 
+use Nowo\FormKitBundle\NowoFormKitBundle;
 use Nowo\SearchKitBundle\NowoSearchKitBundle;
 use Symfony\Bundle\FrameworkBundle\FrameworkBundle;
 use Symfony\Bundle\FrameworkBundle\Kernel\MicroKernelTrait;
@@ -40,6 +41,7 @@ final class HostControllersRoutesKernel extends Kernel
         yield new SecurityBundle();
         yield new TwigBundle();
         yield new TwigExtraBundle();
+        yield new NowoFormKitBundle();
         yield new NowoSearchKitBundle();
     }
 
