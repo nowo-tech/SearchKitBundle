@@ -22,7 +22,6 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
 #[FormKitConfig(NowoSearchKitBundle::FORM_KIT_PROFILE)]
 final class SearchFieldType extends AbstractType
 {
-    use FormKitFieldTrait;
     use FormOptionsTrait;
 
     /**
@@ -33,7 +32,7 @@ final class SearchFieldType extends AbstractType
      */
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
-        $this->addKitField($builder, 'q', SearchType::class, [
+        $this->addWithDefaults($builder, 'q', SearchType::class, [
             'label'    => false,
             'required' => false,
             'attr'     => ['class' => 'nowo-search__input', 'data-part' => 'input', 'autocomplete' => 'off'],
