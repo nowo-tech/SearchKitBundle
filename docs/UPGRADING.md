@@ -5,6 +5,7 @@ This guide lists the changes integrators must apply when upgrading between versi
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.3.1](#to-131)
 - [To 1.3.0](#to-130)
 - [To 1.2.1](#to-121)
 - [To 1.2.0](#to-120)
@@ -17,6 +18,14 @@ This guide lists the changes integrators must apply when upgrading between versi
 - [1.0.0 (2026-10-16)](#100-2026-10-16)
 
 ## Unreleased
+
+## To 1.3.1
+
+From **1.3.0**:
+
+```bash
+composer update nowo-tech/search-kit-bundle
+```
 
 `nowo-tech/form-kit-bundle` is now required at `^2.17` (was `^2.16`); update both packages together:
 
