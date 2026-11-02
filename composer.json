@@ -59,7 +59,7 @@
     },
     "require-dev": {
         "friendsofphp/php-cs-fixer": "^3.64",
-        "igor-php/igor-php": "^0.9.7",
+        "igor-php/igor-php": "^0.9.7 || ^0.10.0",
         "nowo-tech/phpstan-frankenphp": "^1.1",
         "nowo-tech/ui-kit-bundle": "^2.2",
         "phpstan/phpstan": "^2.1",
