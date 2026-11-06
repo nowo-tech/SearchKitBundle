@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+  - [Added](#added)
 - [[1.3.1] - 2026-10-31](#131---2026-10-31)
   - [Changed](#changed)
 - [[1.3.0] - 2026-10-30](#130---2026-10-30)
@@ -15,25 +16,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   - [Changed](#changed-2)
   - [Fixed](#fixed)
 - [[1.2.0] - 2026-10-23](#120---2026-10-23)
-  - [Added](#added)
+  - [Added](#added-1)
 - [[1.1.1] - 2026-10-22](#111---2026-10-22)
   - [Changed](#changed-3)
   - [Fixed](#fixed-1)
 - [[1.1.0] - 2026-10-18](#110---2026-10-18)
-  - [Added](#added-1)
+  - [Added](#added-2)
   - [Changed](#changed-4)
 - [[1.0.3] - 2026-10-18](#103---2026-10-18)
   - [Fixed](#fixed-2)
 - [[1.0.2] - 2026-10-16](#102---2026-10-16)
-  - [Added](#added-2)
+  - [Added](#added-3)
   - [Fixed](#fixed-3)
 - [[1.0.1] - 2026-10-16](#101---2026-10-16)
   - [Security](#security)
   - [Fixed](#fixed-4)
 - [[1.0.0] - 2026-10-16](#100---2026-10-16)
-  - [Added](#added-3)
+  - [Added](#added-4)
 
 ## [Unreleased]
+
+### Added
+
+- `toggle_icon_template` (default `null`): a Twig partial rendered inside the `nowo_search_toggle_icon` block instead of
+  the three state icons, so a morphing icon needs no `templates/bundles/` override. Default output is unchanged. Exposed
+  through `nowo_search_kit_toggle_icon_template()`; the path is not part of the browser configuration. See
+  [UPGRADING](UPGRADING.md#unreleased).
 
 ## [1.3.1] - 2026-10-31
 

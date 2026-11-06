@@ -206,7 +206,7 @@ in an override, redefine the `nowo_search_root_attributes` block (it prints the 
 | `nowo_search_root` | The whole component |
 | `nowo_search_root_attributes` | Extra attributes of the root tag (from `nowo_search_root_attr`; 1.0.2) |
 | `nowo_search_toggle` | The magnifier button |
-| `nowo_search_toggle_icon` | The three state icons (search / close / loading) |
+| `nowo_search_toggle_icon` | The three state icons (search / close / loading), or the `toggle_icon_template` partial |
 | `nowo_search_scope` | The scope chip and its remove button (1.1) |
 | `nowo_search_field` | The search input (Form widget child loop; 1.1) |
 | `nowo_search_shortcut` | The `Ctrl K` hint in the field (1.1) |
@@ -265,6 +265,7 @@ tags; `make check-no-raw-html-form` fails on them in the bundle and demo templat
 | `nowo_search_kit_scope()` | `{id, label}` of the current page, or null |
 | `nowo_search_kit_form()` | The `FormView` of the field |
 | `nowo_search_kit_icons()` | Icon key → SVG markup |
+| `nowo_search_kit_toggle_icon_template()` | The configured `toggle_icon_template`, or null |
 | `nowo_search_kit_ui_class(slot)` | `' '` + the host classes of a UiKit theme slot (1.1; `''` without UiKit or without host classes) |
 | `nowo_search_kit_ui_attrs(slot)` | The host attributes of a UiKit theme slot, escaped (1.1; `''` without UiKit) |
 
@@ -321,7 +322,17 @@ icon without waiting for the first interaction. The root also carries `data-stat
 ### Morphing toggle icon
 
 Without extra code the toggle swaps three UX icons (magnifier ↔ ✕ ↔ spinner) by `data-state`. For an animated morph
-(e.g. a `<morph-icon>` web component), override `nowo_search_toggle_icon` and listen to `nowo-search:state`:
+(e.g. a `<morph-icon>` web component), point `toggle_icon_template` at a partial and listen to `nowo-search:state`:
+
+```yaml
+nowo_search_kit:
+    toggle_icon_template: search/_toggle_icon.html.twig
+```
+
+```twig
+{# templates/search/_toggle_icon.html.twig #}
+<morph-icon class="nowo-search__morph" data-search-morph size="14" aria-hidden="true"></morph-icon>
+```
 
 ```ts
 document.addEventListener('nowo-search:state', (event) => {
@@ -329,6 +340,11 @@ document.addEventListener('nowo-search:state', (event) => {
   syncSearchMorphIcon((event.target as HTMLElement).querySelector('[data-part="toggle"]')!, state, true);
 });
 ```
+
+The partial replaces all three icons, so it shows the states itself (the event above, or CSS on the root's `data-state`).
+It gets the block's context (`nowo_search_id`, `nowo_search_icons`, `nowo_search_config`). The button keeps its
+`aria-label`: mark the icon `aria-hidden="true"`. Rows of the dropdown are not affected. Redefining the block in a
+`templates/bundles/` override still works and wins over the option.
 
 ## UiKit theme (optional)
 

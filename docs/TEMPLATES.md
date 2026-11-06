@@ -29,7 +29,7 @@ None.
 | --- | --- | --- | --- |
 | Root | `.nowo-search` (`data-nowo-ui-bundle="NowoSearchKitBundle"`) | — | `nowo_search_root`, `nowo_search_root_attributes` |
 | Assets | `<link>` / `<script>` (`assets.*`) | — | `nowo_search_assets` |
-| Toggle | `.nowo-search__toggle` | `btn_icon` (classes + attributes) | `nowo_search_toggle`, `nowo_search_toggle_icon` |
+| Toggle | `.nowo-search__toggle` | `btn_icon` (classes + attributes) | `nowo_search_toggle`, `nowo_search_toggle_icon` (or the `toggle_icon_template` partial) |
 | Scope chip | `.nowo-search__scope`, `.nowo-search__scope-remove` | `badge_neutral`, `btn_icon` | `nowo_search_scope` |
 | Field | `.nowo-search__input` (Form widget) | `input` | `nowo_search_field` |
 | Shortcut hint | `.nowo-search__kbd` | — | `nowo_search_shortcut` |
