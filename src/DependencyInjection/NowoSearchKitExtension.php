@@ -22,7 +22,7 @@ use function is_array;
  * Loads `nowo_search_kit`, registers the asset package and the rate limiter, tags the providers and wires the
  * optional Pages provider.
  *
- * Container parameters: `nowo_search_kit.{role,min_length,max_length,per_group,icon_set,icons,settings}`.
+ * Container parameters: `nowo_search_kit.{role,min_length,max_length,per_group,icon_set,toggle_icon_template,icons,settings}`.
  *
  * @author Héctor Franco Aceituno <hectorfranco@nowo.tech>
  * @copyright 2026 Nowo.tech
@@ -118,10 +118,10 @@ final class NowoSearchKitExtension extends Extension implements PrependExtension
      */
     public function load(array $configs, ContainerBuilder $container): void
     {
-        /** @var array{role: string, min_length: int, max_length: int, per_group: int, debounce_ms: int, keyboard_shortcuts: bool, rate_limit: array{enabled: bool}, recent: array<string, mixed>, quick_actions: list<array<string, mixed>>, assets: array{stylesheet: bool, script: bool}, icon_set: string, icons: array<string, string>, menu_pages: array{enabled: bool|null, service: string, menus: list<array{code: string, label: string|null, translation_domain: string|null}>, icon: string, priority: int, skip_when_scoped: bool}} $config */
+        /** @var array{role: string, min_length: int, max_length: int, per_group: int, debounce_ms: int, keyboard_shortcuts: bool, rate_limit: array{enabled: bool}, recent: array<string, mixed>, quick_actions: list<array<string, mixed>>, assets: array{stylesheet: bool, script: bool}, icon_set: string, toggle_icon_template: string|null, icons: array<string, string>, menu_pages: array{enabled: bool|null, service: string, menus: list<array{code: string, label: string|null, translation_domain: string|null}>, icon: string, priority: int, skip_when_scoped: bool}} $config */
         $config = $this->processConfiguration(new Configuration(), $configs);
 
-        foreach (['role', 'min_length', 'max_length', 'per_group', 'icon_set'] as $key) {
+        foreach (['role', 'min_length', 'max_length', 'per_group', 'icon_set', 'toggle_icon_template'] as $key) {
             $container->setParameter(Configuration::ALIAS . '.' . $key, $config[$key]);
         }
         $container->setParameter(Configuration::ALIAS . '.icons', array_replace(Configuration::DEFAULT_ICONS, $config['icons']));

@@ -63,7 +63,7 @@ return static function (ContainerConfigurator $container): void {
 
     // Optional UiKit theme (REQ-UI-003): null when nowo-tech/ui-kit-bundle is not installed.
     $services->set(SearchKitThemeExtension::class)
-        ->args([service('nowo_ui_kit.theme')->nullOnInvalid()]);
+        ->args([service('nowo_ui_kit.theme')->nullOnInvalid(), param('nowo_search_kit.toggle_icon_template')]);
 
     $services->set(SearchKitExtension::class)
         ->arg('$packages', service('assets.packages'))

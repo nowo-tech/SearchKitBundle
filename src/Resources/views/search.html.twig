@@ -8,7 +8,8 @@
  # A magnifier that stretches into a field (button, Ctrl/⌘ K, "/"), with grouped results in a dropdown under it.
  # Guests and users without `nowo_search_kit.role` get nothing. To change part of it, create
  # templates/bundles/NowoSearchKitBundle/search.html.twig with {% extends '@!NowoSearchKitBundle/search.html.twig' %}
- # and redefine the blocks you need (e.g. `nowo_search_toggle_icon` for a morphing icon). Blocks: nowo_search_assets,
+ # and redefine the blocks you need. For a morphing icon, set `nowo_search_kit.toggle_icon_template` instead: that
+ # partial is rendered in `nowo_search_toggle_icon` and no override is needed. Blocks: nowo_search_assets,
  # nowo_search_root, nowo_search_root_attributes, nowo_search_toggle, nowo_search_toggle_icon, nowo_search_scope,
  # nowo_search_field, nowo_search_shortcut, nowo_search_popover, nowo_search_footer.
  #
@@ -52,9 +53,15 @@
                         aria-label="{{ 'search.label'|trans }}"
                         title="{{ nowo_search_config.shortcuts ? 'search.shortcut'|trans({'%keys%': 'Ctrl K'}) : 'search.label'|trans }}">
                         {% block nowo_search_toggle_icon %}
+                            {#- The ~ controls keep the default output byte-identical (ToggleIconTemplateTest pins it). -#}
+                            {%~ set nowo_search_toggle_icon_template = nowo_search_kit_toggle_icon_template() %}
+                            {%~ if nowo_search_toggle_icon_template is not null %}
+                                {{~ include(nowo_search_toggle_icon_template) }}
+                            {%~ else %}
                             <span class="nowo-search__toggle-icon nowo-search__toggle-icon--search">{{ nowo_search_icons.search }}</span>
                             <span class="nowo-search__toggle-icon nowo-search__toggle-icon--close">{{ nowo_search_icons.close }}</span>
                             <span class="nowo-search__toggle-icon nowo-search__toggle-icon--loading">{{ nowo_search_icons.loading }}</span>
+                            {%~ endif %}
                         {% endblock %}
                     </button>
                 {% endblock %}

@@ -54,6 +54,7 @@ nowo_search_kit:
     icons:                          # icon key / row kind → UX Icons name, merged over the defaults
         projects: 'tabler:folder'
         issues: 'tabler:bug'
+    toggle_icon_template: ~         # Twig partial rendered in the toggle instead of the three state icons
     menu_pages:
         enabled: null               # null: on when DashboardMenuBundle is installed and menus is not empty
         service: 'Nowo\DashboardMenuBundle\Twig\MenuExtension'
@@ -79,6 +80,7 @@ nowo_search_kit:
 | `assets.stylesheet`, `assets.script` | `true`, `true` | Whether the template prints the stylesheet / script tags. |
 | `assets.popover_stylesheet` | `null` | Lazy dropdown stylesheet injected on the first hover / focus: `null` = the bundle file when `assets.stylesheet` is on (none otherwise), `false` = none, a path or http(s) URL = that file (e.g. your Vite chunk). The JS option `loadPopoverStyles` takes precedence (see USAGE). (1.0.2) |
 | `icon_set` | `ux_icon` | `svg_inline` never calls UX Icons (built-in SVG, kind icons for rows). |
+| `toggle_icon_template` | `null` | Twig partial rendered inside `nowo_search_toggle_icon` instead of the three state icons, e.g. a morphing icon. `null` keeps those icons; an empty or non-string value fails container compilation; a path that does not exist fails the render. See [USAGE](USAGE.md#morphing-toggle-icon). |
 
 ## Rate limit
 
@@ -118,7 +120,7 @@ when the service is missing), `false` turns it off.
 
 ## Container parameters
 
-`nowo_search_kit.role`, `.min_length`, `.max_length`, `.per_group`, `.icon_set`, `.icons` (merged with the defaults) and
+`nowo_search_kit.role`, `.min_length`, `.max_length`, `.per_group`, `.icon_set`, `.toggle_icon_template`, `.icons` (merged with the defaults) and
 `.settings` (the browser-facing subset used by the Twig extension).
 
 ## Timeouts

@@ -19,6 +19,19 @@ This guide lists the changes integrators must apply when upgrading between versi
 
 ## Unreleased
 
+Nothing to do: `toggle_icon_template` is new and defaults to `null`, and the widget renders the same bytes without it.
+
+If your `templates/bundles/NowoSearchKitBundle/search.html.twig` only redefines `nowo_search_toggle_icon`, you can delete
+it: move the block's content to a partial, then set the option and clear the cache.
+
+```yaml
+nowo_search_kit:
+    toggle_icon_template: search/_toggle_icon.html.twig
+```
+
+An override of the block still wins over the option. A path that does not exist fails the render of every page with the
+search box (Twig `LoaderError`), so check a signed-in page after you set it.
+
 ## To 1.3.1
 
 From **1.3.0**:
