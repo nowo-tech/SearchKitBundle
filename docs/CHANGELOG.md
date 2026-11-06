@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.4.0] - 2026-11-06](#140---2026-11-06)
   - [Added](#added)
 - [[1.3.1] - 2026-10-31](#131---2026-10-31)
   - [Changed](#changed)
@@ -36,12 +37,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-06
+
 ### Added
 
 - `toggle_icon_template` (default `null`): a Twig partial rendered inside the `nowo_search_toggle_icon` block instead of
   the three state icons, so a morphing icon needs no `templates/bundles/` override. Default output is unchanged. Exposed
   through `nowo_search_kit_toggle_icon_template()`; the path is not part of the browser configuration. See
-  [UPGRADING](UPGRADING.md#unreleased).
+  [UPGRADING](UPGRADING.md#to-140).
 
 ## [1.3.1] - 2026-10-31
 

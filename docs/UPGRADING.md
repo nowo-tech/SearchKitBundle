@@ -5,6 +5,7 @@ This guide lists the changes integrators must apply when upgrading between versi
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.4.0](#to-140)
 - [To 1.3.1](#to-131)
 - [To 1.3.0](#to-130)
 - [To 1.2.1](#to-121)
@@ -18,6 +19,14 @@ This guide lists the changes integrators must apply when upgrading between versi
 - [1.0.0 (2026-10-16)](#100-2026-10-16)
 
 ## Unreleased
+
+## To 1.4.0
+
+From **1.3.1**:
+
+```bash
+composer update nowo-tech/search-kit-bundle
+```
 
 Nothing to do: `toggle_icon_template` is new and defaults to `null`, and the widget renders the same bytes without it.
 
