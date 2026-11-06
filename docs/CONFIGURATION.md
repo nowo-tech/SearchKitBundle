@@ -80,7 +80,7 @@ nowo_search_kit:
 | `assets.stylesheet`, `assets.script` | `true`, `true` | Whether the template prints the stylesheet / script tags. |
 | `assets.popover_stylesheet` | `null` | Lazy dropdown stylesheet injected on the first hover / focus: `null` = the bundle file when `assets.stylesheet` is on (none otherwise), `false` = none, a path or http(s) URL = that file (e.g. your Vite chunk). The JS option `loadPopoverStyles` takes precedence (see USAGE). (1.0.2) |
 | `icon_set` | `ux_icon` | `svg_inline` never calls UX Icons (built-in SVG, kind icons for rows). |
-| `toggle_icon_template` | `null` | Twig partial rendered inside `nowo_search_toggle_icon` instead of the three state icons, e.g. a morphing icon. `null` keeps those icons; an empty or non-string value fails container compilation; a path that does not exist fails the render. See [USAGE](USAGE.md#morphing-toggle-icon). |
+| `toggle_icon_template` | `null` | Twig partial rendered inside `nowo_search_toggle_icon` instead of the three state icons, e.g. a morphing icon. `null` keeps those icons; an empty or non-string literal fails container compilation; a path that does not exist fails the render. `%env(X)%` needs an `env(X)` parameter default (a valid path or `~`), or compilation refuses it, and prefixed forms such as `default::` and `string:` are refused; the value read at runtime is not validated, so an empty one fails the render like a missing path. See [USAGE](USAGE.md#morphing-toggle-icon). |
 
 ## Rate limit
 
