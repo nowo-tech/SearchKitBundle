@@ -5,6 +5,7 @@ This guide lists the changes integrators must apply when upgrading between versi
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.6.0](#to-160)
 - [To 1.5.0](#to-150)
 - [To 1.4.0](#to-140)
 - [To 1.3.1](#to-131)
@@ -20,6 +21,14 @@ This guide lists the changes integrators must apply when upgrading between versi
 - [1.0.0 (2026-10-16)](#100-2026-10-16)
 
 ## Unreleased
+
+## To 1.6.0
+
+From **1.5.0**:
+
+```bash
+composer update nowo-tech/search-kit-bundle
+```
 
 No action needed: `min_length_exempt_patterns` defaults to empty and the rendered box, the endpoint and the providers
 behave as before. The configuration gets a new key, and `SearchQuery` a new optional constructor argument.
