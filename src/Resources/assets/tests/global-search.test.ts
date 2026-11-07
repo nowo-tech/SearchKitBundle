@@ -401,4 +401,38 @@ describe('GlobalSearch', () => {
     expect(options()[0]?.id).toBe('header-search-option-0');
     expect(q('[data-group="issues"] .nowo-search__group-label').id).toBe('header-search-group-issues');
   });
+
+  it('fades the dropdown before hiding it, and opening again ends the fade', () => {
+    const cfg = config();
+    start(cfg);
+    search.open();
+    const popover = q('[data-part="popover"]');
+    expect(popover.hidden).toBe(false);
+    const style = vi.spyOn(window, 'getComputedStyle').mockReturnValue({ transitionDuration: '0.1s', transitionDelay: '0s' } as CSSStyleDeclaration);
+    search.close();
+    expect(popover.hidden).toBe(false);
+    expect(popover.hasAttribute('data-nowo-search-closing')).toBe(true);
+    expect(root().hasAttribute('data-nowo-search-closing')).toBe(true);
+    popover.dispatchEvent(new Event('transitionend'));
+    expect(popover.hidden).toBe(true);
+    expect(root().hasAttribute('data-nowo-search-closing')).toBe(false);
+
+    search.open();
+    search.close();
+    expect(popover.hasAttribute('data-nowo-search-closing')).toBe(true);
+    search.open();
+    expect(popover.hasAttribute('data-nowo-search-closing')).toBe(false);
+    expect(popover.hidden).toBe(false);
+    style.mockRestore();
+  });
+
+  it('closes at once with no dropdown on show', () => {
+    start();
+    const popover = q('[data-part="popover"]');
+    search.close();
+    root().classList.add('is-open');
+    search.close();
+    expect(popover.hidden).toBe(true);
+    expect(popover.hasAttribute('data-nowo-search-closing')).toBe(false);
+  });
 });
