@@ -15,17 +15,21 @@ use Symfony\Component\Security\Core\User\UserInterface;
 final readonly class SearchQuery
 {
     /**
-     * @param string $text Trimmed query, at least `min_length` and at most `max_length` characters
+     * @param string $text Trimmed query, at most `max_length` characters; at least `min_length` unless $belowMinLength
      * @param UserInterface $user The signed-in user (providers check permissions against it)
      * @param int $limit Rows per group (`per_group`)
      * @param string|null $scope Scope id from the chip (SearchScope::ID_PATTERN), or null when unscoped. It is
      *                           client input: providers must treat an unknown or forbidden id as "no rows".
+     * @param bool $belowMinLength The text is shorter than `min_length` and matched `min_length_exempt_patterns`: only
+     *                             MinLengthExemptSearchProviderInterface providers see such a query; run the exact
+     *                             lookup it asks for, not a `LIKE` scan
      */
     public function __construct(
         public string $text,
         public UserInterface $user,
         public int $limit,
         public ?string $scope = null,
+        public bool $belowMinLength = false,
     ) {
     }
 

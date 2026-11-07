@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Nowo\SearchKitBundle\Tests\Unit\Search;
 
 use ArrayObject;
+use InvalidArgumentException;
+use Nowo\SearchKitBundle\Contract\MinLengthExemptSearchProviderInterface;
 use Nowo\SearchKitBundle\Contract\SearchProviderInterface;
 use Nowo\SearchKitBundle\Model\SearchGroup;
 use Nowo\SearchKitBundle\Model\SearchItem;
@@ -18,10 +20,96 @@ use Stringable;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Security\Core\User\InMemoryUser;
 
+use function ini_get;
+
 use const JSON_THROW_ON_ERROR;
 
 final class SearchEngineTest extends TestCase
 {
+    public function testAPatternBelowMinLengthReachesOnlyTheProvidersThatOptedIn(): void
+    {
+        $plain = $this->provider(static fn (SearchQuery $query): SearchGroup => new SearchGroup('plain', 'Plain', [new SearchItem($query->text, '/p')]));
+        $optIn = new class implements MinLengthExemptSearchProviderInterface {
+            public ?SearchQuery $query = null;
+
+            public function search(SearchQuery $query): SearchGroup
+            {
+                $this->query = $query;
+
+                return new SearchGroup('in', 'In', [new SearchItem($query->text, '/i')]);
+            }
+        };
+        $user = new InMemoryUser('u', null);
+
+        $engine = new SearchEngine([$plain, $optIn], 3, 5, null, ['^#\d+$']);
+        self::assertSame(['in'], array_map(static fn (SearchGroup $g): string => $g->key, $engine->search($user, ' #7 ', 'p1')));
+        self::assertSame('#7', $optIn->query?->text);
+        self::assertSame('p1', $optIn->query->scope);
+        self::assertTrue($optIn->query->belowMinLength);
+
+        self::assertSame(['plain', 'in'], array_map(static fn (SearchGroup $g): string => $g->key, $engine->search($user, '#77')));
+        self::assertFalse($optIn->query->belowMinLength, 'at min_length the query is an ordinary one');
+
+        $optIn->query = null;
+        self::assertSame([], $engine->search($user, 'ab'));
+        self::assertSame([], $engine->search($user, '#' . "\xFF"), 'invalid UTF-8 never matches');
+        self::assertNull($optIn->query);
+
+        self::assertSame([], (new SearchEngine([$plain, $optIn], 3))->search($user, '#7'), 'off by default');
+        self::assertNull($optIn->query);
+    }
+
+    public function testAnEmptyQueryIsNeverExempt(): void
+    {
+        $optIn = new class implements MinLengthExemptSearchProviderInterface {
+            public int $calls = 0;
+
+            public function search(SearchQuery $query): ?SearchGroup
+            {
+                ++$this->calls;
+
+                return null;
+            }
+        };
+
+        (new SearchEngine([$optIn], 3, 5, null, ['^\d*$']))->search(new InMemoryUser('u', null), '   ');
+        self::assertSame(0, $optIn->calls);
+    }
+
+    public function testAnInvalidPatternIsRefusedNotIgnored(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid min_length exempt pattern');
+        new SearchEngine([], 3, 5, null, ['a++']);
+    }
+
+    public function testAPatternTheEngineGivesUpOnRefusesTheQueryAndIsLogged(): void
+    {
+        $logger = new class extends AbstractLogger {
+            /** @var list<array{string, array<mixed>}> */
+            public array $records = [];
+
+            public function log($level, string|Stringable $message, array $context = []): void
+            {
+                $this->records[] = [(string) $message, $context];
+            }
+        };
+        $text  = str_repeat('a', 40) . 'b';
+        $limit = (string) ini_get('pcre.backtrack_limit');
+        ini_set('pcre.backtrack_limit', '1');
+
+        try {
+            $groups = (new SearchEngine([], 50, 5, $logger, ['^(?:a+)+$']))->search(new InMemoryUser('u', null), $text);
+        } finally {
+            ini_set('pcre.backtrack_limit', $limit);
+        }
+
+        self::assertSame([], $groups);
+        self::assertCount(1, $logger->records);
+        self::assertSame('^(?:a+)+$', $logger->records[0][1]['pattern']);
+        self::assertStringNotContainsString($text, json_encode($logger->records, JSON_THROW_ON_ERROR), 'the query is personal data');
+    }
+
     public function testProvidersRunInOrderAndGroupsAreFilteredAndCut(): void
     {
         /** @var ArrayObject<int, SearchQuery> $seen */

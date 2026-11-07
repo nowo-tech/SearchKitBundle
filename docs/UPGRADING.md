@@ -21,6 +21,20 @@ This guide lists the changes integrators must apply when upgrading between versi
 
 ## Unreleased
 
+No action needed: `min_length_exempt_patterns` defaults to empty and the rendered box, the endpoint and the providers
+behave as before. The configuration gets a new key, and `SearchQuery` a new optional constructor argument.
+
+To let a short identifier search, for example `#7` with `min_length: 3`, do both:
+
+1. Set `min_length_exempt_patterns: ['^#\d+$']`. Patterns are restricted to the subset PHP and JavaScript read alike,
+   and an invalid one fails container compilation.
+2. Make the provider that resolves it implement `MinLengthExemptSearchProviderInterface`, and run only the exact lookup
+   when `$query->belowMinLength` is true. No other provider receives these queries.
+
+Rebuild or reinstall the assets (`assets:install`), since the browser script reads the new configuration. An old script
+ignores it and keeps refusing short queries. See
+[CONFIGURATION](CONFIGURATION.md#queries-exempt-from-min_length).
+
 ## To 1.5.0
 
 From **1.4.0**:

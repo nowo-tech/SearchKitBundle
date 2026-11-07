@@ -27,7 +27,7 @@ interface SearchProviderInterface
     /**
      * Searches this provider's records.
      *
-     * @param SearchQuery $query Trimmed text (at least `min_length` characters), optional scope id, the user and the row limit
+     * @param SearchQuery $query Trimmed text (at least `min_length` characters, unless the provider implements MinLengthExemptSearchProviderInterface), optional scope id, the user and the row limit
      *
      * @return SearchGroup|null The group, or null when the provider has nothing for this query (an empty group is skipped too)
      */

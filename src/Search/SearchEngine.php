@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Nowo\SearchKitBundle\Search;
 
+use InvalidArgumentException;
+use Nowo\SearchKitBundle\Contract\MinLengthExemptSearchProviderInterface;
 use Nowo\SearchKitBundle\Contract\SearchProviderInterface;
 use Nowo\SearchKitBundle\Model\SearchGroup;
 use Nowo\SearchKitBundle\Model\SearchQuery;
@@ -28,13 +30,23 @@ final readonly class SearchEngine
      * @param int $minLength Shorter (trimmed) queries return no groups
      * @param int $perGroup Rows per group
      * @param LoggerInterface|null $logger Failing providers are reported here
+     * @param list<string> $minLengthExemptPatterns A shorter query matching one runs, on the providers implementing MinLengthExemptSearchProviderInterface only
+     *
+     * @throws InvalidArgumentException When a pattern is invalid (container compilation reports it first)
      */
     public function __construct(
         private iterable $providers,
         private int $minLength = 2,
         private int $perGroup = 5,
         private ?LoggerInterface $logger = null,
+        private array $minLengthExemptPatterns = [],
     ) {
+        foreach ($minLengthExemptPatterns as $pattern) {
+            $problem = MinLengthExemptPattern::problem($pattern);
+            if ($problem !== null) {
+                throw new InvalidArgumentException('Invalid min_length exempt pattern: ' . $problem . '.');
+            }
+        }
     }
 
     /**
@@ -48,14 +60,20 @@ final readonly class SearchEngine
      */
     public function search(UserInterface $user, string $text, ?string $scope = null): array
     {
-        $text = trim($text);
-        if (mb_strlen($text) < $this->minLength) {
+        $text   = trim($text);
+        $exempt = mb_strlen($text) < $this->minLength;
+        if ($exempt && !$this->isExempt($text)) {
             return [];
         }
 
-        $query  = new SearchQuery($text, $user, $this->perGroup, $scope);
+        $query  = new SearchQuery($text, $user, $this->perGroup, $scope, $exempt);
         $groups = [];
         foreach ($this->providers as $provider) {
+            // The minimum exists so that providers do not scan for a fragment: only those that asked get one.
+            if ($exempt && !$provider instanceof MinLengthExemptSearchProviderInterface) {
+                continue;
+            }
+
             try {
                 $group = $provider->search($query);
             } catch (Throwable $exception) {
@@ -72,5 +90,30 @@ final readonly class SearchEngine
         }
 
         return $groups;
+    }
+
+    /**
+     * Whether a query below `min_length` matches an exempt pattern. Never the empty query, whatever the pattern.
+     */
+    private function isExempt(string $text): bool
+    {
+        if ($text === '') {
+            return false;
+        }
+        foreach ($this->minLengthExemptPatterns as $pattern) {
+            $matches = MinLengthExemptPattern::matches($pattern, $text);
+            if ($matches === true) {
+                return true;
+            }
+            // Backtrack or JIT limit: the query stays refused, and the host learns its pattern is too costly.
+            if ($matches === null) {
+                $this->logger?->error('Search min_length exempt pattern {pattern} failed: {error}.', [
+                    'pattern' => $pattern,
+                    'error'   => preg_last_error_msg(),
+                ]);
+            }
+        }
+
+        return false;
     }
 }

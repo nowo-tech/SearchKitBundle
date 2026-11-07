@@ -5,11 +5,18 @@ declare(strict_types=1);
 namespace Nowo\SearchKitBundle\DependencyInjection;
 
 use Nowo\SearchKitBundle\Model\SearchItem;
+use Nowo\SearchKitBundle\Search\MinLengthExemptPattern;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\ConfigurationInterface;
+use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 
 use function is_bool;
 use function is_string;
+use function sprintf;
+
+use const JSON_INVALID_UTF8_SUBSTITUTE;
+use const JSON_UNESCAPED_SLASHES;
+use const JSON_UNESCAPED_UNICODE;
 
 /**
  * Configuration tree for `nowo_search_kit`.
@@ -63,6 +70,17 @@ final class Configuration implements ConfigurationInterface
                     ->defaultValue(2)
                     ->min(1)
                     ->max(50)
+                ->end()
+                ->arrayNode('min_length_exempt_patterns')
+                    ->info('Regular expressions (no delimiters) in the subset PCRE and JavaScript read alike, e.g. "^#\\d+$". A shorter query matching one searches, on the providers implementing MinLengthExemptSearchProviderInterface only.')
+                    ->scalarPrototype()
+                        ->validate()
+                            ->ifTrue(static fn (mixed $pattern): bool => MinLengthExemptPattern::problem($pattern) !== null)
+                            ->then(static function (mixed $pattern): never {
+                                throw new InvalidConfigurationException(sprintf('Invalid nowo_search_kit.min_length_exempt_patterns entry %s: %s.', json_encode($pattern, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE), MinLengthExemptPattern::problem($pattern)));
+                            })
+                        ->end()
+                    ->end()
                 ->end()
                 ->integerNode('max_length')
                     ->info('Longer queries are cut to this many characters.')

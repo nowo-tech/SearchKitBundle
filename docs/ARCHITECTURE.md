@@ -26,8 +26,9 @@
 1. The browser sends `GET /search?q=…&scope=…` (debounced, the previous request aborted).
 2. `SearchController` → signed-in user granted `role`? → limiter `nowo_search_kit` (key = SHA-256 of the user
    identifier) → `q` cut to `max_length`, `scope` kept only when it matches `SearchScope::ID_PATTERN`.
-3. `SearchEngine::search()` trims the text, returns nothing below `min_length`, then calls each provider with one
-   `SearchQuery`.
+3. `SearchEngine::search()` trims the text, returns nothing below `min_length` (unless it matches
+   `min_length_exempt_patterns`: then it calls only the providers implementing
+   `MinLengthExemptSearchProviderInterface`), then calls each provider with one `SearchQuery`.
 4. Groups are serialised (`SearchGroup::toArray()`), row icons rendered through `SearchIcons::render()`; the response is
    `no-store, private`.
 

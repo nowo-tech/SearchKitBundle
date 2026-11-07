@@ -31,7 +31,7 @@ authentication and firewall, and the host's providers and scope resolver (they d
 | `GET /search?q=&scope=` | `SearchController` | Signed-in users granted `role` (JSON 401 / 403 otherwise, independent of the firewall entry point) |
 | Query text (≤ `max_length`), scope id (`[A-Za-z0-9._:-]{1,128}`) | `SearchEngine` → host providers | Same |
 | Host quick actions passed to the template | `SearchKitExtension::config()` | Host templates |
-| Configuration (`nowo_search_kit`, including the `toggle_icon_template` path), Flex recipe | DI extension | Deployer |
+| Configuration (`nowo_search_kit`, including the `toggle_icon_template` path and `min_length_exempt_patterns`), Flex recipe | DI extension | Deployer |
 | Browser storage (`recent.storage_key`) | TypeScript module | Same browser, same origin |
 
 ## Threat model and mitigations
@@ -46,6 +46,7 @@ authentication and firewall, and the host's providers and scope resolver (they d
 | **Injection** | The kit builds no SQL; providers must use parameters. No shell, no `eval`, no `unserialize`. |
 | **Information leaks** | Responses are `Cache-Control: no-store, private` and `X-Robots-Tag: noindex`; error responses carry stable codes, never exception text; a failing provider is logged with its class and the exception class only — never the query (personal data); a row icon that cannot be rendered (unknown name, icon source failure) falls back to the kind icon instead of failing the search. |
 | **Abuse / DoS** | Per-user rate limiter (sliding window 30 / 10 s by default, 429), `min_length` / `max_length`, `per_group` rows, browser debounce and request abort. |
+| **`min_length` exemption** (`min_length_exempt_patterns`, empty by default; audit status: re-verification pending) | Patterns come from the container configuration, never from the request, and run on user input. Only `min_length` is lifted: role check, rate limit and `max_length` cut run first and are unchanged, and only providers implementing `MinLengthExemptSearchProviderInterface` receive such a query, so the others cannot be made to scan for a fragment. The empty query is never exempt. Patterns outside the subset PCRE and JavaScript read alike, `%env()%` values and patterns that do not compile fail container compilation, so the browser's decision and the server's agree, and the server's is the one that counts. Cost: patterns run only on queries below `min_length` (under 50 characters). PCRE's backtrack limit ends a runaway match on the server (refused, logged without the query); the browser has no limit, so a catastrophic pattern can freeze the host's own users' tab. Hosts must keep them linear ([CONFIGURATION](CONFIGURATION.md#queries-exempt-from-min_length)). |
 | **CSRF** | Read-only GET with no side effect; the search field form is never submitted (no token by design, REQ-SEC-005 covers mutations). |
 | **Shared devices** | Recents hold titles and paths of pages the user opened from the box, in `localStorage` of that origin only, under a **per-user key** (`storage_key` + an HMAC of the user identifier keyed with `kernel.secret` — the identifier never reaches the browser), so the next account on the same browser does not see them; they survive logout for the same account; `recent.enabled: false` turns them off; "Clear" empties them. |
 | **Worker-mode state leaks** | No per-request data in shared services (see [FRANKENPHP-WORKER-AUDIT.md](FRANKENPHP-WORKER-AUDIT.md)); Igor audit in `release-check`. |
@@ -57,8 +58,8 @@ The bundle ships no secret, stores none and signs nothing. The rate-limiter key 
 
 ## Logging
 
-Only failing providers are logged (error level, channel `nowo_search_kit`): provider class and exception class. No query
-text, no user data.
+Only failing providers (provider class and exception class) and exempt patterns the engine gave up on (the configured
+pattern and the PCRE error) are logged, at error level, channel `nowo_search_kit`. No query text, no user data.
 
 ## Dependencies
 

@@ -46,6 +46,7 @@ return static function (ContainerConfigurator $container): void {
             param('nowo_search_kit.min_length'),
             param('nowo_search_kit.per_group'),
             service('logger')->nullOnInvalid(),
+            param('nowo_search_kit.min_length_exempt_patterns'),
         ])
         ->tag('monolog.logger', ['channel' => 'nowo_search_kit']);
 
