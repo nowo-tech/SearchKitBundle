@@ -128,7 +128,8 @@ stay in the subset both engines read alike:
 | `^`, `$`, `\|`, `(…)`, `(?:…)` | Lookaround, named or atomic groups, `(?i)` and other inline flags, verbs such as `(*UCP)` |
 | `* + ? {n} {n,} {n,m}`, also lazy | Possessive (`a++`) and stacked (`a{2}{3}`) quantifiers, `{,n}` |
 
-Matching is case-sensitive, and code points count as one character on both sides. `$` is the very end of the query in
+Matching is case-sensitive, and code points count as one character on both sides. As everywhere in Symfony
+configuration, write a literal `%` as `%%`. `$` is the very end of the query in
 both (no final-newline exception). Anchor your patterns: `#\d+` also matches `x#7`. A pattern outside the subset, a
 non-string, an `%env()%` value (it would escape the check) or a pattern that does not compile fails container
 compilation naming the entry and the reason, and never exempts or disables anything. Nothing is translated between

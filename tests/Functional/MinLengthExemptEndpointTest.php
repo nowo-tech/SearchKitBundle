@@ -73,6 +73,13 @@ final class MinLengthExemptEndpointTest extends TestCase
         self::assertSame(['number'], array_column($this->json($client, '/search?q=7')['groups'], 'key'));
     }
 
+    public function testALiteralPercentSignInAPatternStaysLiteral(): void
+    {
+        $client = $this->signedIn(['min_length' => 5, 'min_length_exempt_patterns' => ['^%%\d%%$']]);
+        self::assertSame(['number'], array_column($this->json($client, '/search?q=%257%25')['groups'], 'key'));
+        self::assertSame([], $this->json($client, '/search?q=7')['groups']);
+    }
+
     public function testTheMaximumLengthStillCutsAnExemptQuery(): void
     {
         $client = $this->signedIn(['min_length' => 50, 'max_length' => 10, 'min_length_exempt_patterns' => ['^#\d+$']]);
