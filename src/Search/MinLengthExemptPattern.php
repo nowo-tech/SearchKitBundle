@@ -14,10 +14,10 @@ use function strlen;
  * One `min_length_exempt_patterns` entry: the regular expression that means the same in PCRE and in ECMAScript.
  *
  * The browser runs `new RegExp(pattern, 'u')` and the server the same source, so a pattern is accepted only when it
- * stays inside a subset both engines read alike: literals, `\d \D \w \W \b \B`, escaped syntax characters, character
+ * stays inside a subset both engines read alike: literals, `\d \D`, escaped syntax characters, character
  * classes, `(…)`, `(?:…)`, `|`, `^`, `$` and the quantifiers `* + ? {n} {n,} {n,m}` (lazy or not). Everything else is
  * refused rather than translated, because each of these parses in only one dialect or means something else in the
- * other: `.` and `\s` (line breaks, Unicode spaces), possessive quantifiers, atomic groups, inline flags, lookaround,
+ * other: `.` and `\s` (line breaks, Unicode spaces), `\w \W \b \B` (server locale), `{0}`, possessive quantifiers, atomic groups, inline flags, lookaround,
  * backreferences, `\p{…}`, `\x{…}`, `\u{…}`, POSIX classes.
  *
  * PHP compiles it with `(*UTF)` and `D`, not with the `u` modifier: `u` also turns on PCRE2_UCP, which would make `\d`
@@ -31,7 +31,7 @@ final class MinLengthExemptPattern
     /** A control character: the subset refuses them, so it can never appear inside the delimiters. */
     private const string DELIMITER = "\x01";
 
-    private const array CLASS_SHORTHANDS = ['d', 'D', 'w', 'W'];
+    private const array CLASS_SHORTHANDS = ['d', 'D'];
 
     private const array SYNTAX_ESCAPES = ['^', '$', '\\', '.', '*', '+', '?', '(', ')', '[', ']', '{', '}', '|', '/'];
 
@@ -99,9 +99,10 @@ final class MinLengthExemptPattern
             switch ($char) {
                 case '\\':
                     $next = $chars[++$i] ?? '';
-                    if (in_array($next, ['b', 'B'], true)) {
-                        $quantifiable = false;
-                    } elseif (in_array($next, self::CLASS_SHORTHANDS, true) || in_array($next, self::SYNTAX_ESCAPES, true)) {
+                    if (in_array($next, ['w', 'W', 'b', 'B'], true)) {
+                        return '"\\' . $next . '" follows the server locale in PCRE (a single-byte setlocale() makes it match "é"); use a character class such as [A-Za-z0-9_]';
+                    }
+                    if (in_array($next, self::CLASS_SHORTHANDS, true) || in_array($next, self::SYNTAX_ESCAPES, true)) {
                         $quantifiable = true;
                     } else {
                         return '"\\' . $next . '" is not read alike by PCRE and JavaScript';
@@ -147,6 +148,10 @@ final class MinLengthExemptPattern
                     if ($char === '{') {
                         if (preg_match('/\A\{\d+(?:,\d*)?\}/', implode('', array_slice($chars, $i)), $match) !== 1) {
                             return '"{" must start {n}, {n,} or {n,m}; escape a literal brace';
+                        }
+                        // PCRE2 10.42-10.44 read a zero-repeated group ending in "^" or "\b" as an anchor; V8 does not.
+                        if (preg_match('/\A\{0+(?:,0+)?\}\z/', $match[0]) === 1) {
+                            return 'a repeat of zero ("{0}", "{0,0}") is refused: PCRE and JavaScript disagree on it';
                         }
                         $i += strlen($match[0]) - 1;
                     }

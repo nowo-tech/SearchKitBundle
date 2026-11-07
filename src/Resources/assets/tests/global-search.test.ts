@@ -460,6 +460,17 @@ describe('GlobalSearch', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
+    it('still mounts and searches normally when the patterns arrive as an object', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const cfg = { ...config({ minLength: 3 }), minLengthExemptPatterns: { issue: '^#\\d+$' } } as unknown as SearchConfig;
+      start(cfg);
+      toggle().click();
+      await type('#7');
+      expect(fetchMock).not.toHaveBeenCalled();
+      await type('abc');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
     it('does not search the empty query when a pattern also matches it', async () => {
       start(config({ minLength: 3, minLengthExemptPatterns: ['^\\d*$'] }));
       toggle().click();

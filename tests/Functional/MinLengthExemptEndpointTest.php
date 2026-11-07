@@ -121,6 +121,14 @@ final class MinLengthExemptEndpointTest extends TestCase
         self::assertSame(['url', 'minLength', 'maxLength', 'debounceMs', 'shortcuts', 'scope', 'actions', 'recent', 'assets', 'popoverCss', 'labels'], array_keys($default));
     }
 
+    public function testAKeyedMapReachesTheBrowserAsAList(): void
+    {
+        self::assertSame(['^#\d+$', '^T\d+$'], $this->browserConfig(['min_length' => 3, 'min_length_exempt_patterns' => ['issue' => '^#\d+$', 'task' => '^T\d+$']])['minLengthExemptPatterns'] ?? null);
+        $this->kernel?->shutdown();
+        $client = $this->signedIn(['min_length' => 3, 'min_length_exempt_patterns' => ['issue' => '^#\d+$']]);
+        self::assertSame(['number'], array_column($this->json($client, '/search?q=%237')['groups'], 'key'));
+    }
+
     /**
      * @param array<string, mixed> $config
      *

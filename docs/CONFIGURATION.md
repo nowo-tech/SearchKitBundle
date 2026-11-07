@@ -122,14 +122,16 @@ stay in the subset both engines read alike:
 | Allowed | Refused, because |
 | --- | --- |
 | Literal characters (non-ASCII too) | Control characters; an unescaped `]` or `}` (a syntax error in JavaScript's `u` mode) |
-| `\d \D \w \W \b \B`, always ASCII | `\s \S` and `.`: the two engines disagree on Unicode spaces and line breaks |
+| `\d \D` (ASCII digits only on both sides) | `\s \S` and `.`: the two engines disagree on Unicode spaces and line breaks. `\w \W \b \B`: PCRE reads them through the server's `LC_CTYPE`, so after a single-byte `setlocale()` they match `é` on the server only; write `[A-Za-z0-9_]` instead |
 | Escaped `^ $ \ . * + ? ( ) [ ] { } \| /` | Any other escape: `\#`, `\A`, `\z`, `\Q`, `\1`, `\x{…}`, `\u{…}`, `\p{…}` |
 | `[abc]`, `[^a-z0-9_]`, `\-` inside a class | `[]`, `[^]`, `[[:alpha:]]` and any unescaped `[` inside a class |
 | `^`, `$`, `\|`, `(…)`, `(?:…)` | Lookaround, named or atomic groups, `(?i)` and other inline flags, verbs such as `(*UCP)` |
-| `* + ? {n} {n,} {n,m}`, also lazy | Possessive (`a++`) and stacked (`a{2}{3}`) quantifiers, `{,n}` |
+| `* + ? {n} {n,} {n,m}`, also lazy | Possessive (`a++`) and stacked (`a{2}{3}`) quantifiers, `{,n}`, and a repeat of zero (`{0}`, `{0,0}`), which PCRE2 10.42-10.44 and V8 disagree on |
 
 Matching is case-sensitive, and code points count as one character on both sides. As everywhere in Symfony
-configuration, write a literal `%` as `%%`. `$` is the very end of the query in
+configuration, write a literal `%` as `%%`. Write the option as a list: a map is accepted, but only its values are kept.
+Entries from several configuration files are appended, as for any Symfony list, so a `when@prod` file can add a
+pattern but cannot remove one set in a base file. `$` is the very end of the query in
 both (no final-newline exception). Anchor your patterns: `#\d+` also matches `x#7`. A pattern outside the subset, a
 non-string, an `%env()%` value (it would escape the check) or a pattern that does not compile fails container
 compilation naming the entry and the reason, and never exempts or disables anything. Nothing is translated between

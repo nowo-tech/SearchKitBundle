@@ -82,12 +82,14 @@ final class MinLengthExemptPatternTest extends TestCase
     {
         self::assertStringContainsString('"\s"', (string) MinLengthExemptPattern::problem('^\s$'));
         self::assertStringContainsString('line breaks', (string) MinLengthExemptPattern::problem('.'));
+        self::assertStringContainsString('server locale', (string) MinLengthExemptPattern::problem('^\w$'));
+        self::assertStringContainsString('repeat of zero', (string) MinLengthExemptPattern::problem('(?:|^){0}a'));
         self::assertStringContainsString('does not compile', (string) MinLengthExemptPattern::problem('(a'));
     }
 
     public function testInvalidUtf8TextNeverMatches(): void
     {
-        self::assertFalse(MinLengthExemptPattern::matches('^\W$', "\xFF"));
+        self::assertFalse(MinLengthExemptPattern::matches('^\D$', "\xFF"));
     }
 
     public function testAnEngineErrorIsNotAMatch(): void

@@ -6,9 +6,18 @@
  * @param patterns Pattern sources from the configuration; absent for a host that does not use the option
  * @returns The usable patterns, with the `u` flag the server's `(*UTF)` mirrors
  */
-export function compileExemptPatterns(patterns: string[] = []): RegExp[] {
+export function compileExemptPatterns(patterns: unknown = []): RegExp[] {
   const compiled: RegExp[] = [];
-  for (const pattern of patterns) {
+  // A broken configuration must never stop the box from mounting: it only loses the exemption.
+  if (!Array.isArray(patterns)) {
+    console.error('nowo-search: ignoring min_length exempt patterns that are not a list');
+    return compiled;
+  }
+  for (const pattern of patterns as unknown[]) {
+    if (typeof pattern !== 'string') {
+      console.error('nowo-search: ignoring a min_length exempt pattern that is not a string');
+      continue;
+    }
     try {
       compiled.push(new RegExp(pattern, 'u'));
     } catch {

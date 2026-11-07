@@ -38,6 +38,14 @@ describe('min_length exempt patterns', () => {
     expect(isMinLengthExempt('#7', patterns)).toBe(true);
   });
 
+  it('tolerates a configuration that is not a list of strings', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    expect(compileExemptPatterns({ issue: '^#\\d+$' })).toEqual([]);
+    expect(compileExemptPatterns('^#\\d+$')).toEqual([]);
+    expect(compileExemptPatterns([7, null, '^#\\d+$'])).toHaveLength(1);
+    expect(error).toHaveBeenCalledTimes(4);
+  });
+
   it('never exempts the empty query, even for a pattern that matches it', () => {
     expect(isMinLengthExempt('', compileExemptPatterns(['^\\d*$']))).toBe(false);
     expect(isMinLengthExempt('7', compileExemptPatterns(['^\\d*$']))).toBe(true);
