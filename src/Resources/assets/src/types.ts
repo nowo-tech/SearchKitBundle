@@ -42,6 +42,8 @@ export interface SearchLabels {
 export interface SearchConfig {
   url: string;
   minLength: number;
+  /** ECMAScript sources (`u` flag) of the queries exempt from `minLength`; absent unless the host configures some. */
+  minLengthExemptPatterns?: string[];
   maxLength: number;
   debounceMs: number;
   shortcuts: boolean;

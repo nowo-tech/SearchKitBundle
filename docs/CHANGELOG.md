@@ -7,10 +7,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+  - [Added](#added)
 - [[1.5.0] - 2026-11-07](#150---2026-11-07)
   - [Changed](#changed)
 - [[1.4.0] - 2026-11-06](#140---2026-11-06)
-  - [Added](#added)
+  - [Added](#added-1)
 - [[1.3.1] - 2026-10-31](#131---2026-10-31)
   - [Changed](#changed-1)
 - [[1.3.0] - 2026-10-30](#130---2026-10-30)
@@ -19,25 +20,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   - [Changed](#changed-3)
   - [Fixed](#fixed)
 - [[1.2.0] - 2026-10-23](#120---2026-10-23)
-  - [Added](#added-1)
+  - [Added](#added-2)
 - [[1.1.1] - 2026-10-22](#111---2026-10-22)
   - [Changed](#changed-4)
   - [Fixed](#fixed-1)
 - [[1.1.0] - 2026-10-18](#110---2026-10-18)
-  - [Added](#added-2)
+  - [Added](#added-3)
   - [Changed](#changed-5)
 - [[1.0.3] - 2026-10-18](#103---2026-10-18)
   - [Fixed](#fixed-2)
 - [[1.0.2] - 2026-10-16](#102---2026-10-16)
-  - [Added](#added-3)
+  - [Added](#added-4)
   - [Fixed](#fixed-3)
 - [[1.0.1] - 2026-10-16](#101---2026-10-16)
   - [Security](#security)
   - [Fixed](#fixed-4)
 - [[1.0.0] - 2026-10-16](#100---2026-10-16)
-  - [Added](#added-4)
+  - [Added](#added-5)
 
 ## [Unreleased]
+
+### Added
+
+- `min_length_exempt_patterns` (default empty): a query shorter than `min_length` that matches one of these regular expressions still searches, in the browser and in `SearchEngine`, e.g. `^#\d+$` for `#7`. It reaches only the providers implementing the new `MinLengthExemptSearchProviderInterface`, with the new `SearchQuery::$belowMinLength` true. The role check, the rate limit and `max_length` are unchanged. Patterns must stay in the subset PCRE and JavaScript read alike; anything else, and any `%env()%` value, fails container compilation. Written as a map, only its values are kept; the browser ignores a configuration that is not a list of strings instead of failing to mount. `\w \W \b \B` (locale-dependent in PCRE) and repeats of zero (`{0}`, read differently by PCRE2 10.42-10.44) are outside the subset. See [CONFIGURATION](CONFIGURATION.md#queries-exempt-from-min_length). Target: 1.6.0. Audit HZ (2026-11-07): Pass (good) / Low.
 
 ## [1.5.0] - 2026-11-07
 

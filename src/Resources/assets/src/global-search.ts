@@ -1,5 +1,6 @@
 import { CLOSING_ATTR, closeWithEffect, finishClosing } from './motion';
 import { appendHighlighted, isMac } from './highlight';
+import { compileExemptPatterns, isMinLengthExempt } from './min-length';
 import { readRecent, rememberRecent, writeRecent } from './recent';
 import { sanitizeSvg } from './svg';
 import { isSafeUrl } from './url';
@@ -34,6 +35,7 @@ export class GlobalSearch {
   private readonly status: HTMLElement;
   private readonly scope: HTMLElement | null;
   private readonly idPrefix: string;
+  private readonly exemptPatterns: RegExp[];
   private scopeId: string;
   private timer: number | undefined;
   private request: AbortController | null = null;
@@ -51,6 +53,7 @@ export class GlobalSearch {
     private readonly config: SearchConfig,
     private readonly searchOptions: SearchOptions = {},
   ) {
+    this.exemptPatterns = compileExemptPatterns(config.minLengthExemptPatterns);
     this.toggle = this.part<HTMLButtonElement>('toggle');
     this.field = this.part('field');
     this.input = this.part<HTMLInputElement>('input');
@@ -164,11 +167,11 @@ export class GlobalSearch {
     }
   }
 
-  /** Re-renders for the current text: recents + actions when short, otherwise fetch. */
+  /** Re-renders for the current text: recents + actions when short and not exempt, otherwise fetch. */
   refresh(): void {
     window.clearTimeout(this.timer);
     const query = this.input.value.trim();
-    if (query.length < this.config.minLength) {
+    if (query.length < this.config.minLength && !isMinLengthExempt(query, this.exemptPatterns)) {
       this.cancel();
       this.renderIdle(query);
       return;

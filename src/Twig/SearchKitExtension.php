@@ -45,7 +45,7 @@ final class SearchKitExtension extends AbstractExtension
 
     /**
      * @param string $secret Keys the per-user suffix of the recents storage key (`kernel.secret`)
-     * @param array{role: string, min_length: int, max_length: int, debounce_ms: int, keyboard_shortcuts: bool, recent: array{enabled: bool, max: int, storage_key: string}, quick_actions: list<array{label: string, translation_domain: string|null, route: string|null, route_parameters: array<string, scalar>, url: string|null, kind: string, role: string|null}>, assets: array{stylesheet: bool, script: bool, popover_stylesheet?: false|string|null}} $settings Bundle configuration
+     * @param array{role: string, min_length: int, min_length_exempt_patterns?: list<string>, max_length: int, debounce_ms: int, keyboard_shortcuts: bool, recent: array{enabled: bool, max: int, storage_key: string}, quick_actions: list<array{label: string, translation_domain: string|null, route: string|null, route_parameters: array<string, scalar>, url: string|null, kind: string, role: string|null}>, assets: array{stylesheet: bool, script: bool, popover_stylesheet?: false|string|null}} $settings Bundle configuration
      */
     public function __construct(
         private readonly Security $security,
@@ -95,7 +95,7 @@ final class SearchKitExtension extends AbstractExtension
         // (keyed hash: the identifier itself never reaches the browser).
         $storageKey = $settings['recent']['storage_key'] . '.' . substr(hash_hmac('sha256', $user instanceof UserInterface ? $user->getUserIdentifier() : '', $this->secret), 0, 16);
 
-        return [
+        $config = [
             'url'        => $this->urls->generate(SearchController::ROUTE),
             'minLength'  => $settings['min_length'],
             'maxLength'  => $settings['max_length'],
@@ -112,6 +112,13 @@ final class SearchKitExtension extends AbstractExtension
             'popoverCss' => $this->popoverCss($settings['assets']),
             'labels'     => $this->labels(),
         ];
+        // Absent, not empty: the rendered attribute stays byte-identical for a host that does not use the option.
+        $exemptPatterns = $settings['min_length_exempt_patterns'] ?? [];
+        if ($exemptPatterns !== []) {
+            $config['minLengthExemptPatterns'] = $exemptPatterns;
+        }
+
+        return $config;
     }
 
     /**

@@ -435,4 +435,54 @@ describe('GlobalSearch', () => {
     expect(popover.hidden).toBe(true);
     expect(popover.hasAttribute('data-nowo-search-closing')).toBe(false);
   });
+  describe('min_length exempt patterns', () => {
+    it('does not search a short query when the host configures nothing', async () => {
+      start(config({ minLength: 3 }));
+      toggle().click();
+      await type('#7');
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(status()).toBe('Type 2');
+    });
+
+    it('searches a short query matching a pattern, and only that one', async () => {
+      start(config({ minLength: 3, minLengthExemptPatterns: ['^#\\d+$'] }));
+      toggle().click();
+      await type('#7');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(String(fetchMock.mock.calls[0]?.[0])).toContain('q=%237');
+
+      fetchMock.mockClear();
+      await type('ab');
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(status()).toBe('Type 2');
+
+      await type('  #7  ');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('still mounts and searches normally when the patterns arrive as an object', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const cfg = { ...config({ minLength: 3 }), minLengthExemptPatterns: { issue: '^#\\d+$' } } as unknown as SearchConfig;
+      start(cfg);
+      toggle().click();
+      await type('#7');
+      expect(fetchMock).not.toHaveBeenCalled();
+      await type('abc');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not search the empty query when a pattern also matches it', async () => {
+      start(config({ minLength: 3, minLengthExemptPatterns: ['^\\d*$'] }));
+      toggle().click();
+      await type('');
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('still searches a query at min_length that matches no pattern', async () => {
+      start(config({ minLength: 3, minLengthExemptPatterns: ['^#\\d+$'] }));
+      toggle().click();
+      await type('abc');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+  });
 });

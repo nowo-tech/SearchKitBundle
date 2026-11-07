@@ -99,7 +99,7 @@ only navigates to same-site paths or http(s) URLs.
 
 ### Engine and providers
 
-- **FR-ENGINE-001** — `SearchEngine` trims, enforces `min_length`, runs the providers in priority order, drops null /
+- **FR-ENGINE-001** — `SearchEngine` trims, enforces `min_length` (except `min_length_exempt_patterns`, opted-in providers only), runs the providers in priority order, drops null /
   empty groups, cuts rows to `per_group`, logs (class names only) and skips failing providers.
 - **FR-PAGES-001** — `MenuPagesProvider` walks the configured menu codes through a duck-typed menu service
   (`getMenuTree`, `getHref`), matches labels case-insensitively, builds breadcrumbs, uses absolute paths, skips unsafe or

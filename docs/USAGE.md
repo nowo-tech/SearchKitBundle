@@ -35,7 +35,9 @@
    browser configuration (`data-nowo-search-config`) built by `nowo_search_kit_config()`.
 2. `nowo-search.js` mounts it: the toggle, Ctrl/⌘ K or `/` stretch the box into a field; an empty or short query lists
    recents and quick actions.
-3. From `min_length` characters (debounced) it calls `GET /search?q=…&scope=…`.
+3. From `min_length` characters, or below it for a query matching
+   [`min_length_exempt_patterns`](CONFIGURATION.md#queries-exempt-from-min_length) (debounced), it calls
+   `GET /search?q=…&scope=…`.
 4. `SearchController` checks the user, the rate limit and the input, then `SearchEngine` asks every tagged
    `SearchProviderInterface` (priority order) and returns the non-empty groups, each cut to `per_group` rows, with the
    row icons rendered by UX Icons.
@@ -110,10 +112,11 @@ With autoconfiguration (default in `config/services.yaml`) nothing else is neede
 
 | Member | Meaning |
 | --- | --- |
-| `text` | Trimmed query, `min_length` … `max_length` characters |
+| `text` | Trimmed query, `min_length` … `max_length` characters (shorter only with `belowMinLength`) |
 | `user` | The signed-in `UserInterface` |
 | `limit` | Rows per group (`per_group`) |
 | `scope` | Scope id (`[A-Za-z0-9._:-]{1,128}`) or null |
+| `belowMinLength` | The text is below `min_length` and matched an exempt pattern; only `MinLengthExemptSearchProviderInterface` providers see it. See [CONFIGURATION](CONFIGURATION.md#queries-exempt-from-min_length) |
 | `isScoped()` | `scope !== null` |
 | `matches(string ...$haystacks)` | Case-insensitive (multibyte) "contains" helper for in-memory filtering |
 
