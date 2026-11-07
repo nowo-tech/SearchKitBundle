@@ -17,7 +17,21 @@
   background: var(--nowo-search-bg);
   color: var(--nowo-search-fg);
   box-shadow: var(--nowo-search-shadow);
-  animation: nowo-search-drop 0.16s ease-out;
+  /* UiKit's motion scale, read with own fallbacks. */
+  --nowo-search-motion-open: var(--nowo-ui-motion-small, 150ms);
+  --nowo-search-motion-close: var(--nowo-ui-motion-small-close, 110ms);
+  --nowo-search-motion-lift: var(--nowo-ui-motion-lift, 4px);
+  animation: nowo-search-drop var(--nowo-search-motion-open) var(--nowo-ui-motion-ease-out, cubic-bezier(0.2, 0, 0, 1));
+}
+
+/* The close waits for this fade (motion.ts), then sets `hidden`. */
+.nowo-search__popover[data-nowo-search-closing] {
+  animation: none;
+  opacity: 0;
+  transform: translateY(var(--nowo-search-motion-lift));
+  transition:
+    opacity var(--nowo-search-motion-close) var(--nowo-ui-motion-ease-in, cubic-bezier(0.4, 0, 1, 1)),
+    transform var(--nowo-search-motion-close) var(--nowo-ui-motion-ease-in, cubic-bezier(0.4, 0, 1, 1));
 }
 
 .nowo-search__popover[hidden] {
@@ -27,7 +41,7 @@
 @keyframes nowo-search-drop {
   from {
     opacity: 0;
-    transform: translateY(-0.35rem);
+    transform: translateY(var(--nowo-search-motion-lift));
   }
 }
 
@@ -262,12 +276,17 @@
   }
 }
 
+/* Reduced motion keeps a short fade and no movement; html[data-motion='full'] keeps the full effect. */
 @media (prefers-reduced-motion: reduce) {
-  .nowo-search__popover {
-    animation: none;
+  html:not([data-motion='full']) .nowo-search__popover {
+    --nowo-search-motion-open: var(--nowo-ui-motion-small, 80ms);
+    --nowo-search-motion-close: var(--nowo-ui-motion-small-close, 80ms);
+    --nowo-search-motion-lift: 0px;
   }
 }
 
 [data-motion='reduce'] .nowo-search__popover {
-  animation: none;
+  --nowo-search-motion-open: var(--nowo-ui-motion-small, 80ms);
+  --nowo-search-motion-close: var(--nowo-ui-motion-small-close, 80ms);
+  --nowo-search-motion-lift: 0px;
 }

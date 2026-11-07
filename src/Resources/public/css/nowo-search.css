@@ -157,6 +157,12 @@
   }
 }
 
+@keyframes nowo-search-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
 @keyframes nowo-search-spin {
   to {
     transform: rotate(360deg);
@@ -299,7 +305,17 @@
     inset: 0;
     z-index: calc(var(--nowo-search-z) + 10);
     background: var(--nowo-search-backdrop);
-    animation: nowo-search-fade 0.16s ease-out;
+    animation: nowo-search-fade var(--nowo-search-motion-backdrop-open, var(--nowo-ui-motion-small, 150ms)) var(--nowo-ui-motion-ease-out, cubic-bezier(0.2, 0, 0, 1));
+  }
+
+  /* The backdrop leaves with the dropdown (data-nowo-search-closing on both, see global-search.ts). */
+  .nowo-search[data-nowo-search-closing]::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: calc(var(--nowo-search-z) + 10);
+    background: var(--nowo-search-backdrop);
+    animation: nowo-search-fade-out var(--nowo-search-motion-backdrop-close, var(--nowo-ui-motion-small-close, 110ms)) var(--nowo-ui-motion-ease-in, cubic-bezier(0.4, 0, 1, 1)) forwards;
   }
 
   .nowo-search.is-open .nowo-search__box {
@@ -327,9 +343,15 @@
     animation-duration: 2.4s;
   }
 
-  .nowo-search.is-open::before {
-    animation: none;
+  html:not([data-motion='full']) .nowo-search {
+    --nowo-search-motion-backdrop-open: var(--nowo-ui-motion-small, 80ms);
+    --nowo-search-motion-backdrop-close: var(--nowo-ui-motion-small-close, 80ms);
   }
+}
+
+[data-motion='reduce'] .nowo-search {
+  --nowo-search-motion-backdrop-open: var(--nowo-ui-motion-small, 80ms);
+  --nowo-search-motion-backdrop-close: var(--nowo-ui-motion-small-close, 80ms);
 }
 
 [data-motion='reduce'] .nowo-search__box,

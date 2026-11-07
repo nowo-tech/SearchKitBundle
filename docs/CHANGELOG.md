@@ -37,6 +37,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **Search popover motion:** opens and closes on UiKit's `--nowo-ui-motion-small*`, `--nowo-ui-motion-lift` and easing tokens (own fallbacks: 150 ms in, 110 ms out, 4 px lift). The close waits for the fade before `hidden`, with a timer if `transitionend` never fires; the phone backdrop fades with it. Reduced motion (`prefers-reduced-motion`, `html[data-motion="reduce"]`) keeps an 80 ms fade with no movement, where the popover had no animation before; `html[data-motion="full"]` keeps the full effect. No `!important`.
+
 ## [1.4.0] - 2026-11-06
 
 ### Added

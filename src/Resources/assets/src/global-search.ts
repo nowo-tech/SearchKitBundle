@@ -1,3 +1,4 @@
+import { CLOSING_ATTR, closeWithEffect, finishClosing } from './motion';
 import { appendHighlighted, isMac } from './highlight';
 import { readRecent, rememberRecent, writeRecent } from './recent';
 import { sanitizeSvg } from './svg';
@@ -124,7 +125,7 @@ export class GlobalSearch {
     this.toggle.setAttribute('aria-expanded', 'false');
     this.setState('idle');
     this.setFieldTabbable(false);
-    this.popover.hidden = true;
+    this.fadeOutPopover();
     this.input.setAttribute('aria-expanded', 'false');
     if (restoreFocus) {
       this.toggle.focus();
@@ -336,7 +337,20 @@ export class GlobalSearch {
 
   /** The dropdown shows only while open and with something to show. */
   private syncPopover(): void {
+    finishClosing(this.popover);
     this.popover.hidden = !this.isOpen || this.results.childElementCount === 0;
+  }
+
+  /** A visible dropdown fades before `hidden`; the phone backdrop (the root's ::before) fades with it. */
+  private fadeOutPopover(): void {
+    if (this.popover.hidden) {
+      return;
+    }
+    this.root.setAttribute(CLOSING_ATTR, '');
+    closeWithEffect(this.popover, () => {
+      this.root.removeAttribute(CLOSING_ATTR);
+      this.popover.hidden = true;
+    });
   }
 
   private renderGroups(groups: SearchGroup[], query: string): void {
