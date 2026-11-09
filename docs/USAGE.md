@@ -11,6 +11,7 @@
   - [Scoped searches](#scoped-searches)
   - [Full-text search](#full-text-search)
 - [Scope resolver](#scope-resolver)
+- [Using it from a DDD / hexagonal application](#using-it-from-a-ddd--hexagonal-application)
 - [Pages group](#pages-group)
 - [The header template](#the-header-template)
   - [Blocks](#blocks)
@@ -177,6 +178,57 @@ services:
 
 The chip never names something the user cannot open: return a scope only after the access check. The id travels as
 `scope` and reaches the providers as `SearchQuery::$scope`. The default resolver returns null (no chip).
+
+## Using it from a DDD / hexagonal application
+
+SearchKit is a **presentation** component: the header widget, its JSON endpoint and a provider port. It has no
+entities, no Doctrine dependency and never queries your database, so your domain does not need to know it exists.
+
+**Keep the domain free of the bundle**
+
+- Write each `SearchProviderInterface` implementation in your infrastructure (or UI) layer. It is the
+  anti-corruption layer: it calls one of your application read ports (query bus, read-model repository, finder) and
+  maps the results to `SearchGroup` / `SearchItem`. Domain entities never reach the bundle; only titles, URLs and
+  labels do.
+- `SearchQuery::$user` is the Symfony security user. Map it to your domain actor id inside the provider (for example
+  `$query->user->getUserIdentifier()`) and do the access check in your application layer.
+- If the search should start inside a context (project, tenant, workspace), alias `SearchScopeResolverInterface` to an
+  adapter that resolves it through your access port; the scope id reaches the providers as `SearchQuery::$scope`.
+
+**Example adapter**
+
+```php
+use App\Application\Project\FindProjectsForUser;        // your application port
+use Nowo\SearchKitBundle\Contract\SearchProviderInterface;
+use Nowo\SearchKitBundle\Model\{SearchGroup, SearchItem, SearchQuery};
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+
+final readonly class ProjectSearchProvider implements SearchProviderInterface
+{
+    public function __construct(private FindProjectsForUser $projects, private UrlGeneratorInterface $urls) {}
+
+    public function search(SearchQuery $query): ?SearchGroup
+    {
+        $hits = $this->projects->search($query->user->getUserIdentifier(), $query->text, $query->limit, $query->scope);
+        if ($hits->items === []) {
+            return null;
+        }
+
+        return new SearchGroup('projects', 'Projects', array_map(
+            fn ($p): SearchItem => new SearchItem($p->name, $this->urls->generate('app_project', ['id' => $p->id])),
+            $hits->items,
+        ), $hits->total);
+    }
+}
+```
+
+**Known limitations**
+
+- The query and the scope resolver carry Symfony's `UserInterface`, not a plain id; map it in the adapter.
+- The built-in Pages group reads the menu service by duck typing (`getMenuTree()` / `getHref()`), so it works with
+  DashboardMenuBundle; another navigation model needs its own provider.
+- No server-side event is dispatched when a search runs; only the browser events `nowo-search:state` and
+  `nowo-search:navigate` exist.
 
 ## Pages group
 
