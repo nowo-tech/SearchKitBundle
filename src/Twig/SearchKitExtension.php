@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace Nowo\SearchKitBundle\Twig;
 
+use Nowo\SearchKitBundle\Contract\SearchContextScopeResolverInterface;
 use Nowo\SearchKitBundle\Contract\SearchScopeResolverInterface;
 use Nowo\SearchKitBundle\Controller\SearchController;
 use Nowo\SearchKitBundle\Form\SearchFieldType;
 use Nowo\SearchKitBundle\Icon\SearchIcons;
 use Nowo\SearchKitBundle\Model\SearchItem;
+use Nowo\SearchKitBundle\Model\SearchScope;
+use Nowo\SearchKitBundle\Scope\NullScopeResolver;
+use Nowo\SearchKitBundle\Scope\SearchContextFactory;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\Asset\Packages;
 use Symfony\Component\Form\FormFactoryInterface;
@@ -44,7 +48,10 @@ final class SearchKitExtension extends AbstractExtension
     public const string DOMAIN = 'NowoSearchKitBundle';
 
     /**
+     * @param SearchScopeResolverInterface $scopes Deprecated resolver port (the host's alias, NullScopeResolver by default)
      * @param string $secret Keys the per-user suffix of the recents storage key (`kernel.secret`)
+     * @param SearchContextScopeResolverInterface|null $contextScopes Resolver port on the SearchContext VO (1.7.0); wins
+     *                                                                over $scopes when the host aliases it
      * @param array{role: string, min_length: int, min_length_exempt_patterns?: list<string>, max_length: int, debounce_ms: int, keyboard_shortcuts: bool, recent: array{enabled: bool, max: int, storage_key: string}, quick_actions: list<array{label: string, translation_domain: string|null, route: string|null, route_parameters: array<string, scalar>, url: string|null, kind: string, role: string|null}>, assets: array{stylesheet: bool, script: bool, popover_stylesheet?: false|string|null}} $settings Bundle configuration
      */
     public function __construct(
@@ -58,6 +65,7 @@ final class SearchKitExtension extends AbstractExtension
         private readonly Packages $packages,
         private readonly array $settings,
         private readonly string $secret = '',
+        private readonly ?SearchContextScopeResolverInterface $contextScopes = null,
     ) {
     }
 
@@ -122,7 +130,12 @@ final class SearchKitExtension extends AbstractExtension
     }
 
     /**
-     * Scope of the current page, from the application's SearchScopeResolverInterface.
+     * Scope of the current page, from the application's resolver.
+     *
+     * Guests and calls outside a request get no scope and never reach a resolver. Otherwise one resolver decides, in
+     * this order: the host's SearchContextScopeResolverInterface alias (when it is not the bundle default), then the
+     * SearchScopeResolverInterface alias through resolveFor() when it implements the new port too, and last the
+     * deprecated resolve(Request, UserInterface) of a resolver that implements only the old port.
      *
      * @return array{id: string, label: string}|null The scope, or null (no request, no user, or nothing to scope to)
      */
@@ -134,7 +147,24 @@ final class SearchKitExtension extends AbstractExtension
             return null;
         }
 
-        return $this->scopes->resolve($request, $user)?->toArray();
+        return $this->resolveScope($request, $user)?->toArray();
+    }
+
+    /**
+     * Asks the one resolver that decides (see scope()). The context is built per call and never kept.
+     */
+    private function resolveScope(Request $request, UserInterface $user): ?SearchScope
+    {
+        if ($this->contextScopes instanceof SearchContextScopeResolverInterface && !$this->contextScopes instanceof NullScopeResolver) {
+            return $this->contextScopes->resolveFor(SearchContextFactory::create($request, $user));
+        }
+        if ($this->scopes instanceof SearchContextScopeResolverInterface) {
+            return $this->scopes->resolveFor(SearchContextFactory::create($request, $user));
+        }
+
+        trigger_deprecation('nowo-tech/search-kit-bundle', '1.7.0', 'The scope resolver "%s" implements only "%s", which is removed in 2.0. Implement "%s" instead.', $this->scopes::class, SearchScopeResolverInterface::class, SearchContextScopeResolverInterface::class);
+
+        return $this->scopes->resolve($request, $user);
     }
 
     /**

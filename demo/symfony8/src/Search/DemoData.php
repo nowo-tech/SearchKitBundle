@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Search;
 
-use Symfony\Component\Security\Core\User\UserInterface;
 
 /**
  * In-memory records of the demo: projects (with per-user access), documentation pages and users.
@@ -27,7 +26,7 @@ final class DemoData
         'installation'  => ['Installation', 'Composer, bundles.php, routes and assets'],
         'configuration' => ['Configuration', 'Every nowo_search_kit option'],
         'providers'     => ['Search providers', 'SearchProviderInterface, priorities and permissions'],
-        'scope'         => ['Search scope', 'SearchScopeResolverInterface and the scope chip'],
+        'scope'         => ['Search scope', 'SearchContextScopeResolverInterface and the scope chip'],
         'theming'       => ['Theming', 'The --nowo-search-* CSS tokens, dark mode and Twig blocks'],
         'shortcuts'     => ['Keyboard shortcuts', 'Ctrl/⌘ K, "/", arrows, Enter and Escape'],
     ];
@@ -38,13 +37,15 @@ final class DemoData
     /**
      * Projects the user may open.
      *
+     * @param string $userIdentifier The user's identifier
+     *
      * @return array<string, array{string, string, list<string>}>
      */
-    public static function projectsFor(UserInterface $user): array
+    public static function projectsFor(string $userIdentifier): array
     {
         return array_filter(
             self::PROJECTS,
-            static fn (array $project): bool => $project[2] === [] || \in_array($user->getUserIdentifier(), $project[2], true),
+            static fn (array $project): bool => $project[2] === [] || \in_array($userIdentifier, $project[2], true),
         );
     }
 }

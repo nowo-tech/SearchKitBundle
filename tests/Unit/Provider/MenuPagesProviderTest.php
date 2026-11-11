@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Nowo\SearchKitBundle\Tests\Unit\Provider;
 
+use Nowo\SearchKitBundle\Contract\MenuTreeSourceInterface;
 use Nowo\SearchKitBundle\Model\SearchQuery;
 use Nowo\SearchKitBundle\Provider\MenuPagesProvider;
 use Nowo\SearchKitBundle\Tests\Support\Provider\FakeMenu;
 use Nowo\SearchKitBundle\Tests\Support\Provider\FakeMenuItem;
 use PHPUnit\Framework\TestCase;
 use stdClass;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Security\Core\User\InMemoryUser;
 use Symfony\Component\Translation\IdentityTranslator;
 
@@ -74,5 +76,31 @@ final class MenuPagesProviderTest extends TestCase
         self::assertNotNull($scoped->search(new SearchQuery('home', new InMemoryUser('u', null), 5, 'scope')));
 
         self::assertNull((new MenuPagesProvider(new stdClass(), new IdentityTranslator(), []))->search(new SearchQuery('home', new InMemoryUser('u', null), 5)));
+    }
+
+    public function testAMenuTreeSourceIsReadThroughThePort(): void
+    {
+        $menus = new class implements MenuTreeSourceInterface {
+            /** @var list<int> */
+            public array $referenceTypes = [];
+
+            public function getMenuTree(string $code): array
+            {
+                return $code === 'main' ? [['item' => new FakeMenuItem('Billing', '/billing', 'tabler:cash')]] : [];
+            }
+
+            public function getHref(object $item, int $referenceType): string
+            {
+                $this->referenceTypes[] = $referenceType;
+
+                return $item instanceof FakeMenuItem ? $item->href : '';
+            }
+        };
+        $provider = new MenuPagesProvider($menus, new IdentityTranslator(), [['code' => 'main', 'label' => null, 'translation_domain' => null], ['code' => 'other', 'label' => null, 'translation_domain' => null]]);
+
+        $group = $provider->search(SearchQuery::forUserIdentifier('alice', 'bill', 5));
+        self::assertNotNull($group);
+        self::assertSame([['Billing', '/billing', 'tabler:cash']], array_map(static fn ($item): array => [$item->title, $item->url, $item->icon], $group->items));
+        self::assertSame([UrlGeneratorInterface::ABSOLUTE_PATH], $menus->referenceTypes);
     }
 }

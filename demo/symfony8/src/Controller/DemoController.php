@@ -41,7 +41,7 @@ final class DemoController extends AbstractController
     public function project(string $id): Response
     {
         $user     = $this->getUser();
-        $projects = $user === null ? [] : DemoData::projectsFor($user);
+        $projects = $user === null ? [] : DemoData::projectsFor($user->getUserIdentifier());
         if (!isset($projects[$id])) {
             // Same answer for unknown and forbidden projects: no existence oracle.
             throw new NotFoundHttpException();

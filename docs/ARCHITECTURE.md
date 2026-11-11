@@ -10,8 +10,8 @@
 
 | Layer | Namespace / path | Role |
 | --- | --- | --- |
-| Contracts | `Contract` | `SearchProviderInterface` (one group, tagged `nowo_search_kit.provider`), `SearchScopeResolverInterface` |
-| Model | `Model` | `SearchQuery` (text, user, limit, scope), `SearchGroup`, `SearchItem` (safe URL check), `SearchBadge`, `SearchScope` |
+| Contracts | `Contract` | `SearchProviderInterface` (one group, tagged `nowo_search_kit.provider`), `SearchContextScopeResolverInterface` (1.7; `SearchScopeResolverInterface` deprecated), `SearchEngineInterface`, `MenuTreeSourceInterface` |
+| Model | `Model` | `SearchQuery` (text, userIdentifier, deprecated user, limit, scope), `SearchContext` (page + user as plain values, for the scope resolver), `SearchGroup`, `SearchItem` (safe URL check), `SearchBadge`, `SearchScope` |
 | Engine | `Search` | `SearchEngine`: min length, providers in priority order, empty groups skipped, rows cut, failures logged and skipped |
 | Built-in providers | `Provider`, `Scope` | `MenuPagesProvider` (DashboardMenuBundle menus, duck-typed), `NullScopeResolver` |
 | HTTP | `Controller` | `SearchController`: user + role, per-user limiter, input limits, JSON, no-store |

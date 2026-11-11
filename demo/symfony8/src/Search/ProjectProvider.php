@@ -33,7 +33,7 @@ final readonly class ProjectProvider implements SearchProviderInterface
 
     public function search(SearchQuery $query): ?SearchGroup
     {
-        $projects = DemoData::projectsFor($query->user);
+        $projects = DemoData::projectsFor($query->userIdentifier);
         if ($query->scope !== null) {
             $projects = array_intersect_key($projects, [$query->scope => true]);
         }

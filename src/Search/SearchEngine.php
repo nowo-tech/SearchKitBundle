@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Nowo\SearchKitBundle\Search;
 
 use InvalidArgumentException;
+use Nowo\SearchKitBundle\Contract\IdentifierAwareSearchProviderInterface;
 use Nowo\SearchKitBundle\Contract\MinLengthExemptSearchProviderInterface;
+use Nowo\SearchKitBundle\Contract\SearchEngineInterface;
 use Nowo\SearchKitBundle\Contract\SearchProviderInterface;
 use Nowo\SearchKitBundle\Model\SearchGroup;
 use Nowo\SearchKitBundle\Model\SearchQuery;
@@ -23,7 +25,7 @@ use Throwable;
  * @author Héctor Franco Aceituno <hectorfranco@nowo.tech>
  * @copyright 2026 Nowo.tech
  */
-final readonly class SearchEngine
+final readonly class SearchEngine implements SearchEngineInterface
 {
     /**
      * @param iterable<SearchProviderInterface> $providers Tagged providers, highest priority first
@@ -50,7 +52,8 @@ final readonly class SearchEngine
     }
 
     /**
-     * Searches every provider.
+     * Searches every provider for a Symfony user: the providers get both SearchQuery::$userIdentifier and the
+     * deprecated SearchQuery::$user. The bundle's endpoint uses it so that 1.x providers keep working.
      *
      * @param UserInterface $user The signed-in user
      * @param string $text Raw query (trimmed here)
@@ -60,17 +63,49 @@ final readonly class SearchEngine
      */
     public function search(UserInterface $user, string $text, ?string $scope = null): array
     {
+        return $this->run($text, $scope, $user, $user->getUserIdentifier());
+    }
+
+    /**
+     * Searches by user identifier: only the IdentifierAwareSearchProviderInterface providers run; every other one is
+     * skipped and logged (notice), since it may depend on a Symfony user that does not exist here.
+     *
+     * @throws InvalidArgumentException When the identifier is empty
+     */
+    public function searchFor(string $userIdentifier, string $text, ?string $scope = null): array
+    {
+        if ($userIdentifier === '') {
+            throw new InvalidArgumentException('A search by identifier needs a non-empty user identifier.');
+        }
+
+        return $this->run($text, $scope, null, $userIdentifier);
+    }
+
+    /**
+     * @return list<SearchGroup>
+     */
+    private function run(string $text, ?string $scope, ?UserInterface $user, string $userIdentifier): array
+    {
         $text   = trim($text);
         $exempt = mb_strlen($text) < $this->minLength;
         if ($exempt && !$this->isExempt($text)) {
             return [];
         }
 
-        $query  = new SearchQuery($text, $user, $this->perGroup, $scope, $exempt);
+        $query  = new SearchQuery($text, $user, $this->perGroup, $scope, $exempt, $userIdentifier);
         $groups = [];
         foreach ($this->providers as $provider) {
             // The minimum exists so that providers do not scan for a fragment: only those that asked get one.
             if ($exempt && !$provider instanceof MinLengthExemptSearchProviderInterface) {
+                continue;
+            }
+            // By identifier, only the providers that declared they need nothing else (no Symfony user) run.
+            if (!$user instanceof UserInterface && !$provider instanceof IdentifierAwareSearchProviderInterface) {
+                $this->logger?->notice('Search provider {provider} skipped in a search by identifier: implement {interface} (the Symfony user is deprecated since nowo-tech/search-kit-bundle 1.7.0).', [
+                    'provider'  => $provider::class,
+                    'interface' => IdentifierAwareSearchProviderInterface::class,
+                ]);
+
                 continue;
             }
 

@@ -5,12 +5,16 @@ declare(strict_types=1);
 namespace Nowo\SearchKitBundle\Tests\Support;
 
 use Nowo\FormKitBundle\NowoFormKitBundle;
+use Nowo\SearchKitBundle\Contract\SearchContextScopeResolverInterface;
 use Nowo\SearchKitBundle\Contract\SearchScopeResolverInterface;
 use Nowo\SearchKitBundle\NowoSearchKitBundle;
+use Nowo\SearchKitBundle\Tests\Support\Provider\ContextScopeResolver;
+use Nowo\SearchKitBundle\Tests\Support\Provider\DualScopeResolver;
 use Nowo\SearchKitBundle\Tests\Support\Provider\FailingProvider;
 use Nowo\SearchKitBundle\Tests\Support\Provider\FakeMenu;
 use Nowo\SearchKitBundle\Tests\Support\Provider\ProjectsProvider;
 use Nowo\SearchKitBundle\Tests\Support\Provider\TestScopeResolver;
+use Nowo\SearchKitBundle\Tests\Support\Provider\UnusedLegacyScopeResolver;
 use Nowo\UiKitBundle\NowoUiKitBundle;
 use Symfony\Bundle\FrameworkBundle\FrameworkBundle;
 use Symfony\Bundle\FrameworkBundle\Kernel\MicroKernelTrait;
@@ -46,12 +50,25 @@ final class TestKernel extends Kernel
     /** Records every translation lookup, like the profiler does (missing messages included). */
     public const string TRANSLATOR_COLLECTOR = 'nowo_search_kit_test.translator_collector';
 
+    /** Host resolver on the 1.7 port (SearchContextScopeResolverInterface alias). */
+    public const string SCOPE_CONTEXT = 'context';
+
+    /** Host resolver on the deprecated port only (SearchScopeResolverInterface alias), as before 1.7. */
+    public const string SCOPE_LEGACY = 'legacy';
+
+    /** Both aliases set, to different resolvers: the 1.7 port wins (the deprecated one throws if asked). */
+    public const string SCOPE_BOTH = 'both';
+
+    /** One resolver implementing both ports, aliased to the deprecated one: asked through the 1.7 port. */
+    public const string SCOPE_DUAL = 'dual';
+
     /**
      * @param array<string, mixed> $searchKitConfig Merged over the default test configuration
      * @param bool $withUxIcons Register symfony/ux-icons
      * @param array<string, mixed>|null $uiKitConfig Register nowo-tech/ui-kit-bundle with this `nowo_ui_kit` config (null: no UiKit)
+     * @param string $scopePort Which resolver port the host wires (self::SCOPE_*)
      */
-    public function __construct(private readonly array $searchKitConfig = [], private readonly bool $withUxIcons = true, private readonly ?array $uiKitConfig = null)
+    public function __construct(private readonly array $searchKitConfig = [], private readonly bool $withUxIcons = true, private readonly ?array $uiKitConfig = null, private readonly string $scopePort = self::SCOPE_CONTEXT)
     {
         parent::__construct('test', false);
     }
@@ -80,7 +97,7 @@ final class TestKernel extends Kernel
 
     public function getCacheDir(): string
     {
-        return sys_get_temp_dir() . '/nowo-search-kit-bundle/' . md5(serialize([$this->searchKitConfig, $this->withUxIcons, $this->uiKitConfig])) . '/cache';
+        return sys_get_temp_dir() . '/nowo-search-kit-bundle/' . md5(serialize([$this->searchKitConfig, $this->withUxIcons, $this->uiKitConfig, $this->scopePort])) . '/cache';
     }
 
     public function getLogDir(): string
@@ -134,7 +151,18 @@ final class TestKernel extends Kernel
         $services->set(ProjectsProvider::class);
         $services->set(FailingProvider::class);
         $services->set(TestScopeResolver::class);
-        $services->alias(SearchScopeResolverInterface::class, TestScopeResolver::class);
+        $services->set(ContextScopeResolver::class);
+        $services->set(DualScopeResolver::class);
+        $services->set(UnusedLegacyScopeResolver::class);
+        match ($this->scopePort) {
+            self::SCOPE_LEGACY => $services->alias(SearchScopeResolverInterface::class, TestScopeResolver::class),
+            self::SCOPE_DUAL   => $services->alias(SearchScopeResolverInterface::class, DualScopeResolver::class),
+            self::SCOPE_BOTH   => [
+                $services->alias(SearchScopeResolverInterface::class, UnusedLegacyScopeResolver::class),
+                $services->alias(SearchContextScopeResolverInterface::class, ContextScopeResolver::class),
+            ],
+            default => $services->alias(SearchContextScopeResolverInterface::class, ContextScopeResolver::class),
+        };
         $services->set('app.fake_menu', FakeMenu::class)->factory([FakeMenu::class, 'demo']);
         $services->alias(self::ASSET_PACKAGES_ALIAS, 'assets.packages')->public();
         $services->set(self::TRANSLATOR_COLLECTOR, DataCollectorTranslator::class)
