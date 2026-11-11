@@ -35,7 +35,7 @@ final readonly class SearchQuery
      *                             lookup it asks for, not a `LIKE` scan
      * @param string|null $userIdentifier The user's identifier; defaults to `$user->getUserIdentifier()`
      *
-     * @throws InvalidArgumentException When neither a user nor an identifier is given, or they disagree
+     * @throws InvalidArgumentException When neither a user nor an identifier is given, they disagree, or the identifier is empty
      */
     public function __construct(
         public string $text,
@@ -54,6 +54,9 @@ final readonly class SearchQuery
             throw new InvalidArgumentException('The user identifier of a search query must be the identifier of its user.');
         }
         $this->userIdentifier = $userIdentifier ?? (string) $fromUser;
+        if ($this->userIdentifier === '') {
+            throw new InvalidArgumentException('The user identifier of a search query cannot be empty.');
+        }
     }
 
     /**

@@ -119,6 +119,13 @@ final class ModelTest extends TestCase
             self::assertSame('A search query needs the user identifier.', $exception->getMessage());
         }
 
+        try {
+            SearchQuery::forUserIdentifier('', 'x', 5);
+            self::fail('an empty identifier is refused');
+        } catch (InvalidArgumentException $exception) {
+            self::assertSame('The user identifier of a search query cannot be empty.', $exception->getMessage());
+        }
+
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('The user identifier of a search query must be the identifier of its user.');
         new SearchQuery('x', new InMemoryUser('alice', null), 5, null, false, 'bob');

@@ -51,7 +51,7 @@ nullable access. Switch to `$query->userIdentifier`.
 | `$request->getLocale()` | `$context->locale` |
 | `$user->getUserIdentifier()` / `$user->getRoles()` | `$context->userIdentifier` / `$context->roles` (`hasRole()`) |
 | `SearchQuery::$user` | `SearchQuery::$userIdentifier` |
-| `SearchEngine::search(UserInterface $user, …)` | `SearchEngineInterface::searchFor(string $userIdentifier, …)` |
+| `SearchEngine::search(UserInterface $user, …)` | `SearchEngineInterface::searchFor(string $userIdentifier, …)` (providers opt in with `IdentifierAwareSearchProviderInterface`) |
 | A duck-typed Pages group source | `MenuTreeSourceInterface` (optional; duck typing keeps working) |
 
 ### Steps
@@ -75,7 +75,11 @@ nullable access. Switch to `$query->userIdentifier`.
    While you migrate, one class may implement both interfaces. The bundle then asks it through `resolveFor()` only.
    If both aliases point to different services, the `SearchContextScopeResolverInterface` one wins.
 3. **Engine.** Code that injected `SearchEngine` to search from a CLI or an API should inject `SearchEngineInterface`
-   and call `searchFor($userIdentifier, $text, $scope)`.
+   and call `searchFor($userIdentifier, $text, $scope)`. Only providers that implement
+   `IdentifierAwareSearchProviderInterface` run there, and the others are skipped with a logged notice. Add the marker
+   to a provider only after it reads nothing but `$query->userIdentifier`: not `$query->user` (null there; a nullable
+   criterion would match `IS NULL` rows) and not `Security::getUser()` (no user in a CLI, the wrong one in a request).
+   See [USAGE](USAGE.md#using-it-from-a-ddd--hexagonal-application).
 4. **Pages group (optional).** A custom `menu_pages.service` can implement `MenuTreeSourceInterface`.
 
 ## To 1.6.0

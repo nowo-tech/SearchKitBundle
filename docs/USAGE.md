@@ -116,7 +116,7 @@ With autoconfiguration (default in `config/services.yaml`) nothing else is neede
 | --- | --- |
 | `text` | Trimmed query, `min_length` … `max_length` characters (shorter only with `belowMinLength`) |
 | `userIdentifier` | The signed-in user's identifier (1.7.0): check permissions against it |
-| `user` | **Deprecated** (1.7.0, removed in 2.0): the signed-in Symfony `UserInterface`, or null when the search runs through `SearchEngineInterface::searchFor()` |
+| `user` | **Deprecated** (1.7.0, removed in 2.0): the signed-in Symfony `UserInterface`, or null when the search runs through `SearchEngineInterface::searchFor()` (only `IdentifierAwareSearchProviderInterface` providers run there) |
 | `limit` | Rows per group (`per_group`) |
 | `scope` | Scope id (`[A-Za-z0-9._:-]{1,128}`) or null |
 | `belowMinLength` | The text is below `min_length` and matched an exempt pattern; only `MinLengthExemptSearchProviderInterface` providers see it. See [CONFIGURATION](CONFIGURATION.md#queries-exempt-from-min_length) |
@@ -233,8 +233,23 @@ There is no entity to map and no EntityManager: the "dedicated EM / XML mapping"
   `SearchContext` VO (path, route, locale, user identifier, roles); the scope id reaches the providers as
   `SearchQuery::$scope`.
 - To run the same fan-out outside the endpoint (CLI, API), inject `SearchEngineInterface` and call
-  `searchFor($userIdentifier, $text, $scope)`.
+  `searchFor($userIdentifier, $text, $scope)`. Only providers that implement the marker
+  `IdentifierAwareSearchProviderInterface` run there; every other provider is skipped and a notice is logged. An empty
+  identifier throws `InvalidArgumentException`.
 - For your own navigation model in the Pages group, implement `MenuTreeSourceInterface` and set `menu_pages.service`.
+
+**Before you mark a provider `IdentifierAwareSearchProviderInterface`**, make sure it depends on nothing but
+`$query->userIdentifier`:
+
+- It must not read `$query->user`: in a search by identifier it is null, and a nullable criterion such as
+  `->setParameter('owner', $query->user)` or `findBy(['owner' => $query->user])` turns into `owner IS NULL` and matches
+  the wrong rows instead of failing.
+- It must not ask Symfony for the user (`Security::getUser()`, `#[CurrentUser]`, the token storage, a voter on the
+  current token). From a console command there is none; inside an HTTP request it is whoever made that request, not
+  the identifier you search for.
+- Check access with your own port keyed by the identifier, as in the example below.
+
+The endpoint (`SearchEngine::search()`) runs every provider, marked or not, exactly as in 1.6.
 
 None of the ports, events or VOs above carries a Symfony or Doctrine type (REQ-ARCH-001 rule 3). The deprecated
 `SearchScopeResolverInterface` and `SearchQuery::$user` are the only exceptions left; they go in 2.0.
@@ -243,11 +258,11 @@ None of the ports, events or VOs above carries a Symfony or Doctrine type (REQ-A
 
 ```php
 use App\Application\Project\FindProjectsForUser;        // your application port
-use Nowo\SearchKitBundle\Contract\SearchProviderInterface;
+use Nowo\SearchKitBundle\Contract\IdentifierAwareSearchProviderInterface;
 use Nowo\SearchKitBundle\Model\{SearchGroup, SearchItem, SearchQuery};
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
-final readonly class ProjectSearchProvider implements SearchProviderInterface
+final readonly class ProjectSearchProvider implements IdentifierAwareSearchProviderInterface
 {
     public function __construct(private FindProjectsForUser $projects, private UrlGeneratorInterface $urls) {}
 

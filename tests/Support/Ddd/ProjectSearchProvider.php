@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Nowo\SearchKitBundle\Tests\Support\Ddd;
 
-use Nowo\SearchKitBundle\Contract\SearchProviderInterface;
+use Nowo\SearchKitBundle\Contract\IdentifierAwareSearchProviderInterface;
 use Nowo\SearchKitBundle\Model\SearchGroup;
 use Nowo\SearchKitBundle\Model\SearchItem;
 use Nowo\SearchKitBundle\Model\SearchQuery;
 
-/** DDD host adapter: reads only the user identifier and the scope, asks the read model, maps to the bundle VOs. */
-final readonly class ProjectSearchProvider implements SearchProviderInterface
+/** DDD host adapter (opts in to searches by identifier): reads only the user identifier and the scope, asks the read model, maps to the bundle VOs. */
+final readonly class ProjectSearchProvider implements IdentifierAwareSearchProviderInterface
 {
     public function __construct(private ProjectDirectory $projects)
     {

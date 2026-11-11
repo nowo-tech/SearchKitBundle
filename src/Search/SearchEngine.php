@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\SearchKitBundle\Search;
 
 use InvalidArgumentException;
+use Nowo\SearchKitBundle\Contract\IdentifierAwareSearchProviderInterface;
 use Nowo\SearchKitBundle\Contract\MinLengthExemptSearchProviderInterface;
 use Nowo\SearchKitBundle\Contract\SearchEngineInterface;
 use Nowo\SearchKitBundle\Contract\SearchProviderInterface;
@@ -65,8 +66,18 @@ final readonly class SearchEngine implements SearchEngineInterface
         return $this->run($text, $scope, $user, $user->getUserIdentifier());
     }
 
+    /**
+     * Searches by user identifier: only the IdentifierAwareSearchProviderInterface providers run; every other one is
+     * skipped and logged (notice), since it may depend on a Symfony user that does not exist here.
+     *
+     * @throws InvalidArgumentException When the identifier is empty
+     */
     public function searchFor(string $userIdentifier, string $text, ?string $scope = null): array
     {
+        if ($userIdentifier === '') {
+            throw new InvalidArgumentException('A search by identifier needs a non-empty user identifier.');
+        }
+
         return $this->run($text, $scope, null, $userIdentifier);
     }
 
@@ -86,6 +97,15 @@ final readonly class SearchEngine implements SearchEngineInterface
         foreach ($this->providers as $provider) {
             // The minimum exists so that providers do not scan for a fragment: only those that asked get one.
             if ($exempt && !$provider instanceof MinLengthExemptSearchProviderInterface) {
+                continue;
+            }
+            // By identifier, only the providers that declared they need nothing else (no Symfony user) run.
+            if (!$user instanceof UserInterface && !$provider instanceof IdentifierAwareSearchProviderInterface) {
+                $this->logger?->notice('Search provider {provider} skipped in a search by identifier: implement {interface} (the Symfony user is deprecated since nowo-tech/search-kit-bundle 1.7.0).', [
+                    'provider'  => $provider::class,
+                    'interface' => IdentifierAwareSearchProviderInterface::class,
+                ]);
+
                 continue;
             }
 

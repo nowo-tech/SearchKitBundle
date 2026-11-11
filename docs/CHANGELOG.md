@@ -49,8 +49,8 @@ Target: **1.7.0** (minor, BC: every 1.6 host keeps working without changes). REQ
 ### Added
 
 - `SearchContextScopeResolverInterface::resolveFor(SearchContext $context)`: the scope resolver port without Symfony types. `SearchContext` is a new VO with the user identifier, the path, the route name and scalar route parameters, the locale and the user's roles. The bundle builds it per call from the main request and the signed-in user and never keeps it. Guests and calls outside a request still get no scope and never reach a resolver. When both aliases are set, the new port is the one asked. The scope decision is unchanged: a test runs every wiring over the same users × pages matrix and gets the scopes of the 1.6 port in every cell.
-- `SearchQuery::$userIdentifier` (filled from the user on the endpoint path), `SearchQuery::forUserIdentifier()`. The constructor refuses a query with no user and no identifier, or with an identifier that is not its user's.
-- `SearchEngineInterface::searchFor(string $userIdentifier, string $text, ?string $scope = null)`, aliased to `SearchEngine`, to reuse the fan-out from a CLI or an API. The providers then get `$user` null. A provider still reading it fails and is skipped (logged), so it never returns rows for someone else.
+- `SearchQuery::$userIdentifier` (filled from the user on the endpoint path), `SearchQuery::forUserIdentifier()`. The constructor refuses a query with no user and no identifier, an empty identifier (`searchFor('')` too; audit MK: MK-S-L2), or an identifier that is not its user's.
+- `SearchEngineInterface::searchFor(string $userIdentifier, string $text, ?string $scope = null)`, aliased to `SearchEngine`, to reuse the fan-out from a CLI or an API. Only providers that implement the new marker `IdentifierAwareSearchProviderInterface` run there, with `$user` null. Every other provider is skipped and a notice is logged, because a 1.x provider may read `$user` (a nullable criterion would match `IS NULL` rows) or `Security::getUser()` (the wrong user). `search()`, the endpoint path, still runs every provider. Audit MK: MK-S-L1.
 - `MenuTreeSourceInterface` (`getMenuTree()`, `getHref()`) for the Pages group source. The duck-typed source (DashboardMenuBundle) keeps working.
 - `NullScopeResolver` implements both resolver ports.
 - Tests: a DDD-host kernel (plain-PHP read model, 1.7 ports only, no services resetter) with 300 iterations for two users in alternation and a memory bound (REQ-RUNTIME-002). Also a scope equivalence matrix for the old port, the new port, both aliases, and one service implementing both.
@@ -63,6 +63,7 @@ Target: **1.7.0** (minor, BC: every 1.6 host keeps working without changes). REQ
 
 ### Changed
 
+- `composer.json` now requires `symfony/deprecation-contracts` (`^2.5 || ^3.0`) for `trigger_deprecation()`. It was already installed through Symfony. Audit MK: MK-P-L1.
 - Docs: USAGE has a new "Standard Symfony host" section, and its scope resolver and DDD sections now describe the new ports. The README, ARCHITECTURE and the worker audit are updated. The demo uses the new ports.
 - Docs: new USAGE section "Using it from a DDD / hexagonal application" (where the bundle sits in a hexagonal host, the ports, events and DTOs to build an anti-corruption layer on, and the known limitations).
 
