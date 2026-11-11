@@ -26,7 +26,7 @@ final class ProjectsProvider implements SearchProviderInterface
 
     public function search(SearchQuery $query): ?SearchGroup
     {
-        $visible = $query->user->getUserIdentifier() === 'alice' ? ['acme', 'beta', 'gamma'] : ['beta'];
+        $visible = $query->userIdentifier === 'alice' ? ['acme', 'beta', 'gamma'] : ['beta'];
         if ($query->scope !== null) {
             $visible = in_array($query->scope, $visible, true) ? [$query->scope] : [];
         }

@@ -89,9 +89,38 @@ final class ModelTest extends TestCase
         self::assertTrue($query->matches('nope', 'Un árbol grande'));
         self::assertFalse($query->matches('nope'));
         self::assertTrue((new SearchQuery('x', new InMemoryUser('u', null), 5, 'p1'))->isScoped());
+        self::assertSame('u', $query->userIdentifier, 'filled from the Symfony user');
 
         self::assertSame(['id' => 'a-1', 'label' => 'A'], (new SearchScope('a-1', 'A'))->toArray());
         $this->expectException(InvalidArgumentException::class);
         new SearchScope('../etc', 'x');
+    }
+
+    public function testAQueryByIdentifierCarriesNoSymfonyUser(): void
+    {
+        $query = SearchQuery::forUserIdentifier('alice', 'shop', 5, 'p1', true);
+        self::assertSame('alice', $query->userIdentifier);
+        self::assertNull($query->user);
+        self::assertSame('shop', $query->text);
+        self::assertSame(5, $query->limit);
+        self::assertSame('p1', $query->scope);
+        self::assertTrue($query->belowMinLength);
+
+        $both = new SearchQuery('x', new InMemoryUser('alice', null), 5, null, false, 'alice');
+        self::assertSame('alice', $both->userIdentifier);
+    }
+
+    public function testAQueryNeedsOneConsistentUser(): void
+    {
+        try {
+            new SearchQuery('x', null, 5);
+            self::fail('a query without a user is refused');
+        } catch (InvalidArgumentException $exception) {
+            self::assertSame('A search query needs the user identifier.', $exception->getMessage());
+        }
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The user identifier of a search query must be the identifier of its user.');
+        new SearchQuery('x', new InMemoryUser('alice', null), 5, null, false, 'bob');
     }
 }

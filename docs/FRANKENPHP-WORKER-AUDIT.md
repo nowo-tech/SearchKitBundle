@@ -3,9 +3,9 @@
 | Field | Value |
 |-------|-------|
 | Package | `nowo-tech/search-kit-bundle` (`symfony-bundle`) |
-| Audited revision | `1.0` (`main`, 2026-10-16) |
-| Audit date | 2026-10-16 |
-| Method | Manual review of every service under `src/` (17 production units, see `specs/001-baseline/code-inventory.md`) + Igor deep audit (`make igor`: 21 service files, 0 KO) + PHPStan FrankenPHP rulesets |
+| Audited revision | `1.7.0` (`feat/arch-001-b1`, 2026-11-11; first audit `1.0`, 2026-10-16) |
+| Audit date | 2026-11-11 (first: 2026-10-16) |
+| Method | Manual review of every service under `src/` (17 production units at 1.0, see `specs/001-baseline/code-inventory.md`; the 1.7.0 ports and VOs are interfaces and readonly VOs) + Igor deep audit (`make igor`: 29 service files at 1.7.0, 0 KO) + PHPStan FrankenPHP rulesets |
 | **Verdict** | ✅ **Viable under scenario B** — every service is stateless; nothing is memoized |
 
 ## Table of contents
@@ -30,7 +30,8 @@ A bundle that is safe under **B** is safe under **A** and under classic mode / P
 | Mutable state in shared services | ✅ | `SearchEngine`, `SearchController`, `SearchIcons`, `MenuPagesProvider` are `final readonly`; `SearchKitExtension` and `NullScopeResolver` hold only injected collaborators and configuration. |
 | Caches | ✅ | None in the bundle. The rate limiter state lives in the framework limiter storage (shared cache pool). |
 | Static properties / `static` locals | ✅ | None |
-| Request / user / locale captured in services | ✅ | The controller and the Twig extension read the user and the main request per call; no service stores them. |
+| Request / user / locale captured in services | ✅ | The controller and the Twig extension read the user and the main request per call; no service stores them. Since 1.7.0 the `SearchContext` VO given to the scope resolver is built per call by the static, stateless `SearchContextFactory` and never kept. |
+| Kept-alive test (1.7.0) | ✅ | `tests/Integration/Ddd/DddHostSearchKernelTest.php`: one kernel, `services_resetter` removed, 300 iterations alternating alice / bob (endpoint search, scoped page, `SearchEngineInterface::searchFor()`). Each answer holds only that user's projects and scope; memory growth after a 20-iteration warm-up stays under 4 MB. `tests/Integration/ScopeResolverEquivalenceTest.php` also alternates 4 users over 8 pages twice per kernel with no reset. |
 | Superglobals, `putenv`, `ini_set`, `setlocale`, `exit` | ✅ | None in `src/` |
 | Blocking I/O and timeouts | ✅ | No outbound HTTP or subprocess; search time is the host providers' queries (see [CONFIGURATION — Timeouts](CONFIGURATION.md#timeouts)). |
 | PHPStan FrankenPHP rulesets | ✅ | `ruleset-classic.neon` + `ruleset-worker.neon` included in `phpstan.neon.dist` |

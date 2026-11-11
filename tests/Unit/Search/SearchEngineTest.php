@@ -20,6 +20,7 @@ use Stringable;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Security\Core\User\InMemoryUser;
 
+use function count;
 use function ini_get;
 
 use const JSON_THROW_ON_ERROR;
@@ -160,9 +161,65 @@ final class SearchEngineTest extends TestCase
         self::assertNull((new NullScopeResolver())->resolve(new Request(), new InMemoryUser('u', null)));
     }
 
-    /**
-     * @param callable(SearchQuery): ?SearchGroup $search
-     */
+    public function testSearchingByIdentifierGivesTheProvidersTheSameGroupsWithoutASymfonyUser(): void
+    {
+        /** @var ArrayObject<int, SearchQuery> $seen */
+        $seen    = new ArrayObject();
+        $byOwner = $this->provider(static function (SearchQuery $query) use ($seen): ?SearchGroup {
+            $seen[] = $query;
+            $rows   = ['alice' => ['Acme', 'Beta'], 'bob' => ['Beta']][$query->userIdentifier] ?? [];
+            $rows   = array_values(array_filter($rows, static fn (string $row): bool => $query->matches($row) && ($query->scope === null || strtolower($row) === $query->scope)));
+
+            return $rows === [] ? null : new SearchGroup('p', 'P', array_map(static fn (string $row): SearchItem => new SearchItem($row, '/p/' . strtolower($row)), $rows));
+        });
+        $engine = new SearchEngine([$byOwner], 1, 5);
+        $keys   = static fn (array $groups): array => array_map(static fn (SearchGroup $group): array => array_map(static fn (SearchItem $item): string => $item->title, $group->items), $groups);
+
+        foreach (['alice', 'bob', 'carol'] as $user) {
+            foreach ([null, 'acme', 'beta', 'nope'] as $scope) {
+                foreach (['a', 'acme', 'zzz'] as $text) {
+                    $old = $engine->search(new InMemoryUser($user, null), $text, $scope);
+                    $new = $engine->searchFor($user, $text, $scope);
+                    self::assertSame($keys($old), $keys($new), $user . ' / ' . ($scope ?? '-') . ' / ' . $text);
+                }
+            }
+        }
+        self::assertSame([['Beta']], $keys($engine->searchFor('bob', 'a')), 'bob never sees acme');
+
+        $first = $seen[0];
+        $last  = $seen[count($seen) - 1];
+        self::assertInstanceOf(SearchQuery::class, $first);
+        self::assertInstanceOf(SearchQuery::class, $last);
+        self::assertSame('bob', $last->userIdentifier);
+        self::assertNull($last->user, 'by identifier: no Symfony user');
+        self::assertSame('alice', $first->userIdentifier);
+        self::assertSame('alice', $first->user?->getUserIdentifier(), 'the endpoint path keeps the deprecated user');
+    }
+
+    public function testAProviderStillReadingTheDeprecatedUserFailsClosedWhenSearchingByIdentifier(): void
+    {
+        $logger = new class extends AbstractLogger {
+            /** @var list<array{string, array<mixed>}> */
+            public array $records = [];
+
+            public function log($level, string|Stringable $message, array $context = []): void
+            {
+                $this->records[] = [(string) $message, $context];
+            }
+        };
+        $legacy = $this->provider(static function (SearchQuery $query): SearchGroup {
+            $user = $query->user ?? throw new RuntimeException('no Symfony user');
+
+            return new SearchGroup('legacy', 'Legacy', [new SearchItem($user->getUserIdentifier(), '/l')]);
+        });
+        $engine = new SearchEngine([$legacy], 1, 5, $logger);
+
+        self::assertSame([], $engine->searchFor('alice', 'shop'), 'skipped, never rows for someone else');
+        self::assertCount(1, $logger->records);
+        self::assertSame(RuntimeException::class, $logger->records[0][1]['exception']);
+        self::assertCount(1, $engine->search(new InMemoryUser('alice', null), 'shop'), 'the endpoint path still feeds it');
+    }
+
     private function provider(callable $search): SearchProviderInterface
     {
         return new class($search) implements SearchProviderInterface {

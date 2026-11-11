@@ -7,42 +7,63 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
-- [[1.6.0] - 2026-11-07](#160---2026-11-07)
   - [Added](#added)
-- [[1.5.0] - 2026-11-07](#150---2026-11-07)
+  - [Deprecated](#deprecated)
   - [Changed](#changed)
-- [[1.4.0] - 2026-11-06](#140---2026-11-06)
+- [[1.6.0] - 2026-11-07](#160---2026-11-07)
   - [Added](#added-1)
-- [[1.3.1] - 2026-10-31](#131---2026-10-31)
+- [[1.5.0] - 2026-11-07](#150---2026-11-07)
   - [Changed](#changed-1)
-- [[1.3.0] - 2026-10-30](#130---2026-10-30)
+- [[1.4.0] - 2026-11-06](#140---2026-11-06)
+  - [Added](#added-2)
+- [[1.3.1] - 2026-10-31](#131---2026-10-31)
   - [Changed](#changed-2)
-- [[1.2.1] - 2026-10-30](#121---2026-10-30)
+- [[1.3.0] - 2026-10-30](#130---2026-10-30)
   - [Changed](#changed-3)
+- [[1.2.1] - 2026-10-30](#121---2026-10-30)
+  - [Changed](#changed-4)
   - [Fixed](#fixed)
 - [[1.2.0] - 2026-10-23](#120---2026-10-23)
-  - [Added](#added-2)
+  - [Added](#added-3)
 - [[1.1.1] - 2026-10-22](#111---2026-10-22)
-  - [Changed](#changed-4)
+  - [Changed](#changed-5)
   - [Fixed](#fixed-1)
 - [[1.1.0] - 2026-10-18](#110---2026-10-18)
-  - [Added](#added-3)
-  - [Changed](#changed-5)
+  - [Added](#added-4)
+  - [Changed](#changed-6)
 - [[1.0.3] - 2026-10-18](#103---2026-10-18)
   - [Fixed](#fixed-2)
 - [[1.0.2] - 2026-10-16](#102---2026-10-16)
-  - [Added](#added-4)
+  - [Added](#added-5)
   - [Fixed](#fixed-3)
 - [[1.0.1] - 2026-10-16](#101---2026-10-16)
   - [Security](#security)
   - [Fixed](#fixed-4)
 - [[1.0.0] - 2026-10-16](#100---2026-10-16)
-  - [Added](#added-5)
+  - [Added](#added-6)
 
 ## [Unreleased]
 
+Target: **1.7.0** (minor, BC: every 1.6 host keeps working without changes). REQ-ARCH-001 rules 1, 3 and 5 for a DDD / hexagonal host.
+
+### Added
+
+- `SearchContextScopeResolverInterface::resolveFor(SearchContext $context)`: the scope resolver port without Symfony types. `SearchContext` is a new VO with the user identifier, the path, the route name and scalar route parameters, the locale and the user's roles. The bundle builds it per call from the main request and the signed-in user and never keeps it. Guests and calls outside a request still get no scope and never reach a resolver. When both aliases are set, the new port is the one asked. The scope decision is unchanged: a test runs every wiring over the same users × pages matrix and gets the scopes of the 1.6 port in every cell.
+- `SearchQuery::$userIdentifier` (filled from the user on the endpoint path), `SearchQuery::forUserIdentifier()`. The constructor refuses a query with no user and no identifier, or with an identifier that is not its user's.
+- `SearchEngineInterface::searchFor(string $userIdentifier, string $text, ?string $scope = null)`, aliased to `SearchEngine`, to reuse the fan-out from a CLI or an API. The providers then get `$user` null. A provider still reading it fails and is skipped (logged), so it never returns rows for someone else.
+- `MenuTreeSourceInterface` (`getMenuTree()`, `getHref()`) for the Pages group source. The duck-typed source (DashboardMenuBundle) keeps working.
+- `NullScopeResolver` implements both resolver ports.
+- Tests: a DDD-host kernel (plain-PHP read model, 1.7 ports only, no services resetter) with 300 iterations for two users in alternation and a memory bound (REQ-RUNTIME-002). Also a scope equivalence matrix for the old port, the new port, both aliases, and one service implementing both.
+
+### Deprecated
+
+- `SearchScopeResolverInterface` (`resolve(Request, UserInterface)`). A resolver that implements only this interface keeps working and triggers a deprecation each time it is asked. It will be removed in 2.0.
+- `SearchQuery::$user` (Symfony `UserInterface`). Read `$userIdentifier`. It is now nullable: it is null for a search made by identifier, and the endpoint still fills it. It will be removed in 2.0.
+- `SearchEngine::search(UserInterface, …)` stays the endpoint path in 1.x. In 2.0 it will be replaced by `searchFor()`.
+
 ### Changed
 
+- Docs: USAGE has a new "Standard Symfony host" section, and its scope resolver and DDD sections now describe the new ports. The README, ARCHITECTURE and the worker audit are updated. The demo uses the new ports.
 - Docs: new USAGE section "Using it from a DDD / hexagonal application" (where the bundle sits in a hexagonal host, the ports, events and DTOs to build an anti-corruption layer on, and the known limitations).
 
 ## [1.6.0] - 2026-11-07

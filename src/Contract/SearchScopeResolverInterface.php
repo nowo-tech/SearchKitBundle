@@ -15,6 +15,10 @@ use Symfony\Component\Security\Core\User\UserInterface;
  * Alias this interface to your implementation; the bundle default resolves nothing. Return a scope only when the
  * user may open it: the chip must never name something the user cannot see.
  *
+ * @deprecated since 1.7.0, removed in 2.0: implement SearchContextScopeResolverInterface (a SearchContext VO instead of
+ *             the Symfony `Request` and user, REQ-ARCH-001 rule 3). A resolver that implements only this interface
+ *             keeps working in 1.x and triggers a deprecation when it is called.
+ *
  * @author Héctor Franco Aceituno <hectorfranco@nowo.tech>
  * @copyright 2026 Nowo.tech
  */

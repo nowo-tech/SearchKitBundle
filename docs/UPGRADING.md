@@ -5,6 +5,9 @@ This guide lists the changes integrators must apply when upgrading between versi
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.7.0](#to-170)
+  - [Migration table](#migration-table)
+  - [Steps](#steps)
 - [To 1.6.0](#to-160)
 - [To 1.5.0](#to-150)
 - [To 1.4.0](#to-140)
@@ -21,6 +24,59 @@ This guide lists the changes integrators must apply when upgrading between versi
 - [1.0.0 (2026-10-16)](#100-2026-10-16)
 
 ## Unreleased
+
+## To 1.7.0
+
+From **1.6.x**:
+
+```bash
+composer update nowo-tech/search-kit-bundle
+```
+
+**No action is required.** Providers, a resolver on `SearchScopeResolverInterface`, the endpoint, the partial and the
+configuration all behave as in 1.6, and the scope chip is decided by the same resolver as before. 1.7 adds ports
+without Symfony types for DDD / hexagonal hosts (REQ-ARCH-001 rule 3) and deprecates the old ones, which go in **2.0**.
+
+One type change matters for static analysis only: `SearchQuery::$user` is now `?UserInterface`. The bundle's endpoint
+always fills it, so `$query->user->getUserIdentifier()` still works at run time, but PHPStan or Psalm will report the
+nullable access. Switch to `$query->userIdentifier`.
+
+### Migration table
+
+| Deprecated (removed in 2.0) | Replacement (1.7.0) |
+| --- | --- |
+| `SearchScopeResolverInterface::resolve(Request $request, UserInterface $user)` | `SearchContextScopeResolverInterface::resolveFor(SearchContext $context)` |
+| `$request->getPathInfo()` | `$context->path` |
+| `$request->attributes->get('_route')` / `'_route_params'` | `$context->routeName` / `$context->routeParameters` (scalars only) |
+| `$request->getLocale()` | `$context->locale` |
+| `$user->getUserIdentifier()` / `$user->getRoles()` | `$context->userIdentifier` / `$context->roles` (`hasRole()`) |
+| `SearchQuery::$user` | `SearchQuery::$userIdentifier` |
+| `SearchEngine::search(UserInterface $user, …)` | `SearchEngineInterface::searchFor(string $userIdentifier, …)` |
+| A duck-typed Pages group source | `MenuTreeSourceInterface` (optional; duck typing keeps working) |
+
+### Steps
+
+1. **Providers.** Replace `$query->user->getUserIdentifier()` with `$query->userIdentifier`. If a provider needs more
+   than the identifier (an entity, a voter), load it from your own user port by identifier. Do not keep reading
+   `$query->user`: it is null when the search runs through `SearchEngineInterface::searchFor()`.
+2. **Scope resolver.** Implement `SearchContextScopeResolverInterface` and alias it:
+
+   ```yaml
+   services:
+       Nowo\SearchKitBundle\Contract\SearchContextScopeResolverInterface: '@App\Search\ProjectScopeResolver'
+   ```
+
+   Then remove the `SearchScopeResolverInterface` alias. Until you do, a resolver that implements only the old
+   interface triggers a deprecation (`nowo-tech/search-kit-bundle 1.7.0`) on each page that renders the box. Keep the
+   access check the same: the new port must return a scope only when the user may open it. `roles` are the user
+   object's roles without the role hierarchy, so check permissions through your access port rather than with
+   `hasRole()` alone.
+
+   While you migrate, one class may implement both interfaces. The bundle then asks it through `resolveFor()` only.
+   If both aliases point to different services, the `SearchContextScopeResolverInterface` one wins.
+3. **Engine.** Code that injected `SearchEngine` to search from a CLI or an API should inject `SearchEngineInterface`
+   and call `searchFor($userIdentifier, $text, $scope)`.
+4. **Pages group (optional).** A custom `menu_pages.service` can implement `MenuTreeSourceInterface`.
 
 ## To 1.6.0
 

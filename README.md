@@ -19,7 +19,7 @@ This bundle is **FrankenPHP worker mode friendly**. See [docs/FRANKENPHP-WORKER-
 - **Header magnifier that stretches into a field** in place (no modal), results in a dropdown under it; full-width field and dropdown on phones
 - **Your groups, your rules**: implement `SearchProviderInterface` once per group (Projects, Issues, Users, …) — autoconfigured, ordered by priority; the kit never decides what a user may see
 - **Pages group out of the box** from [DashboardMenuBundle](https://github.com/nowo-tech/DashboardMenuBundle) menus (permission-filtered tree, breadcrumbs, deduplicated by URL)
-- **Scope chip**: `SearchScopeResolverInterface` starts the search inside the current project / team / space; Backspace removes it
+- **Scope chip**: `SearchContextScopeResolverInterface` starts the search inside the current project / team / space; Backspace removes it
 - **Keyboard first**: Ctrl/⌘ K anywhere, `/` outside fields, ↑ ↓ across groups, Enter, Ctrl/⌘ Enter for a new tab, Esc or a click outside to fold
 - **Accessible**: ARIA combobox + listbox, `aria-activedescendant`, live result count, `prefers-reduced-motion`
 - **Recents** (per browser, `localStorage`, text only — never HTML) and configurable **quick actions** while the query is empty
@@ -76,7 +76,7 @@ final readonly class ProjectSearchProvider implements SearchProviderInterface
 
     public function search(SearchQuery $query): ?SearchGroup
     {
-        $rows = $this->projects->searchVisibleTo($query->user, $query->text, $query->limit);
+        $rows = $this->projects->searchVisibleTo($query->userIdentifier, $query->text, $query->limit);
 
         return new SearchGroup('projects', 'Projects', array_map(
             static fn (Project $p): SearchItem => new SearchItem($p->getName(), '/projects/' . $p->getId(), $p->getSlug(), 'tabler:folder'),
@@ -126,6 +126,8 @@ and `make -C demo/symfony8 demo-screenshots` (see [docs/CONTRIBUTING.md](docs/CO
 - [Installation](docs/INSTALLATION.md)
 - [Configuration](docs/CONFIGURATION.md)
 - [Usage](docs/USAGE.md)
+  - [Standard Symfony host](docs/USAGE.md#standard-symfony-host)
+  - [DDD / hexagonal host](docs/USAGE.md#using-it-from-a-ddd--hexagonal-application)
 - [Contributing](docs/CONTRIBUTING.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [Changelog](docs/CHANGELOG.md)

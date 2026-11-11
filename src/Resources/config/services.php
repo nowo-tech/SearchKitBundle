@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Nowo\SearchKitBundle\Contract\SearchContextScopeResolverInterface;
+use Nowo\SearchKitBundle\Contract\SearchEngineInterface;
 use Nowo\SearchKitBundle\Contract\SearchProviderInterface;
 use Nowo\SearchKitBundle\Contract\SearchScopeResolverInterface;
 use Nowo\SearchKitBundle\Controller\SearchController;
@@ -21,7 +23,7 @@ use function Symfony\Component\DependencyInjection\Loader\Configurator\tagged_it
 
 /*
  * Service definitions for NowoSearchKitBundle. The application adds SearchProviderInterface services (autoconfigured)
- * and may alias SearchScopeResolverInterface to its own resolver.
+ * and may alias SearchContextScopeResolverInterface (or the deprecated SearchScopeResolverInterface) to its own resolver.
  */
 return static function (ContainerConfigurator $container): void {
     $services = $container->services()
@@ -31,6 +33,8 @@ return static function (ContainerConfigurator $container): void {
             ->private();
 
     $services->set(NullScopeResolver::class);
+    // Both resolver ports default to the null resolver; a host aliases the one its resolver implements.
+    $services->alias(SearchContextScopeResolverInterface::class, NullScopeResolver::class);
     $services->alias(SearchScopeResolverInterface::class, NullScopeResolver::class);
 
     $services->set(SearchIcons::class)
@@ -49,6 +53,7 @@ return static function (ContainerConfigurator $container): void {
             param('nowo_search_kit.min_length_exempt_patterns'),
         ])
         ->tag('monolog.logger', ['channel' => 'nowo_search_kit']);
+    $services->alias(SearchEngineInterface::class, SearchEngine::class);
 
     // Routes stay opt-in (REQ-SF-004 rule 7): not autoconfigured, so the #[Route] class never gets the
     // `routing.controller` tag and a host `routing.controllers` import does not mount it without the prefix.
@@ -69,5 +74,6 @@ return static function (ContainerConfigurator $container): void {
     $services->set(SearchKitExtension::class)
         ->arg('$packages', service('assets.packages'))
         ->arg('$settings', param('nowo_search_kit.settings'))
-        ->arg('$secret', param('kernel.secret'));
+        ->arg('$secret', param('kernel.secret'))
+        ->arg('$contextScopes', service(SearchContextScopeResolverInterface::class));
 };

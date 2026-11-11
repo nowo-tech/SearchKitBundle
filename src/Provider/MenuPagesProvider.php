@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\SearchKitBundle\Provider;
 
+use Nowo\SearchKitBundle\Contract\MenuTreeSourceInterface;
 use Nowo\SearchKitBundle\Contract\SearchProviderInterface;
 use Nowo\SearchKitBundle\Model\SearchGroup;
 use Nowo\SearchKitBundle\Model\SearchItem;
@@ -20,8 +21,9 @@ use function is_string;
 /**
  * Built-in "Pages" group: the menu entries the user can see whose label contains the query.
  *
- * Reads the menus through any service exposing `getMenuTree(string $code): list<array{item: object, children?: list}>`
- * and `getHref(object $item, int $referenceType): string` — by default DashboardMenuBundle's Twig extension, whose
+ * Reads the menus through a MenuTreeSourceInterface service (1.7.0), or any service exposing the same
+ * `getMenuTree(string $code): list<array{item: object, children?: list}>` and
+ * `getHref(object $item, int $referenceType): string` methods — by default DashboardMenuBundle's Twig extension, whose
  * tree is already filtered by the menu permission checkers (so a page the user cannot open is never listed). Items
  * need `getLabel(): string` and may have `getIcon(): ?string`. Rows carry a breadcrumb (menu label › parents), use
  * absolute paths, and a page reachable from several menus is listed once (deduplicated by URL).
@@ -34,7 +36,7 @@ final readonly class MenuPagesProvider implements SearchProviderInterface
     public const string KEY = 'pages';
 
     /**
-     * @param object $menus Menu source (see class description)
+     * @param MenuTreeSourceInterface|object $menus Menu source (see class description)
      * @param TranslatorInterface $translator Translates the group heading and the menu labels
      * @param list<array{code: string, label: string|null, translation_domain: string|null}> $menuCodes Menus to walk, in order
      * @param string $defaultIcon UX Icons name of a page without an icon
@@ -58,14 +60,14 @@ final readonly class MenuPagesProvider implements SearchProviderInterface
      */
     public function search(SearchQuery $query): ?SearchGroup
     {
-        if (($this->skipWhenScoped && $query->isScoped()) || !method_exists($this->menus, 'getMenuTree') || !method_exists($this->menus, 'getHref')) {
+        if (($this->skipWhenScoped && $query->isScoped()) || !$this->hasMenuApi()) {
             return null;
         }
 
         $found = [];
         foreach ($this->menuCodes as $menu) {
             $trail = $menu['label'] !== null ? $this->translator->trans($menu['label'], [], $menu['translation_domain']) : '';
-            $tree  = $this->menus->getMenuTree($menu['code']);
+            $tree  = $this->menus instanceof MenuTreeSourceInterface || method_exists($this->menus, 'getMenuTree') ? $this->menus->getMenuTree($menu['code']) : [];
             $this->collect(is_array($tree) ? $tree : [], $query, $trail, $found);
         }
 
@@ -75,6 +77,15 @@ final readonly class MenuPagesProvider implements SearchProviderInterface
             array_slice(array_values($found), 0, $query->limit),
             count($found),
         );
+    }
+
+    /**
+     * Whether the source is a MenuTreeSourceInterface, or exposes both of its methods (duck typing, before 1.7.0).
+     */
+    private function hasMenuApi(): bool
+    {
+        return $this->menus instanceof MenuTreeSourceInterface
+            || (method_exists($this->menus, 'getMenuTree') && method_exists($this->menus, 'getHref'));
     }
 
     /**
@@ -91,7 +102,7 @@ final readonly class MenuPagesProvider implements SearchProviderInterface
                 continue;
             }
             $label = trim((string) $item->getLabel());
-            $href  = method_exists($this->menus, 'getHref') ? (string) $this->menus->getHref($item, UrlGeneratorInterface::ABSOLUTE_PATH) : '';
+            $href  = $this->menus instanceof MenuTreeSourceInterface || method_exists($this->menus, 'getHref') ? (string) $this->menus->getHref($item, UrlGeneratorInterface::ABSOLUTE_PATH) : '';
             if ($label !== '' && !isset($found[$href]) && SearchItem::isSafeUrl($href) && $query->matches($label)) {
                 $icon         = method_exists($item, 'getIcon') ? $item->getIcon() : null;
                 $found[$href] = new SearchItem($label, $href, $trail, is_string($icon) && $icon !== '' ? $icon : $this->defaultIcon);

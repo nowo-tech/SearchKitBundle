@@ -11,6 +11,7 @@
   - [Scoped searches](#scoped-searches)
   - [Full-text search](#full-text-search)
 - [Scope resolver](#scope-resolver)
+- [Standard Symfony host](#standard-symfony-host)
 - [Using it from a DDD / hexagonal application](#using-it-from-a-ddd--hexagonal-application)
 - [Pages group](#pages-group)
 - [The header template](#the-header-template)
@@ -73,7 +74,7 @@ final readonly class IssueSearchProvider implements SearchProviderInterface
 
     public function search(SearchQuery $query): ?SearchGroup
     {
-        $projectIds = $this->access->idsFor($query->user, $query->scope);   // [] for an unknown / forbidden scope
+        $projectIds = $this->access->idsFor($query->userIdentifier, $query->scope);   // [] for an unknown / forbidden scope
         if ($projectIds === []) {
             return null;
         }
@@ -114,7 +115,8 @@ With autoconfiguration (default in `config/services.yaml`) nothing else is neede
 | Member | Meaning |
 | --- | --- |
 | `text` | Trimmed query, `min_length` … `max_length` characters (shorter only with `belowMinLength`) |
-| `user` | The signed-in `UserInterface` |
+| `userIdentifier` | The signed-in user's identifier (1.7.0): check permissions against it |
+| `user` | **Deprecated** (1.7.0, removed in 2.0): the signed-in Symfony `UserInterface`, or null when the search runs through `SearchEngineInterface::searchFor()` |
 | `limit` | Rows per group (`per_group`) |
 | `scope` | Scope id (`[A-Za-z0-9._:-]{1,128}`) or null |
 | `belowMinLength` | The text is below `min_length` and matched an exempt pattern; only `MinLengthExemptSearchProviderInterface` providers see it. See [CONFIGURATION](CONFIGURATION.md#queries-exempt-from-min_length) |
@@ -150,21 +152,26 @@ one bounded query (`LIMIT $query->limit` plus a capped `COUNT`).
 
 ## Scope resolver
 
-Alias `SearchScopeResolverInterface` to start the search inside the current context (shown as a removable chip):
+Alias `SearchContextScopeResolverInterface` (1.7.0) to start the search inside the current context (shown as a
+removable chip). It gets a `SearchContext` VO, not the Symfony `Request` and user:
 
 ```php
-final readonly class ProjectScopeResolver implements SearchScopeResolverInterface
+use Nowo\SearchKitBundle\Contract\SearchContextScopeResolverInterface;
+use Nowo\SearchKitBundle\Model\SearchContext;
+use Nowo\SearchKitBundle\Model\SearchScope;
+
+final readonly class ProjectScopeResolver implements SearchContextScopeResolverInterface
 {
     public function __construct(private AccessibleProjects $access)
     {
     }
 
-    public function resolve(Request $request, UserInterface $user): ?SearchScope
+    public function resolveFor(SearchContext $context): ?SearchScope
     {
-        if (preg_match('#^/projects/([0-9a-f-]{36})(?:/|$)#', $request->getPathInfo(), $m) !== 1) {
+        if (preg_match('#^/projects/([0-9a-f-]{36})(?:/|$)#', $context->path, $m) !== 1) {
             return null;
         }
-        $project = $this->access->find($user, $m[1]);   // null when the user may not read it
+        $project = $this->access->find($context->userIdentifier, $m[1]);   // null when the user may not read it
 
         return $project === null ? null : new SearchScope($project->getUuid(), $project->getName());
     }
@@ -173,16 +180,45 @@ final readonly class ProjectScopeResolver implements SearchScopeResolverInterfac
 
 ```yaml
 services:
-    Nowo\SearchKitBundle\Contract\SearchScopeResolverInterface: '@App\Search\ProjectScopeResolver'
+    Nowo\SearchKitBundle\Contract\SearchContextScopeResolverInterface: '@App\Search\ProjectScopeResolver'
 ```
 
+| `SearchContext` member | Value |
+| --- | --- |
+| `userIdentifier` | `UserInterface::getUserIdentifier()` of the signed-in user |
+| `path` | `Request::getPathInfo()` of the main request (no query string) |
+| `routeName` / `routeParameters` | `_route` / `_route_params` (scalar values only) |
+| `locale` | `Request::getLocale()` |
+| `roles` / `hasRole()` | `UserInterface::getRoles()`, not expanded by the role hierarchy: do permission checks through your own access port |
+
 The chip never names something the user cannot open: return a scope only after the access check. The id travels as
-`scope` and reaches the providers as `SearchQuery::$scope`. The default resolver returns null (no chip).
+`scope` and reaches the providers as `SearchQuery::$scope`. The default resolver returns null (no chip). Guests and
+calls outside a request get no scope; the resolver is not asked.
+
+**Which resolver is asked.** One resolver decides, in this order:
+
+1. your `SearchContextScopeResolverInterface` alias, when you set one;
+2. otherwise the `SearchScopeResolverInterface` alias, through `resolveFor()` when that service implements the new
+   interface too;
+3. otherwise the deprecated `resolve(Request, UserInterface)` of a resolver that implements only the old interface (it
+   keeps working in 1.x and triggers a deprecation; see [UPGRADING](UPGRADING.md#to-170)).
+
+## Standard Symfony host
+
+The zero-config default. Install the bundle, import its routes, include the partial in your header, and write your
+providers as services (autoconfigured). Nothing else is needed:
+
+- providers read `SearchQuery::$userIdentifier` (or, until 2.0, the deprecated `SearchQuery::$user`) and can use your
+  Doctrine repositories, voters and the `Security` helper directly;
+- the bundle's endpoint (`GET {prefix}`) checks the user and `role`, applies the rate limit and runs the providers;
+- a scope resolver is optional (alias `SearchContextScopeResolverInterface`);
+- the Pages group reads DashboardMenuBundle's menus when `menu_pages` is enabled.
 
 ## Using it from a DDD / hexagonal application
 
 SearchKit is a **presentation** component: the header widget, its JSON endpoint and a provider port. It has no
 entities, no Doctrine dependency and never queries your database, so your domain does not need to know it exists.
+There is no entity to map and no EntityManager: the "dedicated EM / XML mapping" part of the DDD path does not apply.
 
 **Keep the domain free of the bundle**
 
@@ -190,10 +226,18 @@ entities, no Doctrine dependency and never queries your database, so your domain
   anti-corruption layer: it calls one of your application read ports (query bus, read-model repository, finder) and
   maps the results to `SearchGroup` / `SearchItem`. Domain entities never reach the bundle; only titles, URLs and
   labels do.
-- `SearchQuery::$user` is the Symfony security user. Map it to your domain actor id inside the provider (for example
-  `$query->user->getUserIdentifier()`) and do the access check in your application layer.
-- If the search should start inside a context (project, tenant, workspace), alias `SearchScopeResolverInterface` to an
-  adapter that resolves it through your access port; the scope id reaches the providers as `SearchQuery::$scope`.
+- Use `SearchQuery::$userIdentifier` (a string) as your actor id and do the access check in your application layer.
+  Do not read the deprecated `SearchQuery::$user`: it is null when the search runs by identifier.
+- If the search should start inside a context (project, tenant, workspace), alias
+  `SearchContextScopeResolverInterface` to an adapter that resolves it through your access port. It gets a
+  `SearchContext` VO (path, route, locale, user identifier, roles); the scope id reaches the providers as
+  `SearchQuery::$scope`.
+- To run the same fan-out outside the endpoint (CLI, API), inject `SearchEngineInterface` and call
+  `searchFor($userIdentifier, $text, $scope)`.
+- For your own navigation model in the Pages group, implement `MenuTreeSourceInterface` and set `menu_pages.service`.
+
+None of the ports, events or VOs above carries a Symfony or Doctrine type (REQ-ARCH-001 rule 3). The deprecated
+`SearchScopeResolverInterface` and `SearchQuery::$user` are the only exceptions left; they go in 2.0.
 
 **Example adapter**
 
@@ -209,7 +253,7 @@ final readonly class ProjectSearchProvider implements SearchProviderInterface
 
     public function search(SearchQuery $query): ?SearchGroup
     {
-        $hits = $this->projects->search($query->user->getUserIdentifier(), $query->text, $query->limit, $query->scope);
+        $hits = $this->projects->search($query->userIdentifier, $query->text, $query->limit, $query->scope);
         if ($hits->items === []) {
             return null;
         }
@@ -222,11 +266,14 @@ final readonly class ProjectSearchProvider implements SearchProviderInterface
 }
 ```
 
+The test suite boots such a host (`tests/Support/Ddd/DddHostKernel.php`: a plain-PHP read model keyed by user
+identifier, providers and a scope resolver on the 1.7 ports only, no services resetter) and runs it for two users in
+alternation (`tests/Integration/Ddd/DddHostSearchKernelTest.php`).
+
 **Known limitations**
 
-- The query and the scope resolver carry Symfony's `UserInterface`, not a plain id; map it in the adapter.
-- The built-in Pages group reads the menu service by duck typing (`getMenuTree()` / `getHref()`), so it works with
-  DashboardMenuBundle; another navigation model needs its own provider.
+- The built-in Pages group still reads DashboardMenuBundle by duck typing (`getMenuTree()` / `getHref()`) until that
+  bundle implements `MenuTreeSourceInterface`; another navigation model can implement the interface.
 - No server-side event is dispatched when a search runs; only the browser events `nowo-search:state` and
   `nowo-search:navigate` exist.
 

@@ -6,6 +6,7 @@ namespace Nowo\SearchKitBundle\Search;
 
 use InvalidArgumentException;
 use Nowo\SearchKitBundle\Contract\MinLengthExemptSearchProviderInterface;
+use Nowo\SearchKitBundle\Contract\SearchEngineInterface;
 use Nowo\SearchKitBundle\Contract\SearchProviderInterface;
 use Nowo\SearchKitBundle\Model\SearchGroup;
 use Nowo\SearchKitBundle\Model\SearchQuery;
@@ -23,7 +24,7 @@ use Throwable;
  * @author Héctor Franco Aceituno <hectorfranco@nowo.tech>
  * @copyright 2026 Nowo.tech
  */
-final readonly class SearchEngine
+final readonly class SearchEngine implements SearchEngineInterface
 {
     /**
      * @param iterable<SearchProviderInterface> $providers Tagged providers, highest priority first
@@ -50,7 +51,8 @@ final readonly class SearchEngine
     }
 
     /**
-     * Searches every provider.
+     * Searches every provider for a Symfony user: the providers get both SearchQuery::$userIdentifier and the
+     * deprecated SearchQuery::$user. The bundle's endpoint uses it so that 1.x providers keep working.
      *
      * @param UserInterface $user The signed-in user
      * @param string $text Raw query (trimmed here)
@@ -60,13 +62,26 @@ final readonly class SearchEngine
      */
     public function search(UserInterface $user, string $text, ?string $scope = null): array
     {
+        return $this->run($text, $scope, $user, $user->getUserIdentifier());
+    }
+
+    public function searchFor(string $userIdentifier, string $text, ?string $scope = null): array
+    {
+        return $this->run($text, $scope, null, $userIdentifier);
+    }
+
+    /**
+     * @return list<SearchGroup>
+     */
+    private function run(string $text, ?string $scope, ?UserInterface $user, string $userIdentifier): array
+    {
         $text   = trim($text);
         $exempt = mb_strlen($text) < $this->minLength;
         if ($exempt && !$this->isExempt($text)) {
             return [];
         }
 
-        $query  = new SearchQuery($text, $user, $this->perGroup, $scope, $exempt);
+        $query  = new SearchQuery($text, $user, $this->perGroup, $scope, $exempt, $userIdentifier);
         $groups = [];
         foreach ($this->providers as $provider) {
             // The minimum exists so that providers do not scan for a fragment: only those that asked get one.
