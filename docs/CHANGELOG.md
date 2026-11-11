@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.7.0] - 2026-11-11](#170---2026-11-11)
   - [Added](#added)
   - [Deprecated](#deprecated)
   - [Changed](#changed)
@@ -43,6 +44,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   - [Added](#added-6)
 
 ## [Unreleased]
+
+## [1.7.0] - 2026-11-11
 
 Target: **1.7.0** (minor, BC: every 1.6 host keeps working without changes). REQ-ARCH-001 rules 1, 3 and 5 for a DDD / hexagonal host.
 

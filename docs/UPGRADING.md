@@ -6,6 +6,7 @@ This guide lists the changes integrators must apply when upgrading between versi
 
 - [Unreleased](#unreleased)
 - [To 1.7.0](#to-170)
+- [To 1.7.0](#to-170-1)
   - [Migration table](#migration-table)
   - [Steps](#steps)
 - [To 1.6.0](#to-160)
@@ -24,6 +25,14 @@ This guide lists the changes integrators must apply when upgrading between versi
 - [1.0.0 (2026-10-16)](#100-2026-10-16)
 
 ## Unreleased
+
+## To 1.7.0
+
+From **1.6.0**:
+
+```bash
+composer update nowo-tech/search-kit-bundle
+```
 
 ## To 1.7.0
 
