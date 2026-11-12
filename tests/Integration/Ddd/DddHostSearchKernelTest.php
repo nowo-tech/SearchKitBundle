@@ -28,7 +28,7 @@ use const JSON_THROW_ON_ERROR;
 final class DddHostSearchKernelTest extends TestCase
 {
     /** Iterations of the kept-alive loop (each: one search request, one page request, one engine call). */
-    private const int ITERATIONS = 300;
+    private const int ITERATIONS = 1200;
 
     /** Allowed memory growth after the warm-up. */
     private const int MEMORY_MARGIN = 4 * 1024 * 1024;
