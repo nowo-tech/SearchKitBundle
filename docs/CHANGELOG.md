@@ -45,6 +45,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Docs
+
+- `docs/FRANKENPHP-WORKER-AUDIT.md`: clearer wording of the kept-alive test row.
+
 ### Tests
 
 - The kept-alive worker test (`DddHostSearchKernelTest`) now runs 1,200 iterations (was 300) with no services resetter, REQ-RUNTIME-002.
