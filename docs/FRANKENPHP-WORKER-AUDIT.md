@@ -41,7 +41,9 @@ A bundle that is safe under **B** is safe under **A** and under classic mode / P
 
 ## Kept-alive test (REQ-RUNTIME-002)
 
-Test: `Nowo\SearchKitBundle\Tests\Integration\Ddd\DddHostSearchKernelTest::testTheHostPortsServeEachUserOnlyTheirOwnProjectsInOneKeptAliveKernel`. It boots **one** kernel, asserts that `services_resetter` does not exist, and runs 1,200 iterations alternating two users (alice / bob): the HTTP search endpoint, the scoped page and `SearchEngineInterface::searchFor()` each answer with only that user's projects and scope. Memory growth after a 20-iteration warm-up must stay below 4 MiB. A guest is still refused (401) afterwards.
+Test: `Nowo\SearchKitBundle\Tests\Integration\Ddd\DddHostSearchKernelTest::testTheHostPortsServeEachUserOnlyTheirOwnProjectsInOneKeptAliveKernel`. It boots **one** kernel, asserts that `services_resetter` does not exist, and runs 1,200 iterations alternating two users (alice / bob): the HTTP search endpoint, the scoped page and `SearchEngineInterface::searchFor()` each answer with only that user's projects and scope. Memory growth after a 20-iteration warm-up must stay below 4 MiB. A guest is still refused (401) afterwards. The loop clears the BrowserKit history every iteration (a worker keeps none).
+
+Note (2026-11-12): on Symfony `8.2.0-BETA1` the whole loop grows by about 2.7 KB per iteration (about 3.3 MB over 1,200; flat on 7.4 and 8.1). The same growth appears for a guest request that only reaches `SearchController::__invoke()` and returns the 401 JSON (no search code runs), and not for a 404, for `isGranted()` or for the engine alone, so it comes from the framework's per-request handling of a matched route in that beta, not from bundle state. Re-check it when Symfony 8.2 is stable; the 4 MiB margin still holds.
 
 Result: nothing is carried between requests, so the bundle is **safe with kernel reset false**.
 

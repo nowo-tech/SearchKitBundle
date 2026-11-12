@@ -74,6 +74,9 @@ final class DddHostSearchKernelTest extends TestCase
                 'engine by identifier, ' . $user,
             );
 
+            // A worker keeps no browser history: BrowserKit would retain every request of the loop.
+            $client->getHistory()->clear();
+
             if ($i === 19) {
                 gc_collect_cycles();
                 $baseline = memory_get_usage();
