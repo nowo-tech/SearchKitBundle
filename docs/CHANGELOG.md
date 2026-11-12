@@ -45,6 +45,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Tests
+
+- The kept-alive worker test (`DddHostSearchKernelTest`) now runs 1,200 iterations (was 300) with no services resetter, REQ-RUNTIME-002.
+
+### Docs
+
+- Refreshed `docs/FRANKENPHP-WORKER-AUDIT.md` (reviewed version, kept-alive section, rule 7 note).
+
 ## [1.7.0] - 2026-11-11
 
 Target: **1.7.0** (minor, BC: every 1.6 host keeps working without changes). REQ-ARCH-001 rules 1, 3 and 5 for a DDD / hexagonal host.

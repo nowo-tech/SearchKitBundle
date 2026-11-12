@@ -28,7 +28,7 @@ use const JSON_THROW_ON_ERROR;
 final class DddHostSearchKernelTest extends TestCase
 {
     /** Iterations of the kept-alive loop (each: one search request, one page request, one engine call). */
-    private const int ITERATIONS = 300;
+    private const int ITERATIONS = 1200;
 
     /** Allowed memory growth after the warm-up. */
     private const int MEMORY_MARGIN = 4 * 1024 * 1024;
@@ -73,6 +73,9 @@ final class DddHostSearchKernelTest extends TestCase
                 array_map(static fn (SearchItem $item): string => $item->title, array_merge(...array_map(static fn (SearchGroup $group): array => $group->items, $engine->searchFor($user, 'a')))),
                 'engine by identifier, ' . $user,
             );
+
+            // A worker keeps no browser history: BrowserKit would retain every request of the loop.
+            $client->getHistory()->clear();
 
             if ($i === 19) {
                 gc_collect_cycles();
