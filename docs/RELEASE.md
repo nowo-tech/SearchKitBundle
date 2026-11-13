@@ -68,7 +68,7 @@ composer require nowo-tech/search-kit-bundle
 
 ## Coverage goals
 
-- **PHP**: **≥99%** line coverage (target **100%**; `make test-coverage`)
+- **PHP**: **100%** line coverage (`make test-coverage`)
 - **TypeScript**: **≥90%** of the minimum of statements / branches / functions / lines (`make test-ts`; Vitest thresholds 100 / 95 branches)
 
 Update README **Tests and coverage** percentages after each release when coverage changes materially.

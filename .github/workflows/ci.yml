@@ -299,16 +299,16 @@ jobs:
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress --no-interaction
 
-      # REQ-TEST-003: the job fails when tests fail (pipefail) or PHP line coverage is below 99%.
+      # REQ-TEST-003: the job fails when tests fail (pipefail) or PHP line coverage is below 100%.
       - name: Run tests with coverage
         run: |
           set -o pipefail
           composer test-coverage | tee coverage-php.txt
 
-      - name: Enforce PHP coverage gate (>= 99% lines)
+      - name: Enforce PHP coverage gate (100% lines)
         run: |
           chmod +x .scripts/coverage-fail-under.sh
-          ./.scripts/coverage-fail-under.sh coverage-php.txt 99
+          ./.scripts/coverage-fail-under.sh coverage-php.txt 100
 
       - name: Validate coverage file
         run: |

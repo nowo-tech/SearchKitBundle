@@ -9,7 +9,7 @@
 
 ## PHP line coverage gate
 
-`make coverage-check` enforces **≥ 99%** line coverage on the PHPUnit includable `src/` set (`REQ-TEST-003` / `REQ-TEST-006`); the target is **100%**.
+`make coverage-check` enforces **100%** line coverage on the PHPUnit includable `src/` set (`REQ-TEST-003` / `REQ-TEST-006`); the gate and the target are both **100%**.
 
 The README percentage must match the latest coverage text / CI artifact.
 
