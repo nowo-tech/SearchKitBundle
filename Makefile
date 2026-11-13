@@ -64,7 +64,7 @@ help:
 	@echo "  down-dev       Stop root container (alias of down; non-destructive)"
 	@echo "  ensure-up      Start the container if needed (+ install deps when missing)"
 	@echo "  test-ts        Run Vitest (TypeScript) with coverage (gate >= 90%)"
-	@echo "  coverage-check Enforce PHP line coverage >= 99% (REQ-TEST-003)"
+	@echo "  coverage-check Enforce PHP line coverage = 100% (REQ-TEST-003)"
 	@echo "  test-coverage-100  Enforce 100% PHP line coverage (REQ-TEST-006)"
 	@echo "  validate-translations  Check translation key parity (7 locales) + YAML parse"
 	@echo "  check-no-cursor-coauthor  Fail on AI co-author trailers (REQ-GIT-001)"
@@ -133,9 +133,9 @@ coverage-check: ensure-up
 	@# host user (an older one written by the container's root would not be writable).
 	@rm -f coverage-php.txt
 	@$(COMPOSE) exec -T $(SERVICE_PHP) composer test-coverage | tee coverage-php.txt
-	@./.scripts/coverage-fail-under.sh coverage-php.txt 99
+	@./.scripts/coverage-fail-under.sh coverage-php.txt 100
 
-# REQ-TEST-006: strict 100% line gate (coverage-check is the >= 99% REQ-TEST-003 gate).
+# REQ-TEST-006: strict 100% line gate (coverage-check is the same gate).
 test-coverage-100: ensure-up
 	@rm -f coverage-php.txt
 	@$(COMPOSE) exec -T $(SERVICE_PHP) composer test-coverage | tee coverage-php.txt

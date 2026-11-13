@@ -39,7 +39,7 @@ Follow these rules when contributing PHP, TypeScript, Twig, and documentation to
 
 ## Tests and quality
 
-- PHPUnit target: **100% line coverage** on `src/` (gate ≥99%); justify exclusions in `docs/COVERAGE.md`.
+- PHPUnit target: **100% line coverage** on `src/` (gate 100%); justify exclusions in `docs/COVERAGE.md`.
 - TypeScript tests via Vitest: `make test-ts` (thresholds 100% lines / statements / functions, 95% branches; gate ≥90%).
 - Full gate: `make release-check` (style, static analysis, PHP + TS coverage, demos).
 
