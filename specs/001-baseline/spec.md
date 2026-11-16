@@ -92,7 +92,7 @@ only navigates to same-site paths or http(s) URLs.
 - **FR-SPI-001** — `SearchProviderInterface::search(SearchQuery): ?SearchGroup` with the documented security contract.
 - **FR-SPI-002** — `SearchScopeResolverInterface::resolve(Request, UserInterface): ?SearchScope`; `NullScopeResolver`
   is the default.
-- **FR-SPI-003** — `SearchContextScopeResolverInterface::resolve(SearchContext): ?SearchScope` (1.7.0): framework-free twin of
+- **FR-SPI-003** — `SearchContextScopeResolverInterface::resolveFor(SearchContext): ?SearchScope` (1.7.0): framework-free twin of
   `SearchScopeResolverInterface`; `SearchContextFactory` builds the VO from the main request and the signed-in user at the HTTP
   edge. Never called for a guest. The `Request` / `UserInterface` form is deprecated (removed in 2.0).
 - **FR-SPI-004** — `SearchEngineInterface::searchFor()`: the fan-out for hosts outside the endpoint (CLI, API); takes a user
