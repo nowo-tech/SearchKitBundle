@@ -2,9 +2,7 @@
 
 FrankenPHP demo for **Symfony 8.1** (PHP 8.5) with the header search in the navbar: in-memory users, three demo
 providers in `src/Search/` (Projects with per-user access, Documentation, admin-only Users) and a scope resolver for
-project pages. No database. The layout extends the UiKit document layout with the host theme tokens of
-`config/packages/nowo_ui_kit.yaml` (optional UiKit integration, REQ-UI-003): the search follows the tokens and the
-toggle gets the host class `demo-search-toggle` from `theme.bundles.NowoSearchKitBundle.classes.btn_icon`.
+project pages. No database. The layout extends the UiKit admin layout with UiKit's default theme (no CSS framework, no CDN; REQ-DEMO-014) and the login form is a FormKit form (REQ-DEMO-015); the search widget keeps its own component CSS.
 
 ## Accounts
 

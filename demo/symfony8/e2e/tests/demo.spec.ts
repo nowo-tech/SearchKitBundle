@@ -9,7 +9,7 @@ async function signIn(page: Page, username: string): Promise<void> {
   await page.getByLabel('Username').fill(username);
   await page.getByLabel('Password').fill('password');
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.locator('nav')).toContainText(username);
+  await expect(page.getByTestId('demo-masthead')).toContainText(username);
   // The Symfony toolbar can cover the dropdown on small screens.
   await page.evaluate(() => document.querySelectorAll('.sf-toolbar, .sf-minitoolbar').forEach((el) => el.remove()));
 }
@@ -28,8 +28,6 @@ test.describe('search kit demo', () => {
     const field = search.getByRole('combobox');
     await expect(field).not.toBeVisible();
 
-    // Optional UiKit integration (REQ-UI-003): the host class of the btn_icon slot reaches the toggle.
-    await expect(page.getByTestId('nowo-search-toggle')).toHaveClass('nowo-search__toggle demo-search-toggle');
     await expect(search).toHaveAttribute('data-nowo-ui-bundle', 'NowoSearchKitBundle');
     await page.getByTestId('nowo-search-toggle').click();
     await expect(search).toHaveClass(/is-open/);

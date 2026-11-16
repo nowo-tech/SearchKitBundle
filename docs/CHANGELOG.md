@@ -45,6 +45,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Demo
+
+- The demo is built on UiKit and FormKit (REQ-DEMO-014/015): the base template extends the UiKit admin layout with UiKit's default theme (no Bootstrap CDN, no `demo.css`, no host tokens), the demo form is a FormKit form themed by the `demo` profile and UiKit's form theme.
+
 ### Changed
 
 - CI and `make coverage-check`: the PHP line-coverage gate is now **100%** (was 99%). The suite is already at 100%; the gate only stops a regression from merging.
