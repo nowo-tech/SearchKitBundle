@@ -1,15 +1,19 @@
 {% extends 'base.html.twig' %}
 
+{% block nowo_ui_page_header %}
+    {{ include(nowo_ui_partial('page_header'), {title: 'demo.login.nav'|trans, intro: 'demo.login.hint'|trans}) }}
+{% endblock %}
+
 {% block body %}
-<div class="container py-4" style="max-width: 32rem">
-    <h1 class="h4 mb-3">{{ 'demo.login.nav'|trans }}</h1>
-    <p class="text-muted small">{{ 'demo.login.hint'|trans }}</p>
     {% if login_error %}
-        <div class="alert alert-danger">{{ login_error.messageKey|trans(login_error.messageData, 'security') }}</div>
+        <div class="nowo-ui-flash nowo-ui-flash--error" role="alert">{{ login_error.messageKey|trans(login_error.messageData, 'security') }}</div>
     {% endif %}
     {% if app.user %}
-        <div class="alert alert-success">{{ 'demo.login.signed_in'|trans({ '%user%': app.user.userIdentifier }) }}</div>
+        <div class="nowo-ui-flash nowo-ui-flash--success" role="status">{{ 'demo.login.signed_in'|trans({ '%user%': app.user.userIdentifier }) }}</div>
     {% endif %}
-    {{ include('demo/_form.html.twig', { form: login_form }) }}
-</div>
+    <section class="nowo-ui-card">
+        <div class="nowo-ui-card__body">
+            {{ include('demo/_form.html.twig', { form: login_form }) }}
+        </div>
+    </section>
 {% endblock %}

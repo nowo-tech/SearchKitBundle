@@ -1,9 +1,9 @@
 {% extends 'base.html.twig' %}
 
+{% block nowo_ui_page_header %}
+    {{ include(nowo_ui_partial('page_header'), {title: title, intro: text}) }}
+{% endblock %}
+
 {% block body %}
-<div class="container py-4">
-    <h1 class="h3 mb-2">{{ title }}</h1>
-    <p class="lead">{{ text }}</p>
-    <p class="text-muted small">{{ 'demo.page.hint'|trans }}</p>
-</div>
+    <p class="nowo-ui-muted">{{ 'demo.page.hint'|trans }}</p>
 {% endblock %}
