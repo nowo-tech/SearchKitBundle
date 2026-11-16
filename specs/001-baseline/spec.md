@@ -1,8 +1,8 @@
 # Feature specification: Search Kit Bundle (baseline)
 
 **Package**: `nowo-tech/search-kit-bundle`
-**Status**: Active (1.0.3)
-**Last reviewed**: 2026-10-16
+**Status**: Active (1.7.0)
+**Last reviewed**: 2026-11-16
 **Inventory**: [`code-inventory.md`](code-inventory.md) — 100% of the production units under `src/`.
 
 ## Summary
@@ -92,15 +92,27 @@ only navigates to same-site paths or http(s) URLs.
 - **FR-SPI-001** — `SearchProviderInterface::search(SearchQuery): ?SearchGroup` with the documented security contract.
 - **FR-SPI-002** — `SearchScopeResolverInterface::resolve(Request, UserInterface): ?SearchScope`; `NullScopeResolver`
   is the default.
-- **FR-MODEL-001** — `SearchQuery` (text, user, limit, scope, `isScoped()`, `matches()`), `SearchGroup` (`limit()`,
+- **FR-SPI-003** — `SearchContextScopeResolverInterface::resolveFor(SearchContext): ?SearchScope` (1.7.0): framework-free twin of
+  `SearchScopeResolverInterface`; `SearchContextFactory` builds the VO from the main request and the signed-in user at the HTTP
+  edge. Never called for a guest. The `Request` / `UserInterface` form is deprecated (removed in 2.0).
+- **FR-SPI-004** — `SearchEngineInterface::searchFor()`: the fan-out for hosts outside the endpoint (CLI, API); takes a user
+  identifier, never a Symfony user.
+- **FR-SPI-005** — `IdentifierAwareSearchProviderInterface`: marker for providers that check permissions against
+  `SearchQuery::$userIdentifier` only; `searchFor()` skips every other provider.
+- **FR-SPI-006** — `MinLengthExemptSearchProviderInterface`: marker for providers that also receive queries below `min_length`
+  that match `min_length_exempt_patterns` (exact lookup only).
+- **FR-MODEL-001** — `SearchQuery` (text, user, user identifier, limit, scope, `isScoped()`, `matches()`), `SearchGroup` (`limit()`,
   `toArray()` with sanitised key and safe "See all"), `SearchItem` (`isSafeUrl()`: paths or http(s), no control
   characters or spaces; rejects unsafe URLs), `SearchBadge`
   (CSS-safe tone), `SearchScope` (id pattern).
+- **FR-MODEL-002** — `SearchContext` (path, route, locale, user identifier, roles): plain values handed to the scope resolver; never kept.
 
 ### Engine and providers
 
 - **FR-ENGINE-001** — `SearchEngine` trims, enforces `min_length` (except `min_length_exempt_patterns`, opted-in providers only), runs the providers in priority order, drops null /
   empty groups, cuts rows to `per_group`, logs (class names only) and skips failing providers.
+- **FR-ENGINE-002** — `MinLengthExemptPattern`: a `min_length_exempt_patterns` entry accepted only inside the subset PCRE and
+  ECMAScript read alike (compiled with `(*UTF)` and `D`); anything else is refused at container compilation.
 - **FR-PAGES-001** — `MenuPagesProvider` walks the configured menu codes through a duck-typed menu service
   (`getMenuTree`, `getHref`), matches labels case-insensitively, builds breadcrumbs, uses absolute paths, skips unsafe or
   empty links, deduplicates by URL, and returns nothing while scoped (`skip_when_scoped`).
@@ -114,6 +126,8 @@ only navigates to same-site paths or http(s) URLs.
 
 ### Twig, markup and theme
 
+- **FR-PAGES-002** — `MenuTreeSourceInterface`: typed menu source for the Pages group (a service exposing the same two methods
+  still works by duck typing).
 - **FR-TWIG-001** — `SearchKitExtension`: `nowo_search_kit_config(actions)` (null for users who may not search;
   endpoint, limits, shortcuts, scope, host + configured quick actions with safe URLs and role filter, recents (per-user
   HMAC storage key), assets,
@@ -151,6 +165,9 @@ only navigates to same-site paths or http(s) URLs.
 - **FR-TS-006** — `svg.ts`: `sanitizeSvg` turns a row icon's server SVG into a detached element (inert parse, single
   `<svg>` root, drawing elements only, no event handler / `href` / `javascript:` or `data:` value); anything else falls
   back to the kind icon. No HTML string is ever assigned to the page.
+- **FR-TS-007** — `min-length.ts`: `compileExemptPatterns` compiles the configured exemptions in the browser (`u` flag); a
+  broken entry exempts nothing and never stops the box from mounting.
+- **FR-TS-008** — `motion.ts`: closing with an effect (`CLOSING_ATTR`, transition length, timer fallback).
 - **FR-BUILD-001** — `vite build` produces `src/Resources/public/js/nowo-search.js` (IIFE, `NowoSearch`).
 
 ## Key entities
@@ -171,7 +188,7 @@ only navigates to same-site paths or http(s) URLs.
 
 ## Success criteria
 
-- **SC-01** — `code-inventory.md` maps **40/40** production units (see its audit command).
+- **SC-01** — `code-inventory.md` maps **50/50** production units (see its audit command).
 - **SC-02** — PHPUnit: 100% line coverage of `src/`.
 - **SC-03** — Vitest: 100% lines / statements / functions of `Resources/assets/src` (branches ≥ 95%).
 - **SC-04** — PHPStan level 8 (with the FrankenPHP rulesets), Rector and PHP-CS-Fixer report nothing; Igor passes.

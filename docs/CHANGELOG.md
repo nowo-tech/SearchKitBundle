@@ -52,6 +52,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Docs
 
 - `docs/FRANKENPHP-WORKER-AUDIT.md`: clearer wording of the kept-alive test row.
+- Spec Kit inventory refreshed to 50/50 production units (1.6 / 1.7 contracts, `SearchContext`, min-length and motion modules mapped); README TypeScript branch coverage corrected to 97.82%.
 
 ### Tests
 

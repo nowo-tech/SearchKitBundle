@@ -1,8 +1,8 @@
 # Search Kit Bundle — baseline code inventory
 
 **Package**: `nowo-tech/search-kit-bundle`  
-**Last audited**: 2026-10-20  
-**Production units**: **40/40**  
+**Last audited**: 2026-11-16  
+**Production units**: **50/50**  
 **Audit command**: `find src -type f \( -name '*.php' -o -name '*.twig' -o -name '*.yaml' -o -name '*.ts' -o -name '*.css' \) -not -path 'src/Resources/assets/tests/*' | wc -l`
 
 ## Scope notes
@@ -16,14 +16,14 @@
 | Category | Mapped |
 | --- | ---: |
 | Bundle, configuration & DI | 6 |
-| Contracts & model | 8 |
-| Engine & providers | 3 |
+| Contracts & model | 14 |
+| Engine & providers | 5 |
 | HTTP | 1 |
 | Twig, markup & theme | 4 |
 | Stylesheets | 2 |
-| Browser (TypeScript) | 9 |
+| Browser (TypeScript) | 11 |
 | Translations | 7 |
-| **Total** | **40** |
+| **Total** | **50** |
 
 
 ## Bundle, configuration & DI
@@ -49,6 +49,12 @@
 | `src/Model/SearchQuery.php` | US-02, US-04 | FR-MODEL-001 |
 | `src/Model/SearchScope.php` | US-04 | FR-MODEL-001 |
 | `src/Icon/SearchIcons.php` | US-07 | FR-ICON-001 |
+| `src/Contract/SearchContextScopeResolverInterface.php` | US-04 | FR-SPI-003 |
+| `src/Contract/SearchEngineInterface.php` | US-02 | FR-SPI-004 |
+| `src/Contract/IdentifierAwareSearchProviderInterface.php` | US-02 | FR-SPI-005 |
+| `src/Contract/MinLengthExemptSearchProviderInterface.php` | US-02 | FR-SPI-006 |
+| `src/Contract/MenuTreeSourceInterface.php` | US-06 | FR-PAGES-002 |
+| `src/Model/SearchContext.php` | US-04 | FR-MODEL-002 |
 
 ## Engine & providers
 
@@ -57,6 +63,8 @@
 | `src/Search/SearchEngine.php` | US-02, US-08 | FR-ENGINE-001 |
 | `src/Provider/MenuPagesProvider.php` | US-06 | FR-PAGES-001 |
 | `src/Scope/NullScopeResolver.php` | US-04 | FR-SPI-002 |
+| `src/Scope/SearchContextFactory.php` | US-04 | FR-SPI-003 |
+| `src/Search/MinLengthExemptPattern.php` | US-02, US-08 | FR-ENGINE-002 |
 
 ## HTTP
 
@@ -93,6 +101,8 @@
 | `src/Resources/assets/src/svg.ts` | US-02, US-08 | FR-TS-006 |
 | `src/Resources/assets/src/types.ts` | US-02, US-07 | FR-TS-005 |
 | `src/Resources/assets/src/url.ts` | US-08 | FR-TS-003 |
+| `src/Resources/assets/src/min-length.ts` | US-02, US-08 | FR-TS-007 |
+| `src/Resources/assets/src/motion.ts` | US-03, US-07 | FR-TS-008 |
 
 ## Translations
 
