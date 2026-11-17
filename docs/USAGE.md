@@ -364,7 +364,9 @@ settings:
         keywords: "password, two-factor, sessions"      # es: "contraseña, clave, doble factor"
 ```
 
-The label, the breadcrumb (`trail`) and the keywords match (keywords are **never shown**). Keywords and labels of
+The label, the breadcrumb (`trail`) and the keywords match (keywords are **never shown**). Keep the lists short:
+**at most 32 keywords per locale are read, extra ones are ignored** (a debug log line names the key), and at most 64 of
+the other locales after deduplication; the same 32 cap applies to menu keywords and to action keywords. Keywords and labels of
 every `page_registry.locales` match too, so an English viewer typing `contraseña` finds *Security*; the UI locale
 ranks first. `scope: required` entries appear only while the search is scoped (the scope id goes into
 `scope_parameter`); `scope: none` entries only while it is not. `attribute` / `subject` are handed to your checker.
@@ -429,7 +431,9 @@ values the viewer may see. **Resolve every value for the viewer and answer an un
 `SearchQuery::matches()` and the new `score()` fold case and accents (`Contraseña` = `contrasena`, `Straße` =
 `strasse`), try every alternative of `terms()` and, with `matching.fuzzy: true`, tolerate typos on the typed text (edit
 distance 1 for 4–6 letters, 2 from 7). Cost is bounded: 64 characters and 8 words of needle, 512 characters and 64 words
-of haystack, `page_registry.max_candidates` / `actions.max_candidates` candidates.
+of haystack, `page_registry.max_candidates` / `actions.max_candidates` candidates, and at most 100,000 comparisons per
+registry search: the exact tiers run over every visible entry first, typos only on the remaining budget, so an exact
+match is never dropped for the cost of fuzzy matching.
 
 `SearchSynonymProviderInterface::synonymsOf(word, locale)` services expand the query before providers run
 (`SearchQuery::terms()`: the typed text, then the alternatives, UI locale first). `synonyms.builtin_dictionary: true`

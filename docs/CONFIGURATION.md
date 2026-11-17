@@ -67,7 +67,7 @@ nowo_search_kit:
         icon: 'tabler:file'
         priority: 100
         skip_when_scoped: true
-        keywords: {}                # 1.8.0: route name → translation key of comma-separated keywords
+        keywords: {}                # 1.8.0: route name → translation key of comma-separated keywords (≤ 32 per entry)
         keywords_translation_domain: messages
         check_access: false         # 1.8.0: also ask the SearchAccessCheckerInterface per menu entry
         ranked: null                # 1.8.0: score rows (null: on when pages or keywords are configured)
@@ -228,7 +228,7 @@ when the service is missing), `false` turns it off.
 
 | Key | Default | Effect |
 | --- | --- | --- |
-| `pages[]` | `[]` | Registry entry: `id` (`[A-Za-z0-9._:-]`), `label` (translation key; plain text with `translation_domain: null`), `translation_domain` (`messages`), `route`, `route_parameters` (scalars), `trail` (list of keys), `icon`, `keywords` (translation key of a comma-separated list), `scope` (`none` / `required`), `scope_parameter` (with `required`), `attribute`, `subject` (passed to the access checker). |
+| `pages[]` | `[]` | Registry entry: `id` (`[A-Za-z0-9._:-]`), `label` (translation key; plain text with `translation_domain: null`), `translation_domain` (`messages`), `route`, `route_parameters` (scalars), `trail` (list of keys), `icon`, `keywords` (translation key of a comma-separated list; **at most 32 keywords per locale, extra ones are ignored** — a debug line names the key — and at most 64 of the other locales after deduplication), `scope` (`none` / `required`), `scope_parameter` (with `required`), `attribute`, `subject` (passed to the access checker). |
 | `page_registry.priority` | `90` | Provider priority of the registry; its rows merge into the Pages group (deduplicated by URL). |
 | `page_registry.locales` | 7 locales | Labels and keywords of these locales match too (cross-locale); the UI locale ranks first. |
 | `page_registry.max_candidates` | `500` | Bounded cost per search. |
@@ -244,7 +244,7 @@ when the service is missing), `false` turns it off.
 | `ranking.recency_weight` / `recency_half_life_days` | `0.25` / `30` | Boost of a row by its `date`. Only rows with a `score` or a `date` are sorted. |
 | `results_page.*` | off | The results page (`{prefix}/results`): template, layout, rows per group / page, top results, last page. |
 | `recent.revalidate` | `false` | References only + `POST {prefix}/recent` (CSRF, rate limit) on every display. Needs an access checker and resolvers, otherwise the recents stay empty. |
-| `menu_pages.keywords` / `keywords_translation_domain` | `{}` / `messages` | Keywords of menu entries by route name (`getRouteName()`); plain keywords with a null domain. |
+| `menu_pages.keywords` / `keywords_translation_domain` | `{}` / `messages` | Keywords of menu entries by route name (`getRouteName()`); plain keywords with a null domain. **At most 32 keywords per entry** (its `getSearchKeywords()` and the route map together); extra ones are ignored. |
 | `menu_pages.check_access` | `false` | Ask the access checkers per menu entry too. |
 | `menu_pages.ranked` | `null` | Score the menu rows (sorted with the registry rows); null: on when `pages` or `keywords` is set. |
 
