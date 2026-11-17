@@ -7,6 +7,7 @@ namespace Nowo\SearchKitBundle\Model;
 use InvalidArgumentException;
 use Nowo\SearchKitBundle\Search\Text\FoldedText;
 use Nowo\SearchKitBundle\Search\Text\TextMatcher;
+use Nowo\SearchKitBundle\Search\Text\TextNormalizer;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 use function array_values;
@@ -27,8 +28,17 @@ use function array_values;
  */
 final readonly class SearchQuery
 {
+    /** scoreFolded() mode: the exact tiers only. */
+    public const int MATCH_EXACT = 1;
+
+    /** scoreFolded() mode: the typo tier only. */
+    public const int MATCH_FUZZY = 2;
+
+    /** scoreFolded() mode: exact tiers, then typos for a term with no exact match. */
+    public const int MATCH_ALL = 3;
+
     /** Evaluation cost of one fuzzy comparison (edit distances) relative to an exact one, for cost budgets. */
-    public const int FUZZY_COST = 8;
+    public const int FUZZY_COST = 16;
 
     /** The signed-in user's identifier: providers check permissions against it. */
     public string $userIdentifier;
@@ -153,14 +163,16 @@ final readonly class SearchQuery
     /**
      * score() on haystacks already folded (FoldedText::haystack()): fold a candidate's texts once, compare with every
      * term (each folded once in the constructor). A term none of whose words occurs in any of the texts is rejected
-     * with one substring test (unless it is fuzzy); a text that cannot beat the best score is not compared.
+     * with one substring test; a text that cannot beat the best score is not compared.
      *
      * @param list<FoldedText> $haystacks Folded texts
-     * @param int $evaluations Incremented by the number of text comparisons made (cost budgets)
+     * @param int $evaluations Incremented by the comparisons made (a fuzzy one counts FUZZY_COST), for cost budgets
+     * @param int $mode MATCH_EXACT (exact tiers only), MATCH_FUZZY (typo tier only) or MATCH_ALL (exact tiers, then the
+     *                  typo tier for a term with no exact match)
      *
      * @return float|null The score in ]0, 1], or null when nothing matches
      */
-    public function scoreFolded(array $haystacks, int &$evaluations = 0): ?float
+    public function scoreFolded(array $haystacks, int &$evaluations = 0, int $mode = self::MATCH_ALL): ?float
     {
         $joined = implode("\n", array_map(static fn (FoldedText $haystack): string => $haystack->text, $haystacks));
         $best   = null;
@@ -170,7 +182,7 @@ final readonly class SearchQuery
             }
             $found = null;
             // Exact tiers first, on every text; one substring test rejects a term none of whose words occurs.
-            if ($this->occurs($needle, $joined)) {
+            if (($mode & self::MATCH_EXACT) !== 0 && $this->occurs($needle, $joined)) {
                 foreach ($haystacks as $haystack) {
                     ++$evaluations;
                     $score = TextMatcher::scoreFolded($needle, $haystack);
@@ -178,7 +190,7 @@ final readonly class SearchQuery
                 }
             }
             // Typos (typed text only, never a synonym) only when no exact tier matched; each costs FUZZY_COST.
-            if ($found === null && $fuzzy) {
+            if ($found === null && $fuzzy && ($mode & self::MATCH_FUZZY) !== 0) {
                 foreach ($haystacks as $haystack) {
                     $evaluations += self::FUZZY_COST;
                     $score = TextMatcher::fuzzyFolded($needle, $haystack);
@@ -191,6 +203,52 @@ final readonly class SearchQuery
         }
 
         return $best;
+    }
+
+    /**
+     * Whether some term could match one of these texts exactly: every word of a term occurs in the folded, joined texts
+     * (a necessary condition of every exact tier). Lets a caller skip folding a candidate's texts one by one.
+     *
+     * @param string $joined The candidate's texts folded together (TextNormalizer::fold(), any separator)
+     *
+     * @return bool False when no exact tier can match
+     */
+    public function mayMatchExactly(string $joined): bool
+    {
+        foreach ($this->needles as [$needle]) {
+            if ($this->occurs($needle, $joined)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Whether the typo tier may match one of a candidate's texts: some fuzzy term (the typed text with
+     * `matching.fuzzy`) has every word within its allowed edits of a word of the folded, joined texts. False without a
+     * fuzzy term. Lets a caller skip a candidate without folding and comparing its texts one by one.
+     *
+     * @param string $joined The candidate's texts folded together (TextNormalizer::fold())
+     * @param int $evaluations Incremented by FUZZY_COST per fuzzy term checked, for cost budgets
+     *
+     * @return bool True when the typo tier can match
+     */
+    public function mayMatchFuzzily(string $joined, int &$evaluations = 0): bool
+    {
+        $words = null;
+        foreach ($this->needles as [$needle, , $fuzzy]) {
+            if (!$fuzzy) {
+                continue;
+            }
+            $words ??= array_values(array_unique(TextNormalizer::words($joined, 2048)));
+            $evaluations += self::FUZZY_COST;
+            if (TextMatcher::mayMatchFuzzily($needle, $words)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

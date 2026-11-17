@@ -82,8 +82,8 @@ final class RegistryActionsRecentTest extends TestCase
     public function testKeywordsAreCappedPerLocaleAndAcrossLocales(): void
     {
         $words = static fn (string $prefix, int $count): string => implode(', ', array_map(static fn (int $i): string => $prefix . $i, range(1, $count)));
-        // es repeats an English keyword with another case: folded once, kept once.
-        $messages = ['en' => ['kw' => $words('alpha', 40)], 'es' => ['kw' => 'ALPHA1, ' . $words('beta', 31)], 'it' => ['kw' => $words('gamma', 32)], 'fr' => ['kw' => $words('delta', 32)]];
+        // es repeats an English keyword (an untranslated one): kept once.
+        $messages = ['en' => ['kw' => $words('alpha', 40)], 'es' => ['kw' => 'alpha1, ' . $words('beta', 31)], 'it' => ['kw' => $words('gamma', 32)], 'fr' => ['kw' => $words('delta', 32)]];
         $page     = [['id' => 'p', 'label' => 'Page', 'translation_domain' => 'messages', 'route' => 'page', 'route_parameters' => [], 'trail' => [], 'icon' => null, 'keywords' => 'kw', 'scope' => 'none', 'attribute' => null, 'subject' => null, 'scope_parameter' => null]];
         $registry = new PageRegistryProvider($page, [], Fixtures::access(), Fixtures::router(), Fixtures::translator($messages), ['en', 'es', 'it', 'fr']);
         self::assertNotNull($registry->search($this->query('alpha32')));
@@ -106,6 +106,21 @@ final class RegistryActionsRecentTest extends TestCase
         $group = $registry->search(new SearchQuery('entrx', null, 5, null, false, 'alice', [], 'en', $terms, true));
         self::assertNotNull($group);
         self::assertLessThan(400, $group->total, 'entries past the ceiling are not listed');
+        self::assertSame(['notice: Search page registry stopped at its evaluation ceiling (100000).'], $logger->lines);
+    }
+
+    public function testTheCeilingAlsoBoundsTheExactPass(): void
+    {
+        $logger = Fixtures::logger();
+        $pages  = [];
+        for ($i = 0; $i < 400; ++$i) {
+            // Every word of the query occurs inside the keywords, never as a word start: the pre-filter passes and
+            // every text is compared, without a match.
+            $pages[] = ['id' => 'p' . $i, 'label' => 'Entry ' . $i, 'translation_domain' => null, 'route' => 'issue', 'route_parameters' => ['id' => $i], 'trail' => [], 'icon' => null, 'keywords' => implode(', ', array_map(static fn (int $k): string => 'xabx' . $k . 'xcdx', range(1, 32))), 'scope' => 'none', 'attribute' => null, 'subject' => null, 'scope_parameter' => null];
+        }
+        $registry = new PageRegistryProvider($pages, [], Fixtures::access(), Fixtures::router(), Fixtures::translator(), ['en'], 500, 'tabler:file', $logger);
+        $terms    = array_fill(0, 24, new SearchTerm('ab cd', 'en', true));
+        self::assertNull($registry->search(new SearchQuery('ab cd', null, 5, null, false, 'alice', [], 'en', $terms)));
         self::assertSame(['notice: Search page registry stopped at its evaluation ceiling (100000).'], $logger->lines);
     }
 

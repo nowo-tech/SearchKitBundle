@@ -15,6 +15,7 @@ use Nowo\SearchKitBundle\Model\SearchQuery;
 use Nowo\SearchKitBundle\Model\SearchReference;
 use Nowo\SearchKitBundle\Search\Access\SearchAccess;
 use Nowo\SearchKitBundle\Search\Text\FoldedText;
+use Nowo\SearchKitBundle\Search\Text\TextNormalizer;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
@@ -96,18 +97,35 @@ final readonly class PageRegistryProvider implements IdentifierAwareSearchProvid
     public function search(SearchQuery $query): ?SearchGroup
     {
         $found       = [];
+        $pending     = [];
         $evaluations = 0;
+        // Pass 1 (exact tiers) over every visible candidate: an exact match is never cut by the cost of typos.
         foreach ($this->candidates($query) as $page) {
             $url = $this->visibleUrl($page, $query->userIdentifier, $query->scope, SearchAccessRequest::KIND_PAGE);
-            if ($url === null || array_key_exists($url, $found)) {
+            if ($url === null || array_key_exists($url, $found) || array_key_exists($url, $pending)) {
                 continue;
             }
             if ($evaluations >= self::MAX_EVALUATIONS) {
-                $this->logger?->notice('Search page registry stopped at its evaluation ceiling ({ceiling}).', ['ceiling' => self::MAX_EVALUATIONS]);
+                $this->ceilingReached();
 
                 break;
             }
-            $score = $this->score($this->texts($page, $query->locale), $query, $evaluations);
+            $texts = $this->texts($page, $query->locale);
+            $score = $query->mayMatchExactly($texts[4]) ? $this->score($texts, $query, $evaluations, SearchQuery::MATCH_EXACT) : null;
+            if ($score !== null) {
+                $found[$url] = $this->item($page, $url, $query->locale, $score);
+            } elseif ($query->mayMatchFuzzily($texts[4], $evaluations)) {
+                $pending[$url] = [$page, $texts];
+            }
+        }
+        // Pass 2 (typos) on the remaining budget, only for the entries without an exact match whose words come close.
+        foreach ($pending as $url => [$page, $texts]) {
+            if ($evaluations >= self::MAX_EVALUATIONS) {
+                $this->ceilingReached();
+
+                break;
+            }
+            $score = $this->score($texts, $query, $evaluations, SearchQuery::MATCH_FUZZY);
             if ($score !== null) {
                 $found[$url] = $this->item($page, $url, $query->locale, $score);
             }
@@ -117,6 +135,11 @@ final readonly class PageRegistryProvider implements IdentifierAwareSearchProvid
         }
 
         return new SearchGroup(self::KEY, $this->translator->trans('search.group.pages', [], 'NowoSearchKitBundle'), array_values($found), count($found), null, null, true);
+    }
+
+    private function ceilingReached(): void
+    {
+        $this->logger?->notice('Search page registry stopped at its evaluation ceiling ({ceiling}).', ['ceiling' => self::MAX_EVALUATIONS]);
     }
 
     /**
@@ -197,21 +220,25 @@ final readonly class PageRegistryProvider implements IdentifierAwareSearchProvid
     }
 
     /**
-     * The folded texts of an entry, each folded once: label, breadcrumb, UI-locale keywords and the keywords (and
-     * labels) of the other locales — capped per locale, deduplicated across locales.
+     * The texts of an entry, raw: label, breadcrumb, UI-locale keywords and the keywords (and labels) of the other
+     * locales — capped per locale (MAX_KEYWORDS), identical ones kept once, at most MAX_OTHER_KEYWORDS of the other
+     * locales (no further locale is translated once it is reached) — plus all of them folded in one string, so that an
+     * entry no term can match is rejected without folding its texts one by one.
      *
-     * @return array{0: list<FoldedText>, 1: list<FoldedText>, 2: list<FoldedText>, 3: list<FoldedText>}
+     * @return array{0: list<string>, 1: list<string>, 2: list<string>, 3: list<string>, 4: string}
      */
     private function texts(SearchPage $page, ?string $locale): array
     {
         $trail = $this->trail($page, $locale);
         $seen  = [];
-        $raw   = [];
         $own   = [];
         $other = [];
         // Plain-text entries (no domain) are the same in every locale: one pass.
         $locales = $page->translationDomain === null ? [$locale] : $this->keywordLocales($locale);
         foreach ($locales as $position => $keywordLocale) {
+            if ($position > 0 && count($other) >= self::MAX_OTHER_KEYWORDS) {
+                break;
+            }
             $keywords = $page->keywords !== null ? $this->keywords($page->keywords, $page->translationDomain, $keywordLocale) : [];
             // In another locale the label is one more keyword (an English viewer typing "ajustes" finds "Settings").
             if ($position > 0 && $page->translationDomain !== null) {
@@ -221,41 +248,37 @@ final readonly class PageRegistryProvider implements IdentifierAwareSearchProvid
                 }
             }
             foreach ($keywords as $keyword) {
-                // Identical keywords across locales (untranslated lists) are folded once.
-                if (isset($raw[$keyword]) || ($position > 0 && count($other) >= self::MAX_OTHER_KEYWORDS)) {
+                if (isset($seen[$keyword]) || ($position > 0 && count($other) >= self::MAX_OTHER_KEYWORDS)) {
                     continue;
                 }
-                $raw[$keyword] = true;
-                $folded        = FoldedText::haystack($keyword);
-                if ($folded->text === '' || isset($seen[$folded->text])) {
-                    continue;
-                }
-                $seen[$folded->text] = true;
+                $seen[$keyword] = true;
                 if ($position === 0) {
-                    $own[] = $folded;
+                    $own[] = $keyword;
                 } else {
-                    $other[] = $folded;
+                    $other[] = $keyword;
                 }
             }
         }
+        $label = [$this->text($page->label, $page->translationDomain, $locale)];
+        $trail = $trail !== '' ? [$trail] : [];
 
-        return [[FoldedText::haystack($this->text($page->label, $page->translationDomain, $locale))], $trail !== '' ? [FoldedText::haystack($trail)] : [], $own, $other];
+        return [$label, $trail, $own, $other, TextNormalizer::fold(implode("\x1F", [...$label, ...$trail, ...$own, ...$other]))];
     }
 
     /**
      * Best score of an entry: its label in full, the breadcrumb at 0.9, its UI-locale keywords at 0.855 and the other
-     * locales at 0.765; a text that cannot beat the best score so far is not compared.
+     * locales at 0.765; a text that cannot beat the best score so far is not compared (nor folded).
      *
-     * @param array{0: list<FoldedText>, 1: list<FoldedText>, 2: list<FoldedText>, 3: list<FoldedText>} $texts
+     * @param array{0: list<string>, 1: list<string>, 2: list<string>, 3: list<string>, 4: string} $texts
      */
-    private function score(array $texts, SearchQuery $query, int &$evaluations): ?float
+    private function score(array $texts, SearchQuery $query, int &$evaluations, int $mode): ?float
     {
         $best = null;
         foreach ([[$texts[0], 1.0], [$texts[1], 0.9], [$texts[2], 0.95 * 0.9], [$texts[3], 0.85 * 0.9]] as [$haystacks, $weight]) {
             if ($haystacks === [] || ($best !== null && $best >= $weight)) {
                 continue;
             }
-            $score = $query->scoreFolded($haystacks, $evaluations);
+            $score = $query->scoreFolded(array_map(FoldedText::haystack(...), $haystacks), $evaluations, $mode);
             if ($score !== null && ($best === null || $score * $weight > $best)) {
                 $best = $score * $weight;
             }
@@ -304,6 +327,12 @@ final readonly class PageRegistryProvider implements IdentifierAwareSearchProvid
             return [];
         }
 
-        return array_slice(array_values(array_filter(array_map(trim(...), explode(',', $message, self::MAX_KEYWORDS + 1)), static fn (string $word): bool => $word !== '')), 0, self::MAX_KEYWORDS);
+        $keywords = array_values(array_filter(array_map(trim(...), explode(',', $message, self::MAX_KEYWORDS + 1)), static fn (string $word): bool => $word !== ''));
+        if (count($keywords) > self::MAX_KEYWORDS) {
+            // Audit SPd-L2: tell the host its list is longer than what is matched (the key, never the query).
+            $this->logger?->debug('Search page keywords {key} ({locale}) cut to {max}: the extra ones are ignored.', ['key' => $key, 'locale' => $locale ?? '-', 'max' => self::MAX_KEYWORDS]);
+        }
+
+        return array_slice($keywords, 0, self::MAX_KEYWORDS);
     }
 }

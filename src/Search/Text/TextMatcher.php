@@ -83,6 +83,20 @@ final class TextMatcher
     }
 
     /**
+     * Whether every word of a needle is within its allowed edits of some word of a text (the typo tier's necessary
+     * condition), e.g. on all the texts of a candidate folded together.
+     *
+     * @param FoldedText $needle FoldedText::needle()
+     * @param list<string> $words Folded words (deduplicate them first)
+     *
+     * @return bool True when the typo tier may match one of the texts
+     */
+    public static function mayMatchFuzzily(FoldedText $needle, array $words): bool
+    {
+        return $needle->words !== [] && self::fuzzy($needle->words, $words) !== null;
+    }
+
+    /**
      * Only the typo tier of scoreFolded() (for callers that ran the exact tiers first, on every text).
      *
      * @param FoldedText $needle FoldedText::needle()
@@ -155,11 +169,20 @@ final class TextMatcher
             if ($allowed === 0 || strlen($word) > self::MAX_FUZZY_WORD) {
                 return null;
             }
-            $best = null;
+            $best   = null;
+            $length = strlen($word);
             foreach ($haystackWords as $candidate) {
-                // Compare with the candidate and with its prefix of the same length (typo while still typing).
+                // Compare with the candidate and with its prefix of the same length (typo while still typing). A
+                // length difference above the allowed edits rules the whole candidate out (and a shorter one at all).
                 $candidate = substr($candidate, 0, self::MAX_FUZZY_WORD);
-                $distance  = min(levenshtein($word, $candidate), levenshtein($word, substr($candidate, 0, strlen($word))));
+                $gap       = strlen($candidate) - $length;
+                if ($gap < -$allowed) {
+                    continue;
+                }
+                $distance = levenshtein($word, substr($candidate, 0, $length));
+                if ($gap <= $allowed) {
+                    $distance = min($distance, levenshtein($word, $candidate));
+                }
                 if ($distance <= $allowed && ($best === null || $distance < $best)) {
                     $best = $distance;
                 }
