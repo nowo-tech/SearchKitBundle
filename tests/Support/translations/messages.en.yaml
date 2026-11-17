@@ -1,0 +1,9 @@
+test:
+    page:
+        profile: "Profile settings"
+        profile_keywords: "password, avatar, two-factor"
+        billing: "Billing"
+        billing_keywords: "invoice, payment"
+        language: "Language"
+    crumb:
+        settings: "Settings"

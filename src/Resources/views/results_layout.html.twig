@@ -1,0 +1,16 @@
+{#
+ # Minimal layout of the 1.8.0 results page (`nowo_search_kit.results_page.layout`). Point the option at your own
+ # layout instead: it must define the blocks `title` and `body` (Symfony's base.html.twig does).
+ #}
+<!DOCTYPE html>
+<html lang="{{ app.request ? app.request.locale : 'en' }}">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="robots" content="noindex">
+        <title>{% block title %}{% endblock %}</title>
+    </head>
+    <body>
+        {% block body %}{% endblock %}
+    </body>
+</html>

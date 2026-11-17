@@ -358,3 +358,40 @@
 [data-motion='reduce'] .nowo-search__field {
   transition: none;
 }
+
+/* 1.8.0 typed filter chips, inside the field before the input (only when filters.keys is configured). */
+.nowo-search__chips {
+  display: inline-flex;
+  flex: none;
+  gap: 0.25rem;
+  max-width: 50%;
+  overflow: hidden;
+}
+
+.nowo-search__chips:empty {
+  display: none;
+}
+
+.nowo-search__chip {
+  flex: none;
+  padding: 0 0.4rem;
+  border: 1px solid var(--nowo-search-border);
+  border-radius: 999px;
+  background: var(--nowo-search-surface);
+  color: inherit;
+  font: inherit;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.nowo-search__chip::after {
+  content: ' ×';
+  color: var(--nowo-search-muted);
+}
+
+.nowo-search__chip:hover,
+.nowo-search__chip:focus-visible {
+  border-color: var(--nowo-search-accent);
+}

@@ -5,6 +5,7 @@ This guide lists the changes integrators must apply when upgrading between versi
 ## Table of contents
 
 - [Unreleased](#unreleased)
+  - [To 1.8.0](#to-180)
 - [To 1.7.0](#to-170)
 - [To 1.7.0](#to-170-1)
   - [Migration table](#migration-table)
@@ -25,6 +26,27 @@ This guide lists the changes integrators must apply when upgrading between versi
 - [1.0.0 (2026-10-16)](#100-2026-10-16)
 
 ## Unreleased
+
+### To 1.8.0
+
+From **1.7.x**: `composer update nowo-tech/search-kit-bundle`, then `php bin/console assets:install` (new stylesheet
+`css/nowo-search-results.css`, rebuilt `js/nowo-search.js`). No configuration change is required: every new key
+defaults to the 1.7 behaviour. Behaviour changes to know about:
+
+| Change | Why | What to do |
+| --- | --- | --- |
+| A group total is capped to the rows the provider returned unless `SearchGroup::$exactTotal` is true | Leak rule of spec 240: a count must not reveal hidden records | Pass `exactTotal: true` (7th argument / named argument) when your total is counted with the same permission filter as the rows |
+| `SearchQuery::matches()` folds accents (`é` = `e`, `ß` = `ss`) | Matching in 7 locales | Nothing; it finds more, never less |
+| A query starting with `>` lists actions only (quick actions when you have no action provider) | Palette prefix | Set `actions.prefix: ''` to keep `>` as text |
+| Groups with the same key are merged (rows deduplicated by URL) | Menu pages + registry pages in one Pages group | Give distinct keys to groups you want apart |
+| New routes `{prefix}/results`, `{prefix}/recent`, `{prefix}/filters` come with the route import | Results page, recents, filter values | They answer 404 until you turn the feature on |
+| Tag constants of the new ports are named `*_TAG` | A class may implement several ports | — |
+
+To adopt the features, in this order: implement a `SearchAccessCheckerInterface` (nothing new is listed without it),
+then add `pages`, action providers, `filters.keys`, `synonyms.builtin_dictionary`, `results_page.enabled` and
+`recent.revalidate` as needed ([USAGE](USAGE.md#search-everywhere-180)). Providers gain optional interfaces
+(`FilterableSearchProviderInterface`, `PaginatedSearchProviderInterface`, `SearchReferenceResolverInterface`) and
+optional `SearchItem::$score` / `$date` ([CONTRACT-240](CONTRACT-240.md)).
 
 ## To 1.7.0
 

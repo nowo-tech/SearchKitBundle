@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\SearchKitBundle\Model;
 
+use DateTimeImmutable;
 use InvalidArgumentException;
 
 /**
@@ -22,6 +23,9 @@ final readonly class SearchItem
      * @param string|null $icon UX Icons name (e.g. `tabler:bug`); null uses the icon of the row kind
      * @param SearchBadge|null $badge Optional pill
      * @param string|null $kind Row kind (icon template, recents); null takes the group key
+     * @param float|null $score Relevance for this query (1.8.0; higher first inside the group), or null: provider order
+     * @param DateTimeImmutable|null $date Last change of the record (1.8.0; newer rows get a recency boost), or null
+     * @param string|null $shortcut Key hint shown at the end of the row (1.8.0, actions), or null
      *
      * @throws InvalidArgumentException When the URL is not a path or an http(s) URL
      */
@@ -32,6 +36,9 @@ final readonly class SearchItem
         public ?string $icon = null,
         public ?SearchBadge $badge = null,
         public ?string $kind = null,
+        public ?float $score = null,
+        public ?DateTimeImmutable $date = null,
+        public ?string $shortcut = null,
     ) {
         if (!self::isSafeUrl($url)) {
             throw new InvalidArgumentException('A search item URL must be a path starting with "/" or an http(s) URL.');
@@ -64,11 +71,11 @@ final readonly class SearchItem
      * @param string $groupKey Key of the group (default kind)
      * @param string|null $iconSvg The rendered icon (trusted SVG from the icon set), or null for the kind icon
      *
-     * @return array{title: string, subtitle: string, url: string, kind: string, icon: string|null, badge: array{label: string, tone: string}|null} The row
+     * @return array{title: string, subtitle: string, url: string, kind: string, icon: string|null, badge: array{label: string, tone: string}|null, shortcut?: string} The row (`shortcut` only when set; the score and the date never leave the server)
      */
     public function toArray(string $groupKey, ?string $iconSvg = null): array
     {
-        return [
+        $row = [
             'title'    => $this->title,
             'subtitle' => $this->subtitle,
             'url'      => $this->url,
@@ -76,5 +83,22 @@ final readonly class SearchItem
             'icon'     => $iconSvg,
             'badge'    => $this->badge?->toArray(),
         ];
+        if ($this->shortcut !== null && $this->shortcut !== '') {
+            $row['shortcut'] = $this->shortcut;
+        }
+
+        return $row;
+    }
+
+    /**
+     * The same row with another score (the engine scores the rows of its built-in groups).
+     *
+     * @param float|null $score The new score
+     *
+     * @return self A copy
+     */
+    public function withScore(?float $score): self
+    {
+        return new self($this->title, $this->url, $this->subtitle, $this->icon, $this->badge, $this->kind, $score, $this->date, $this->shortcut);
     }
 }

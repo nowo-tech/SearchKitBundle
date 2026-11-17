@@ -1,0 +1,97 @@
+{#
+ # Body of the results page (1.8.0). Variables: `nowo_search_results` = {query, scope, group, tabs[{key, label, count,
+ # url}], groups[{key, label, url, rows}], top[rows], rows[rows], filters[{key, value, negated, token, remove}], page,
+ # prev, next, error, actions_only}; a row = {title, subtitle, url, kind, icon (trusted SVG), badge, shortcut?}.
+ #
+ # Server-rendered, no script (CSP-safe): tabs, chips and pages are plain links. Counts are the rows returned to this
+ # viewer, never a provider total. With nowo-tech/ui-kit-bundle the tabs and the empty state use the UiKit partials;
+ # without it, the same structure with the bundle classes. Host classes come from the UiKit theme slots
+ # (nowo_search_kit_ui_class()), never a global override.
+ #}
+{% trans_default_domain 'NowoSearchKitBundle' %}
+{% set r = nowo_search_results %}
+{% set nowo_search_config = nowo_search_kit_config() %}
+{% if nowo_search_config and nowo_search_config.assets.stylesheet %}
+    <link rel="stylesheet" href="{{ asset('css/nowo-search-results.css', 'nowo_search_kit') }}">
+{% endif %}
+<section class="nowo-search-results{{ nowo_search_kit_ui_class('section') }}" data-nowo-ui-bundle="NowoSearchKitBundle" data-testid="nowo-search-results" aria-labelledby="nowo-search-results-title">
+    <header class="nowo-search-results__header">
+        <h1 class="nowo-search-results__title{{ nowo_search_kit_ui_class('page_title') }}" id="nowo-search-results-title">
+            {{ r.query is not empty ? 'search.results_page.title_query'|trans({'%query%': r.query}) : 'search.results_page.title'|trans }}
+        </h1>
+        {% if r.filters is not empty %}
+            <ul class="nowo-search-results__chips" aria-label="{{ 'search.filter.list'|trans }}" data-testid="nowo-search-results-chips">
+                {% for filter in r.filters %}
+                    <li>
+                        <a class="nowo-search-results__chip{{ nowo_search_kit_ui_class('badge_neutral') }}" href="{{ filter.remove }}" data-filter-key="{{ filter.key }}"
+                            title="{{ 'search.filter.remove'|trans }}" aria-label="{{ 'search.filter.remove_named'|trans({'%filter%': filter.token}) }}">
+                            <span class="nowo-search-results__chip-text">{{ filter.token }}</span>
+                            <span class="nowo-search-results__chip-x" aria-hidden="true">×</span>
+                        </a>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    </header>
+
+    {% if r.error == 'rate_limited' %}
+        <p class="nowo-search-results__empty{{ nowo_search_kit_ui_class('flash_warning') }}" role="status">{{ 'search.rate_limited'|trans }}</p>
+    {% elseif r.query is empty %}
+        <p class="nowo-search-results__empty{{ nowo_search_kit_ui_class('empty') }}" role="status">{{ 'search.results_page.prompt'|trans }}</p>
+    {% elseif r.tabs is empty %}
+        {% if nowo_search_kit_has_ui_kit() %}
+            {{ include('@NowoUiKitBundle/partials/_empty.html.twig', {message: 'search.results_page.none'|trans({'%query%': r.query}), bundle: 'NowoSearchKitBundle'}) }}
+        {% else %}
+            <p class="nowo-search-results__empty" role="status">{{ 'search.results_page.none'|trans({'%query%': r.query}) }}</p>
+        {% endif %}
+    {% else %}
+        {% set all_url = path('nowo_search_kit_results', {q: r.query}|merge(r.scope ? {scope: r.scope} : {})) %}
+        {% set tab_items = [{label: 'search.results_page.all'|trans, href: all_url, current: r.group is null}] %}
+        {% for tab in r.tabs %}
+            {% set tab_items = tab_items|merge([{label: tab.label ~ ' (' ~ tab.count ~ ')', href: tab.url, current: r.group == tab.key, attr: {'data-group': tab.key}}]) %}
+        {% endfor %}
+        <div class="nowo-search-results__tabs" data-testid="nowo-search-results-tabs">
+            {% if nowo_search_kit_has_ui_kit() %}
+                {{ include('@NowoUiKitBundle/partials/_tabs.html.twig', {items: tab_items, aria_label: 'search.results_page.tabs'|trans, bundle: 'NowoSearchKitBundle'}) }}
+            {% else %}
+                <nav class="nowo-search-results__tablist" aria-label="{{ 'search.results_page.tabs'|trans }}">
+                    {% for item in tab_items %}
+                        <a class="nowo-search-results__tab{{ item.current ? ' is-active' }}" href="{{ item.href }}"{% if item.current %} aria-current="page"{% endif %}{% if item.attr is defined %} data-group="{{ item.attr['data-group'] }}"{% endif %}>{{ item.label }}</a>
+                    {% endfor %}
+                </nav>
+            {% endif %}
+        </div>
+
+        {% if r.group is null %}
+            {% if r.top is not empty %}
+                <section class="nowo-search-results__group nowo-search-results__group--top{{ nowo_search_kit_ui_class('card') }}" data-group="top" aria-labelledby="nowo-search-results-top">
+                    <h2 class="nowo-search-results__group-title" id="nowo-search-results-top">{{ 'search.group.top'|trans }}</h2>
+                    {{ include('@NowoSearchKitBundle/_results_rows.html.twig', {rows: r.top}) }}
+                </section>
+            {% endif %}
+            {% for group in r.groups %}
+                <section class="nowo-search-results__group{{ nowo_search_kit_ui_class('card') }}" data-group="{{ group.key }}" aria-labelledby="nowo-search-results-group-{{ group.key }}">
+                    <h2 class="nowo-search-results__group-title" id="nowo-search-results-group-{{ group.key }}">
+                        <a href="{{ group.url }}">{{ group.label }}</a>
+                    </h2>
+                    {{ include('@NowoSearchKitBundle/_results_rows.html.twig', {rows: group.rows}) }}
+                </section>
+            {% endfor %}
+        {% else %}
+            <section class="nowo-search-results__group{{ nowo_search_kit_ui_class('card') }}" data-group="{{ r.group }}">
+                {% if r.rows is empty %}
+                    <p class="nowo-search-results__empty" role="status">{{ 'search.results_page.none'|trans({'%query%': r.query}) }}</p>
+                {% else %}
+                    {{ include('@NowoSearchKitBundle/_results_rows.html.twig', {rows: r.rows}) }}
+                {% endif %}
+            </section>
+            {% if r.prev or r.next %}
+                <nav class="nowo-search-results__pager{{ nowo_search_kit_ui_class('pagination') }}" aria-label="{{ 'search.results_page.pages'|trans }}" data-testid="nowo-search-results-pager">
+                    {% if r.prev %}<a class="nowo-search-results__page{{ nowo_search_kit_ui_class('pagination_link') }}" href="{{ r.prev }}" rel="prev">{{ 'search.results_page.previous'|trans }}</a>{% endif %}
+                    <span class="nowo-search-results__page-number">{{ 'search.results_page.page'|trans({'%page%': r.page}) }}</span>
+                    {% if r.next %}<a class="nowo-search-results__page{{ nowo_search_kit_ui_class('pagination_link') }}" href="{{ r.next }}" rel="next">{{ 'search.results_page.next'|trans }}</a>{% endif %}
+                </nav>
+            {% endif %}
+        {% endif %}
+    {% endif %}
+</section>

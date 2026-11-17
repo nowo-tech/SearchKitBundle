@@ -5,10 +5,16 @@ declare(strict_types=1);
 namespace Nowo\SearchKitBundle\Controller;
 
 use Nowo\SearchKitBundle\Icon\SearchIcons;
+use Nowo\SearchKitBundle\Model\SearchAccessRequest;
+use Nowo\SearchKitBundle\Model\SearchContext;
+use Nowo\SearchKitBundle\Model\SearchFilter;
 use Nowo\SearchKitBundle\Model\SearchGroup;
 use Nowo\SearchKitBundle\Model\SearchItem;
+use Nowo\SearchKitBundle\Model\SearchReference;
 use Nowo\SearchKitBundle\Model\SearchScope;
+use Nowo\SearchKitBundle\Search\Access\SearchAccess;
 use Nowo\SearchKitBundle\Search\SearchEngine;
+use Nowo\SearchKitBundle\Search\SearchRequest;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -26,6 +32,11 @@ use Symfony\Component\Security\Core\User\UserInterface;
  * a `scope` that is not a valid id is ignored (unscoped search). Results come from the providers, which only return
  * what the user may open; an inaccessible scope therefore answers 200 with no groups, never 403.
  *
+ * 1.8.0: `from` (the path of the page the box is on, same-site only, client input) gives the action providers their
+ * context only when the access checkers allow that page for the viewer (otherwise an empty context); the
+ * answer adds `filters` (the typed filters recognised, for the chips) and `actionsOnly` (a `>` query) only when they
+ * apply, so a 1.7 answer is unchanged.
+ *
  * @author Héctor Franco Aceituno <hectorfranco@nowo.tech>
  * @copyright 2026 Nowo.tech
  */
@@ -42,6 +53,7 @@ final readonly class SearchController
      * @param string $role Attribute required to search
      * @param int $maxLength Longer queries are cut
      * @param RateLimiterFactoryInterface|null $limiter Per-user limiter (null: rate_limit.enabled false)
+     * @param SearchAccess|null $access Matches `from` to its route for the action context (1.8.0)
      */
     public function __construct(
         private SearchEngine $engine,
@@ -50,6 +62,7 @@ final readonly class SearchController
         private string $role = 'IS_AUTHENTICATED',
         private int $maxLength = 200,
         private ?RateLimiterFactoryInterface $limiter = null,
+        private ?SearchAccess $access = null,
     ) {
     }
 
@@ -80,14 +93,40 @@ final readonly class SearchController
         $scope = $request->query->getString('scope');
         $scope = preg_match(SearchScope::ID_PATTERN, $scope) === 1 ? $scope : null;
 
-        $groups = $this->engine->search($user, $query, $scope);
+        $result = $this->engine->execute(new SearchRequest($query, $user, null, $scope, $request->getLocale(), $this->context($request, $user)));
 
-        return new JsonResponse([
+        $data = [
             'query'  => trim($query),
             'groups' => array_map(
                 fn (SearchGroup $group): array => $group->toArray(fn (SearchItem $item): ?string => $item->icon !== null ? $this->icons->render($item->icon) : null),
-                $groups,
+                $result->groups,
             ),
-        ], Response::HTTP_OK, self::HEADERS);
+        ];
+        if ($result->filters !== []) {
+            $data['filters'] = array_map(static fn (SearchFilter $filter): array => $filter->toArray(), $result->filters);
+        }
+        if ($result->actionsOnly) {
+            $data['actionsOnly'] = true;
+        }
+
+        return new JsonResponse($data, Response::HTTP_OK, self::HEADERS);
+    }
+
+    /**
+     * The page the box is on (`from`, a same-site path), for the action providers; its route when it matches one.
+     */
+    private function context(Request $request, UserInterface $user): SearchContext
+    {
+        $from      = mb_substr($request->query->getString('from'), 0, 512);
+        $from      = SearchItem::isSafeUrl($from) && str_starts_with($from, '/') ? strtok($from, '?#') : '';
+        $identity  = $user->getUserIdentifier();
+        $reference = $from !== '' ? $this->access?->referenceFor($from, 'page') : null;
+        // `from` is client input (audit SP-L1): its route and parameters reach the action providers only when the viewer
+        // may open that page; otherwise the context is empty (no path, no route), never a hidden page's parameters.
+        if (!$reference instanceof SearchReference || !$this->access?->allowsUrl($from, $identity, SearchAccessRequest::KIND_PAGE)) {
+            return new SearchContext($identity, '', null, [], $request->getLocale(), array_values($user->getRoles()));
+        }
+
+        return new SearchContext($identity, $from, $reference->route, $reference->routeParameters, $request->getLocale(), array_values($user->getRoles()));
     }
 }

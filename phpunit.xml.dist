@@ -39,6 +39,8 @@
     </coverage>
 
     <php>
+        <!-- Coverage runs boot many test kernels (one per configuration): 128M is not enough with pcov. -->
+        <ini name="memory_limit" value="1G"/>
         <env name="SYMFONY_DEPRECATIONS_HELPER" value="max[direct]=0"/>
     </php>
 </phpunit>

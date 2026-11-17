@@ -7,64 +7,129 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
-- [[1.7.0] - 2026-11-11](#170---2026-11-11)
   - [Added](#added)
-  - [Deprecated](#deprecated)
   - [Changed](#changed)
-- [[1.6.0] - 2026-11-07](#160---2026-11-07)
+  - [Security](#security)
+  - [Demo](#demo)
+  - [Docs](#docs)
+  - [Tests](#tests)
+- [[1.7.0] - 2026-11-11](#170---2026-11-11)
   - [Added](#added-1)
-- [[1.5.0] - 2026-11-07](#150---2026-11-07)
+  - [Deprecated](#deprecated)
   - [Changed](#changed-1)
-- [[1.4.0] - 2026-11-06](#140---2026-11-06)
+- [[1.6.0] - 2026-11-07](#160---2026-11-07)
   - [Added](#added-2)
-- [[1.3.1] - 2026-10-31](#131---2026-10-31)
+- [[1.5.0] - 2026-11-07](#150---2026-11-07)
   - [Changed](#changed-2)
-- [[1.3.0] - 2026-10-30](#130---2026-10-30)
+- [[1.4.0] - 2026-11-06](#140---2026-11-06)
+  - [Added](#added-3)
+- [[1.3.1] - 2026-10-31](#131---2026-10-31)
   - [Changed](#changed-3)
-- [[1.2.1] - 2026-10-30](#121---2026-10-30)
+- [[1.3.0] - 2026-10-30](#130---2026-10-30)
   - [Changed](#changed-4)
+- [[1.2.1] - 2026-10-30](#121---2026-10-30)
+  - [Changed](#changed-5)
   - [Fixed](#fixed)
 - [[1.2.0] - 2026-10-23](#120---2026-10-23)
-  - [Added](#added-3)
+  - [Added](#added-4)
 - [[1.1.1] - 2026-10-22](#111---2026-10-22)
-  - [Changed](#changed-5)
+  - [Changed](#changed-6)
   - [Fixed](#fixed-1)
 - [[1.1.0] - 2026-10-18](#110---2026-10-18)
-  - [Added](#added-4)
-  - [Changed](#changed-6)
+  - [Added](#added-5)
+  - [Changed](#changed-7)
 - [[1.0.3] - 2026-10-18](#103---2026-10-18)
   - [Fixed](#fixed-2)
 - [[1.0.2] - 2026-10-16](#102---2026-10-16)
-  - [Added](#added-5)
+  - [Added](#added-6)
   - [Fixed](#fixed-3)
 - [[1.0.1] - 2026-10-16](#101---2026-10-16)
-  - [Security](#security)
+  - [Security](#security-1)
   - [Fixed](#fixed-4)
 - [[1.0.0] - 2026-10-16](#100---2026-10-16)
-  - [Added](#added-6)
+  - [Added](#added-7)
 
 ## [Unreleased]
 
-### Demo
+Target: **1.8.0** (minor, BC: a 1.7 host keeps working without changes). Beacon spec 240 "search everywhere"
+(D-20261117-11): everything respects the viewer's permissions, deny by default.
 
-- The demo is built on UiKit and FormKit (REQ-DEMO-014/015): the base template extends the UiKit admin layout with UiKit's default theme (no Bootstrap CDN, no `demo.css`, no host tokens), the demo form is a FormKit form themed by the `demo` profile and UiKit's form theme.
+### Added
+
+- `SearchAccessCheckerInterface` (`decide(SearchAccessRequest): ?bool`): the host's route access rule. Deny by default:
+  no checker, only abstentions, a veto or a failing checker deny.
+- Page registry `nowo_search_kit.pages` (label, breadcrumb, per-locale keywords never shown, `scope: none|required`,
+  `attribute` / `subject`) and `SearchPageSourceInterface` for entries computed at runtime; access checked before
+  matching; merged into the Pages group (deduplicated by URL). Menu keywords: `menu_pages.keywords` and
+  `getSearchKeywords()` (`SearchKeywordsAwareInterface`); `menu_pages.check_access`, `menu_pages.ranked`.
+- Palette actions: `SearchActionProviderInterface` → `SearchAction {label, url, keywords, icon, shortcut, context}` (GET
+  links, access-checked); Actions group on top; `>` prefix for actions only; the empty-query list comes from the
+  providers (`quick_actions` kept as the fallback).
+- Typed filters: `filters.keys`, parser (`key:value`, quoted values, `-key:` negation) filling `SearchQuery::$filters`;
+  `FilterableSearchProviderInterface::supportedFilters()` (a provider that does not support a filter key is skipped);
+  `type:` handled by the engine; chips in the field and `SearchFilterValuesProviderInterface` autocomplete
+  (`GET {prefix}/filters`).
+- Matching: `SearchQuery::matches()` / new `score()` with case and accent folding, optional fuzzy matching
+  (`matching.fuzzy`, bounded cost), `SearchQuery::terms()` with the synonym alternatives tagged by locale.
+- `SearchSynonymProviderInterface::synonymsOf(word, locale)` and a built-in concept-group dictionary across en es it fr
+  pt de nl (`synonyms.builtin_dictionary`), UI locale ranked first, cross-locale.
+- Ranking: optional `SearchItem::$score` / `$date`, rows sorted inside a group by relevance + recency (`ranking.*`).
+- Results page `nowo_search_kit_results` (`{prefix}/results`): tabs per group with the number of returned rows, Top
+  results, filter chips, paging through `PaginatedSearchProviderInterface`; template and layout configurable; UiKit
+  partials when UiKit is installed; *See all results* as the last row of the dropdown.
+- Safe recents (`recent.revalidate`): references only (URL + kind) in the browser, revalidated on every display by
+  `POST {prefix}/recent` (CSRF, rate limited) through the access checkers and `SearchReferenceResolverInterface`.
+- Leak rules in the engine: `SearchGroup::$exactTotal`, `access.filter_all_rows`.
+- `SearchEngine::execute(SearchRequest): SearchResult`, `SearchEngine::page()`; `search()` / `searchFor()` take an
+  optional locale.
+- `docs/CONTRACT-240.md`: the ports ManualKit, DashboardMenu, ChatKit, UptimeMonitor, ApiStudio, TaskBoard and Wiki
+  implement.
+- Translations of every new string in the 7 locales.
 
 ### Changed
 
+- A group total is capped to the rows the provider returned unless the provider marks it exact (`exactTotal`).
+- `SearchQuery::matches()` folds accents.
+- Groups with the same key are merged (rows deduplicated by URL).
+- `phpunit.xml.dist` sets `memory_limit` to 1G (coverage boots many test kernels).
+- `symfony/security-csrf` is now a direct requirement (it was already installed through SecurityBundle).
+- Browser bundle `VERSION` 1.1.0 (palette prefix, filter chips and suggestions, see-all row, revalidated recents).
 - CI and `make coverage-check`: the PHP line-coverage gate is now **100%** (was 99%). The suite is already at 100%; the gate only stops a regression from merging.
+
+### Security
+
+- Audit SP fixes before release (no GHSA, unreleased code): registry matching cost has a ceiling (terms and texts folded
+  once, ≤ 32 keywords per entry and locale, other-locale keywords deduplicated and capped at 64, early stop on a full
+  match, substring pre-filter, exact tiers before fuzzy, `PageRegistryProvider::MAX_EVALUATIONS` = 100,000 comparisons
+  per search; 500 × 30 × 25 went from 8.5–9.6 s to 29–47 ms, regression test `CostTest` < 200 ms) (SP-M1); the client-supplied `from` context reaches action providers only when
+  the viewer may open that page (SP-L1); docs: `filter_all_rows` is a safety net (SP-L2), checkers decide for
+  `$request->userIdentifier` (SP-L3), value providers honour `$limit` (SP-I5); the results page runs the engine once
+  per view (SP-I2). Delta: registry matching in two passes (exact over every visible entry, then typos on the
+  remaining budget, at most 40,000: an exact match is never cut by fuzzy cost, SPd-L1); one joined fold per entry as an
+  exact pre-check, edit distances charged per candidate word, words split only for typos; keyword caps documented
+  where hosts configure them, debug line when a list is cut (SPd-L2); a 7-locale translated `CostTest` case, CPU time
+  best of 3 (12–57 ms without pcov, SPd-I1); the demo e2e warms the worker first (SPd-I2).
+- Anti-leak model documented in `docs/SECURITY.md`: filtered before counting, ranking and snippets; unknown and
+  forbidden values answer identically; recents hold no titles and are re-checked on every display.
+
+### Demo
+
+- Search everywhere in the demo: access checker, settings pages with English / Spanish keywords, palette actions,
+  project tabs, an Issues provider with `is:` / `project:` filters, the results page and revalidated recents; Playwright
+  `everywhere.spec.ts`.
+- The demo is built on UiKit and FormKit (REQ-DEMO-014/015): the base template extends the UiKit admin layout with UiKit's default theme (no Bootstrap CDN, no `demo.css`, no host tokens), the demo form is a FormKit form themed by the `demo` profile and UiKit's form theme.
 
 ### Docs
 
+- `docs/CONTRACT-240.md`, USAGE / CONFIGURATION / UPGRADING / SECURITY sections and Spec Kit spec `specs/240-search-everywhere/` for 1.8.0.
 - `docs/FRANKENPHP-WORKER-AUDIT.md`: clearer wording of the kept-alive test row.
 - Spec Kit inventory refreshed to 50/50 production units (1.6 / 1.7 contracts, `SearchContext`, min-length and motion modules mapped); README TypeScript branch coverage corrected to 97.82%.
+- Refreshed `docs/FRANKENPHP-WORKER-AUDIT.md` (reviewed version, kept-alive section, rule 7 note).
 
 ### Tests
 
 - The kept-alive worker test (`DddHostSearchKernelTest`) now runs 1,200 iterations (was 300) with no services resetter, REQ-RUNTIME-002.
-
-### Docs
-
-- Refreshed `docs/FRANKENPHP-WORKER-AUDIT.md` (reviewed version, kept-alive section, rule 7 note).
+- Spec 240: unit tests (parser, matching, fuzzy, synonyms, ranking, access, registry, actions, recents, engine), functional permission matrix and anti-leak tests (counts, snippets, recents, filter probing, kept-alive kernel), Vitest `palette.test.ts`, Playwright `everywhere.spec.ts`.
 
 ## [1.7.0] - 2026-11-11
 

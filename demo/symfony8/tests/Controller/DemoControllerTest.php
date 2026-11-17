@@ -47,7 +47,7 @@ final class DemoControllerTest extends WebTestCase
         $client->submit($form);
         self::assertResponseRedirects();
         $client->followRedirect();
-        self::assertSelectorTextContains('nav', 'bob');
+        self::assertSelectorTextContains('[data-testid="demo-masthead"]', 'bob');
         self::assertSelectorExists('[data-nowo-search-config]');
         self::assertSelectorExists('input[name="q"][role="combobox"]');
         self::assertSelectorExists('template[data-nowo-search-icon="projects"]');
@@ -57,15 +57,18 @@ final class DemoControllerTest extends WebTestCase
     {
         $client = static::createClient();
         $client->loginUser(new InMemoryUser('bob', 'password', ['ROLE_USER']));
-        $client->request('GET', '/search?q=billing');
+        $client->request('GET', '/search?q=platform');
         self::assertResponseIsSuccessful();
         self::assertSame([], $this->searchGroups($client->getResponse()->getContent()));
+        // 1.8.0: the Billing settings page is admin-only (DemoAccessChecker): bob never gets it, not even counted.
+        $client->request('GET', '/search?q=invoice');
+        self::assertNotContains('pages', array_column($this->searchGroups($client->getResponse()->getContent()), 'key'));
 
         $client->request('GET', '/search?q=shop&scope=billing');
         self::assertSame([], $this->searchGroups($client->getResponse()->getContent()), 'a forbidden scope yields nothing, never 403');
 
         $client->loginUser(new InMemoryUser('alice', 'password', ['ROLE_ADMIN']));
-        $client->request('GET', '/search?q=billing');
+        $client->request('GET', '/search?q=billing%20service');
         $groups = $this->searchGroups($client->getResponse()->getContent());
         self::assertSame('projects', $groups[0]['key']);
         self::assertSame('Billing service', $groups[0]['items'][0]['title']);
@@ -73,6 +76,23 @@ final class DemoControllerTest extends WebTestCase
 
         $client->request('GET', '/search?q=alice');
         self::assertSame('users', $this->searchGroups($client->getResponse()->getContent())[0]['key']);
+    }
+
+    public function testSearchEverywhereRegistryActionsAndResultsPage(): void
+    {
+        $client = static::createClient();
+        $client->loginUser(new InMemoryUser('bob', 'password', ['ROLE_USER']));
+        $client->request('GET', '/search?q=contrase%C3%B1a');
+        $pages = array_values(array_filter($this->searchGroups($client->getResponse()->getContent()), static fn (array $g): bool => $g['key'] === 'pages'));
+        self::assertSame('/en/settings/security', $pages[0]['items'][0]['url'] ?? null);
+
+        $client->request('GET', '/search?q=%3E');
+        self::assertSame(['Open security settings', 'Read the documentation'], array_column($this->searchGroups($client->getResponse()->getContent())[0]['items'], 'title'));
+
+        $client->request('GET', '/search/results?q=checkout');
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('[data-testid="nowo-search-results-tabs"]', 'Issues (2)');
+        self::assertSelectorTextNotContains('[data-testid="nowo-search-results"]', 'webhook');
     }
 
     public function testProjectPagesAndScope(): void

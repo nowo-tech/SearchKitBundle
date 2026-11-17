@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace Nowo\SearchKitBundle\DependencyInjection;
 
+use Nowo\SearchKitBundle\Model\SearchFilter;
 use Nowo\SearchKitBundle\Model\SearchItem;
+use Nowo\SearchKitBundle\Model\SearchPage;
 use Nowo\SearchKitBundle\Search\MinLengthExemptPattern;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\ConfigurationInterface;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 
 use function is_bool;
+use function is_scalar;
 use function is_string;
 use function sprintf;
 
@@ -48,6 +51,9 @@ final class Configuration implements ConfigurationInterface
         'action'  => 'tabler:arrow-right',
         'item'    => 'tabler:point',
     ];
+
+    /** The seven bundle locales (cross-locale keywords and synonyms, 1.8.0). */
+    public const array LOCALES = ['en', 'es', 'it', 'fr', 'pt', 'de', 'nl'];
 
     /**
      * Builds the `nowo_search_kit` tree.
@@ -133,6 +139,10 @@ final class Configuration implements ConfigurationInterface
                     ->addDefaultsIfNotSet()
                     ->children()
                         ->booleanNode('enabled')->defaultTrue()->end()
+                        ->booleanNode('revalidate')
+                            ->info('1.8.0: store references only (URL + kind, never titles) and re-check them on every display through POST {prefix}/recent (CSRF, rate-limited): the SearchAccessCheckerInterface must allow each URL and a SearchReferenceResolverInterface must resolve it, otherwise it is dropped.')
+                            ->defaultFalse()
+                        ->end()
                         ->integerNode('max')->defaultValue(8)->min(1)->max(50)->end()
                         ->scalarNode('storage_key')
                             ->defaultValue('nowo.search.recent')
@@ -248,10 +258,181 @@ final class Configuration implements ConfigurationInterface
                             ->info('No Pages group while the search is scoped (SearchQuery::$scope set).')
                             ->defaultTrue()
                         ->end()
+                        ->arrayNode('keywords')
+                            ->info('1.8.0: route name → translation key of comma-separated keywords (matched, never shown), read through the item getRouteName().')
+                            ->useAttributeAsKey('route')
+                            ->scalarPrototype()->cannotBeEmpty()->end()
+                            ->defaultValue([])
+                        ->end()
+                        ->scalarNode('keywords_translation_domain')
+                            ->info('Domain of the "keywords" keys (null: the map holds plain keywords).')
+                            ->defaultValue('messages')
+                        ->end()
+                        ->booleanNode('check_access')
+                            ->info('1.8.0: also ask the SearchAccessCheckerInterface for every menu entry (deny by default). Off: the menu tree is trusted as before.')
+                            ->defaultFalse()
+                        ->end()
+                        ->booleanNode('ranked')
+                            ->info('1.8.0: score the rows (sorted by relevance with the registry pages). null: on when "pages" or "keywords" is configured.')
+                            ->defaultNull()
+                        ->end()
                     ->end()
                 ->end()
             ->end();
 
+        $this->addSearchEverywhere($treeBuilder);
+
         return $treeBuilder;
+    }
+
+    /**
+     * The 1.8.0 keys (spec 240, "search everywhere"). Every default keeps a 1.7 host unchanged.
+     */
+    private function addSearchEverywhere(TreeBuilder $treeBuilder): void
+    {
+        $locales = static fn (string $info): mixed => (new TreeBuilder('locales', 'array'))->getRootNode()
+            ->info($info)
+            ->scalarPrototype()
+                ->validate()
+                    ->ifTrue(static fn (mixed $locale): bool => !is_string($locale) || preg_match('/^[a-z]{2,3}([_-][A-Za-z0-9]{2,8})*$/', $locale) !== 1)
+                    ->thenInvalid('Invalid locale %s.')
+                ->end()
+            ->end()
+            ->defaultValue(self::LOCALES);
+
+        $treeBuilder->getRootNode()
+            ->children()
+                ->arrayNode('pages')
+                    ->info('1.8.0 page registry: pages, tabs and settings sections found by label, breadcrumb and keywords. Listed only when a SearchAccessCheckerInterface allows the route (deny by default).')
+                    ->arrayPrototype()
+                        ->children()
+                            ->scalarNode('id')->isRequired()->cannotBeEmpty()->end()
+                            ->scalarNode('label')->info('Translation key (plain text when translation_domain is null).')->isRequired()->cannotBeEmpty()->end()
+                            ->scalarNode('translation_domain')->defaultValue('messages')->end()
+                            ->scalarNode('route')->isRequired()->cannotBeEmpty()->end()
+                            ->arrayNode('route_parameters')
+                                ->useAttributeAsKey('name')
+                                ->variablePrototype()
+                                    ->validate()
+                                        ->ifTrue(static fn (mixed $value): bool => $value !== null && !is_scalar($value))
+                                        ->thenInvalid('nowo_search_kit.pages route parameters must be scalars.')
+                                    ->end()
+                                ->end()
+                            ->end()
+                            ->arrayNode('trail')
+                                ->info('Breadcrumb before the label (translation keys).')
+                                ->beforeNormalization()->ifString()->then(static fn (string $crumb): array => [$crumb])->end()
+                                ->scalarPrototype()->end()
+                            ->end()
+                            ->scalarNode('icon')->defaultNull()->end()
+                            ->scalarNode('keywords')->info('Translation key of comma-separated keywords (one message per locale); matched, never shown.')->defaultNull()->end()
+                            ->enumNode('scope')->values([SearchPage::SCOPE_NONE, SearchPage::SCOPE_REQUIRED])->defaultValue(SearchPage::SCOPE_NONE)->end()
+                            ->scalarNode('scope_parameter')->info('With scope "required": the route parameter that receives the scope id.')->defaultNull()->end()
+                            ->scalarNode('attribute')->info('Passed to the access checker (SearchAccessRequest::$attribute).')->defaultNull()->end()
+                            ->scalarNode('subject')->info('Passed to the access checker (SearchAccessRequest::$subject).')->defaultNull()->end()
+                        ->end()
+                        ->validate()
+                            ->ifTrue(static fn (array $page): bool => preg_match('/^[A-Za-z0-9._:-]{1,128}$/', (string) $page['id']) !== 1)
+                            ->thenInvalid('A nowo_search_kit.pages "id" may only contain letters, digits, ".", "_", ":" and "-".')
+                        ->end()
+                        ->validate()
+                            ->ifTrue(static fn (array $page): bool => $page['scope_parameter'] !== null && $page['scope'] !== SearchPage::SCOPE_REQUIRED)
+                            ->thenInvalid('A nowo_search_kit.pages "scope_parameter" needs scope "required".')
+                        ->end()
+                    ->end()
+                ->end()
+                ->arrayNode('page_registry')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->integerNode('priority')->info('Position of the registry among the providers (its rows join the Pages group).')->defaultValue(90)->end()
+                        ->append($locales('Locales whose labels and keywords also match (cross-locale); the UI locale is always first.'))
+                        ->integerNode('max_candidates')->info('Most entries read per search (configured, then page sources).')->defaultValue(500)->min(1)->max(10000)->end()
+                        ->scalarNode('icon')->info('UX Icons name of an entry without an icon.')->defaultValue('tabler:file')->end()
+                    ->end()
+                ->end()
+                ->arrayNode('access')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->booleanNode('filter_all_rows')
+                            ->info('1.8.0: every provider row must also pass the SearchAccessCheckerInterface (by URL, deny by default) before it is counted, ranked or sent.')
+                            ->defaultFalse()
+                        ->end()
+                    ->end()
+                ->end()
+                ->arrayNode('actions')
+                    ->info('1.8.0 palette actions (SearchActionProviderInterface). Without providers the quick_actions stay the empty-query list.')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->scalarNode('prefix')
+                            ->info('A query starting with it lists actions only ("" disables the prefix).')
+                            ->defaultValue('>')
+                            ->validate()
+                                ->ifTrue(static fn (mixed $prefix): bool => !is_string($prefix) || mb_strlen($prefix) > 3 || preg_match('/[\s\p{L}\p{N}]/u', $prefix) === 1)
+                                ->thenInvalid('nowo_search_kit.actions.prefix must be empty or up to 3 symbol characters.')
+                            ->end()
+                        ->end()
+                        ->booleanNode('in_results')->info('Matching provider actions on top of the results of a normal query.')->defaultTrue()->end()
+                        ->integerNode('max_candidates')->info('Most actions read per call.')->defaultValue(200)->min(1)->max(5000)->end()
+                    ->end()
+                ->end()
+                ->arrayNode('filters')
+                    ->info('1.8.0 typed filters (key:value, key:"quoted", -key:value).')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->arrayNode('keys')
+                            ->info('Recognised keys, e.g. [is, assignee, project, type]. Empty: no parsing (as before). "type" is handled by the engine.')
+                            ->scalarPrototype()
+                                ->validate()
+                                    ->ifTrue(static fn (mixed $key): bool => !is_string($key) || preg_match(SearchFilter::KEY_PATTERN, $key) !== 1)
+                                    ->thenInvalid('Invalid nowo_search_kit.filters.keys entry %s (lower-case letter first, then letters, digits, "_" or "-").')
+                                ->end()
+                            ->end()
+                            ->defaultValue([])
+                        ->end()
+                        ->integerNode('max')->info('Most filters per query (extra ones are dropped).')->defaultValue(5)->min(1)->max(20)->end()
+                        ->integerNode('values_limit')->info('Most autocomplete values per call.')->defaultValue(10)->min(1)->max(50)->end()
+                    ->end()
+                ->end()
+                ->arrayNode('matching')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->booleanNode('fuzzy')
+                            ->info('1.8.0: SearchQuery::matches() / score() tolerate typos (edit distance 1 for 4-6 letters, 2 from 7). Bounded: 64 characters, 8 words.')
+                            ->defaultFalse()
+                        ->end()
+                    ->end()
+                ->end()
+                ->arrayNode('synonyms')
+                    ->info('1.8.0: expand the query with the SearchSynonymProviderInterface services before the providers run.')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->booleanNode('enabled')->info('Off: no expansion even with providers.')->defaultTrue()->end()
+                        ->booleanNode('builtin_dictionary')->info('Register the bundle concept groups (en es it fr pt de nl).')->defaultFalse()->end()
+                        ->append($locales('Locales asked for synonyms after the UI locale.'))
+                        ->integerNode('max_terms')->info('Most alternatives per query.')->defaultValue(24)->min(1)->max(100)->end()
+                    ->end()
+                ->end()
+                ->arrayNode('ranking')
+                    ->info('1.8.0: rows with a score or a date are sorted inside their group (score + recency boost).')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->floatNode('recency_weight')->defaultValue(0.25)->min(0.0)->max(10.0)->end()
+                        ->floatNode('recency_half_life_days')->defaultValue(30.0)->min(0.01)->max(3650.0)->end()
+                    ->end()
+                ->end()
+                ->arrayNode('results_page')
+                    ->info('1.8.0 full results page (route nowo_search_kit_results, {prefix}/results).')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->booleanNode('enabled')->defaultFalse()->end()
+                        ->scalarNode('template')->defaultValue('@NowoSearchKitBundle/results.html.twig')->cannotBeEmpty()->end()
+                        ->scalarNode('layout')->info('Template the page extends (blocks "title" and "body"), e.g. your base layout.')->defaultValue('@NowoSearchKitBundle/results_layout.html.twig')->cannotBeEmpty()->end()
+                        ->integerNode('per_group')->info('Rows per group on the "All" tab.')->defaultValue(10)->min(1)->max(50)->end()
+                        ->integerNode('per_page')->info('Rows per page of one group.')->defaultValue(20)->min(1)->max(100)->end()
+                        ->integerNode('top_results')->info('Rows of the Top results section (0: none).')->defaultValue(5)->min(0)->max(20)->end()
+                        ->integerNode('max_page')->defaultValue(50)->min(1)->max(1000)->end()
+                    ->end()
+                ->end()
+            ->end();
     }
 }

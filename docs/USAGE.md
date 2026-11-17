@@ -14,6 +14,16 @@
 - [Standard Symfony host](#standard-symfony-host)
 - [Using it from a DDD / hexagonal application](#using-it-from-a-ddd--hexagonal-application)
 - [Pages group](#pages-group)
+- [Search everywhere (1.8.0)](#search-everywhere-180)
+  - [Access checker (deny by default)](#access-checker-deny-by-default)
+  - [Page registry](#page-registry)
+  - [Palette actions](#palette-actions)
+  - [Typed filters](#typed-filters)
+  - [Matching, synonyms and fuzzy](#matching-synonyms-and-fuzzy)
+  - [Ranking](#ranking)
+  - [Results page](#results-page)
+  - [Safe recents](#safe-recents)
+  - [Ports for other bundles](#ports-for-other-bundles)
 - [The header template](#the-header-template)
   - [Blocks](#blocks)
   - [Overriding](#overriding)
@@ -298,6 +308,178 @@ See [CONFIGURATION.md](CONFIGURATION.md#pages-group). The rows link to the menu 
 user (its permission checkers already filtered the tree); labels match case-insensitively; the breadcrumb starts with
 the translated menu `label`.
 
+## Search everywhere (1.8.0)
+
+Spec 240: every page, tab and settings section findable by keywords in 7 locales, a command palette, typed filters,
+synonyms, ranking, a full results page and safe recents — **always filtered by the viewer's permissions, deny by
+default**. Every feature is off or inert until you configure it: a 1.7 host renders and answers the same. The anti-leak
+model is in [SECURITY.md](SECURITY.md#anti-leak-model-180); the ports other bundles implement are in
+[CONTRACT-240.md](CONTRACT-240.md).
+
+### Access checker (deny by default)
+
+Registry pages, page-source entries, palette actions and revalidated recents are listed only when a
+`SearchAccessCheckerInterface` allows them. Implement it with your route access rule:
+
+```php
+namespace App\Search;
+
+use Nowo\SearchKitBundle\Contract\SearchAccessCheckerInterface;
+use Nowo\SearchKitBundle\Model\SearchAccessRequest;
+
+final readonly class RouteAccessChecker implements SearchAccessCheckerInterface
+{
+    public function __construct(private RouteAccess $routes) {}   // your rule: permission catalogue + access map
+
+    public function decide(SearchAccessRequest $request): ?bool
+    {
+        if ($request->route === null) {
+            return null;                    // external URL: no decision → denied unless another checker allows it
+        }
+
+        return $this->routes->canOpen($request->userIdentifier, $request->route, $request->routeParameters, $request->attribute, $request->subject);
+    }
+}
+```
+
+Autoconfiguration tags it. `true` allows, `false` vetoes (wins over any `true`), `null` abstains. **No checker, only
+abstentions or a checker that throws → denied.** With `access.filter_all_rows: true` every provider row is checked too
+(by URL), before it is counted or ranked.
+
+### Page registry
+
+```yaml
+nowo_search_kit:
+    pages:
+        - { id: settings.security, label: settings.security, route: settings, route_parameters: { section: security },
+            trail: [settings.title], keywords: settings.security.keywords, icon: 'tabler:lock' }
+        - { id: project.members, label: project.tab.members, route: project_tab, route_parameters: { tab: members },
+            scope: required, scope_parameter: id, keywords: project.tab.members.keywords }
+```
+
+```yaml
+# translations/messages.en.yaml / messages.es.yaml …
+settings:
+    security:
+        keywords: "password, two-factor, sessions"      # es: "contraseña, clave, doble factor"
+```
+
+The label, the breadcrumb (`trail`) and the keywords match (keywords are **never shown**). Keep the lists short:
+**at most 32 keywords per locale are read, extra ones are ignored** (a debug log line names the key), and at most 64 of
+the other locales after deduplication; the same 32 cap applies to menu keywords and to action keywords. Keywords and labels of
+every `page_registry.locales` match too, so an English viewer typing `contraseña` finds *Security*; the UI locale
+ranks first. `scope: required` entries appear only while the search is scoped (the scope id goes into
+`scope_parameter`); `scope: none` entries only while it is not. `attribute` / `subject` are handed to your checker.
+
+Entries computed at runtime come from `SearchPageSourceInterface` services (e.g. the tabs of the project in scope):
+
+```php
+final class ProjectTabs implements SearchPageSourceInterface
+{
+    public function pages(SearchQuery $query): iterable
+    {
+        if ($query->scope === null) {
+            return [];
+        }
+        yield new SearchPage('project.files', 'project.tab.files', 'project_tab', ['tab' => 'files'], 'messages',
+            ['project.title'], 'tabler:folder', 'project.tab.files.keywords', SearchPage::SCOPE_REQUIRED, null, null, 'id');
+    }
+}
+```
+
+Registry rows join the built-in Pages group (menu pages) in one group, deduplicated by URL. The menu pages get
+keywords too: `menu_pages.keywords: {route_name: translation_key}` or a `getSearchKeywords()` method on the menu item.
+
+### Palette actions
+
+```php
+final readonly class ProjectActions implements SearchActionProviderInterface
+{
+    public function actions(SearchContext $context, ?string $scope): iterable
+    {
+        yield new SearchAction('New issue', '/issues/new', ['create', 'ticket', 'nueva incidencia'], 'tabler:bug', 'n i');
+        if ($scope !== null) {
+            yield new SearchAction('Project members', '/projects/' . $scope . '/members', ['team'], null, null, $scope);
+        }
+    }
+}
+```
+
+Actions are **GET links only**, each one checked by the access checkers. They form the *Actions* group on top of the
+results (matching label or keywords), the only group of a query starting with `>` (`actions.prefix`), and the list
+shown while the query is empty (the static `quick_actions` stay the fallback when no provider exists). `SearchContext`
+holds the page the box is on (the browser sends its path as `from`).
+
+### Typed filters
+
+```yaml
+nowo_search_kit:
+    filters:
+        keys: [is, assignee, project, type]
+```
+
+`checkout is:open -assignee:me project:"Online shop"` → text `checkout` + three `SearchFilter`s in
+`SearchQuery::$filters`. A provider runs only when it implements `FilterableSearchProviderInterface` and lists every
+filter key of the query (deny by default); a query with filters and no text reaches only those providers. `type:` is
+the engine's (keeps or drops groups by key). The field shows the filters as chips (click to remove); after `key:` it
+suggests values from `SearchFilterValuesProviderInterface` services (`GET {prefix}/filters?key=&q=`), which return only
+values the viewer may see. **Resolve every value for the viewer and answer an unknown or forbidden value exactly like
+"no match".**
+
+### Matching, synonyms and fuzzy
+
+`SearchQuery::matches()` and the new `score()` fold case and accents (`Contraseña` = `contrasena`, `Straße` =
+`strasse`), try every alternative of `terms()` and, with `matching.fuzzy: true`, tolerate typos on the typed text (edit
+distance 1 for 4–6 letters, 2 from 7). Cost is bounded: 64 characters and 8 words of needle, 512 characters and 64 words
+of haystack, `page_registry.max_candidates` / `actions.max_candidates` candidates, and at most 100,000 comparisons per
+registry search: the exact tiers run over every visible entry first, typos only on the remaining budget (at most
+40,000), so an exact match is never dropped for the cost of fuzzy matching.
+
+`SearchSynonymProviderInterface::synonymsOf(word, locale)` services expand the query before providers run
+(`SearchQuery::terms()`: the typed text, then the alternatives, UI locale first). `synonyms.builtin_dictionary: true`
+registers the bundle's concept groups across en es it fr pt de nl (`password` ~ `contraseña` ~ `clave` ~ `Passwort` …).
+
+### Ranking
+
+Providers may set `SearchItem::$score` (e.g. `$query->score($title)`) and `SearchItem::$date`. Rows with either are
+sorted inside their group by score + `ranking.recency_weight` × 0.5^(age / `recency_half_life_days`); groups without
+them keep the provider order. A group total is shown only up to the returned rows unless the provider passes
+`exactTotal: true` (a count made with the same permission filter).
+
+### Results page
+
+```yaml
+nowo_search_kit:
+    results_page:
+        enabled: true
+        layout: base.html.twig     # your layout: blocks "title" and "body"
+```
+
+`GET {prefix}/results?q=` (route `nowo_search_kit_results`): an *All* tab with a *Top results* section and every group,
+one tab per group with the number of **returned** rows, the filter chips (links), and previous / next pages for groups
+whose provider implements `PaginatedSearchProviderInterface`. The dropdown ends with *See all results*. Server-rendered,
+no script; with UiKit the tabs and the empty state are UiKit partials and the parts carry the theme slot classes.
+Override the whole page with `results_page.template` (the partial `@NowoSearchKitBundle/_results.html.twig` takes the
+`nowo_search_results` variable).
+
+### Safe recents
+
+```yaml
+nowo_search_kit:
+    recent:
+        revalidate: true
+```
+
+The browser then stores only `{url, kind}` (never a title) under the per-user key, and every time the box opens it posts
+them to `POST {prefix}/recent` (CSRF header, rate limited). The server keeps a reference only when the access checkers
+allow its URL **and** a `SearchReferenceResolverInterface` (registry, menu pages, your providers) resolves it for the
+viewer now; the browser shows nothing until it answered and forgets the dropped references.
+
+### Ports for other bundles
+
+ManualKit (synonyms / tags), DashboardMenu (project menus, keywords) and the content bundles (ChatKit, UptimeMonitor,
+ApiStudio, TaskBoard, Wiki) implement the ports described in [CONTRACT-240.md](CONTRACT-240.md).
+
 ## The header template
 
 ```twig
@@ -544,9 +726,18 @@ labels of your providers use your own domain.
 Statuses: 200 (also for an inaccessible scope: no groups), 401 `{"error": "unauthenticated"}` for guests, 403
 `{"error": "forbidden"}` without `role`, 429 `{"error": "rate_limited"}`. Every response is `Cache-Control: no-store, private` and `X-Robots-Tag: noindex`.
 
+1.8.0 adds, only when they apply: `filters` (the typed filters recognised, `[{key, value, negated, token}]`),
+`actionsOnly: true` (a `>` query) and a row `shortcut`. The optional `from` parameter (the path of the page the box is
+on) gives the action providers their context. Two more JSON endpoints share the same guard (signed-in, `role`, rate
+limit, no-store): `GET {prefix}/filters?key=&q=&scope=` → `{values: [{value, label}]}` (404 without `filters.keys`) and
+`POST {prefix}/recent` with `X-CSRF-Token` and `{refs: [{url, kind}]}` → `{items: [...]}` (404 without
+`recent.revalidate`; 403 `{"error": "csrf"}`).
+
 ## Naming conventions
 
 PHP classes `Nowo\SearchKitBundle\…`, config root `nowo_search_kit`, route `nowo_search_kit_search`, Twig namespace
 `@NowoSearchKitBundle`, Twig functions `nowo_search_kit_*`, translation domain `NowoSearchKitBundle`, CSS classes
 `nowo-search__*` and tokens `--nowo-search-*`, DOM hooks `data-part` / `data-nowo-search-*`, browser global
-`NowoSearch`, events `nowo-search:*`, provider tag `nowo_search_kit.provider`, rate limiter `nowo_search_kit`.
+`NowoSearch`, events `nowo-search:*`, provider tag `nowo_search_kit.provider`, rate limiter `nowo_search_kit`. 1.8.0: routes
+`nowo_search_kit_results`, `nowo_search_kit_recent`, `nowo_search_kit_filter_values`; tags
+`nowo_search_kit.{access_checker,page_source,action_provider,filter_values,synonym_provider,reference_resolver}`.

@@ -1,0 +1,12 @@
+{#
+ # NowoSearchKitBundle results page (1.8.0, `results_page.template`). It extends `results_page.layout` (the host
+ # layout, blocks `title` and `body`) and renders `@NowoSearchKitBundle/_results.html.twig`. To change the markup,
+ # point `results_page.template` at your own template and include the partial (or copy it): the variable is
+ # `nowo_search_results` (see ResultsController).
+ #}
+{% extends nowo_search_layout %}
+{% trans_default_domain 'NowoSearchKitBundle' %}
+{% block title %}{{ nowo_search_results.query is not empty ? 'search.results_page.title_query'|trans({'%query%': nowo_search_results.query}) : 'search.results_page.title'|trans }}{% endblock %}
+{% block body %}
+    {{ include('@NowoSearchKitBundle/_results.html.twig') }}
+{% endblock %}

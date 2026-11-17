@@ -10,12 +10,15 @@ import type { SearchConfig, SearchOptions } from './types';
 export { GlobalSearch } from './global-search';
 export type { NavigateDetail } from './global-search';
 export { appendHighlighted, isMac } from './highlight';
-export { readRecent, rememberRecent, writeRecent } from './recent';
+export { readRecent, readRecentRefs, rememberRecent, rememberRecentRef, writeRecent, writeRecentRefs } from './recent';
+export type { RecentRef } from './recent';
+export { completeFilter, parseFilterTokens, pendingFilter, removeFilterToken } from './filters';
+export type { FilterToken, PendingFilter } from './filters';
 export { isSafeUrl, isSameSitePath } from './url';
-export type { SearchBadge, SearchConfig, SearchGroup, SearchItem, SearchLabels, SearchOptions, SearchState } from './types';
+export type { SearchBadge, SearchConfig, SearchFilterConfig, SearchGroup, SearchItem, SearchLabels, SearchOptions, SearchState } from './types';
 
 /** Package version of the browser bundle. */
-export const VERSION = '1.0.2';
+export const VERSION = '1.1.0';
 
 /** Prefix of every CSS custom property (theme token) of the search box. */
 export const CSS_TOKEN_PREFIX = '--nowo-search-';

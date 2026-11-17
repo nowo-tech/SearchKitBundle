@@ -22,6 +22,7 @@ demo:
   page:
     hint: 'Press Ctrl/⌘ K to search from here.'
   group:
+    issues: Issues
     projects: Projects
     docs: Documentation
     users: Users
@@ -39,3 +40,26 @@ demo:
     password: Password
     submit: 'Sign in'
     signed_in: 'Signed in as %user%.'
+  palette:
+    security: 'Open security settings'
+    users: 'Manage users'
+    docs: 'Read the documentation'
+    members: 'Project members'
+  settings:
+    trail: Settings
+    profile: 'Profile'
+    profile_keywords: 'name, avatar, photo, email'
+    security: 'Security'
+    security_keywords: 'password, two-factor, sessions'
+    billing: 'Billing'
+    billing_keywords: 'invoice, payment, plan'
+    language: 'Language'
+    language_keywords: 'locale, translation'
+  tab:
+    trail: Project
+    issues: Issues
+    issues_keywords: 'bugs, tickets'
+    files: Files
+    files_keywords: 'documents, attachments'
+    members: Members
+    members_keywords: 'team, people'

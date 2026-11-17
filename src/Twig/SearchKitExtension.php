@@ -6,13 +6,18 @@ namespace Nowo\SearchKitBundle\Twig;
 
 use Nowo\SearchKitBundle\Contract\SearchContextScopeResolverInterface;
 use Nowo\SearchKitBundle\Contract\SearchScopeResolverInterface;
+use Nowo\SearchKitBundle\Controller\FilterValuesController;
+use Nowo\SearchKitBundle\Controller\RecentController;
+use Nowo\SearchKitBundle\Controller\ResultsController;
 use Nowo\SearchKitBundle\Controller\SearchController;
 use Nowo\SearchKitBundle\Form\SearchFieldType;
 use Nowo\SearchKitBundle\Icon\SearchIcons;
+use Nowo\SearchKitBundle\Model\SearchContext;
 use Nowo\SearchKitBundle\Model\SearchItem;
 use Nowo\SearchKitBundle\Model\SearchScope;
 use Nowo\SearchKitBundle\Scope\NullScopeResolver;
 use Nowo\SearchKitBundle\Scope\SearchContextFactory;
+use Nowo\SearchKitBundle\Search\Action\ActionCollector;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\Asset\Packages;
 use Symfony\Component\Form\FormFactoryInterface;
@@ -21,6 +26,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
+use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Extension\AbstractExtension;
 use Twig\Markup;
@@ -38,6 +44,10 @@ use function is_string;
  * - `nowo_search_kit_form()`: the Form view of the search field;
  * - `nowo_search_kit_icons()`: icon key → SVG markup (UX Icons or the built-in fallback).
  *
+ * 1.8.0: the empty-query list comes from the SearchActionProviderInterface services (context-aware, access-checked)
+ * when there are any, the `quick_actions` otherwise; the configuration gains `actionPrefix`, `filters`, `results` and
+ * the recents revalidation keys **only when those features are on**, so a 1.7 host renders the same attribute.
+ *
  * Stateless (no per-request caches): safe in FrankenPHP worker mode.
  *
  * @author Héctor Franco Aceituno <hectorfranco@nowo.tech>
@@ -52,6 +62,9 @@ final class SearchKitExtension extends AbstractExtension
      * @param string $secret Keys the per-user suffix of the recents storage key (`kernel.secret`)
      * @param SearchContextScopeResolverInterface|null $contextScopes Resolver port on the SearchContext VO (1.7.0); wins
      *                                                                over $scopes when the host aliases it
+     * @param ActionCollector|null $actions Provider actions / quick actions (1.8.0; the bundle always wires it)
+     * @param CsrfTokenManagerInterface|null $csrf Token of the recents revalidation (1.8.0)
+     * @param array{action_prefix?: string, filter_keys?: list<string>, results?: bool, revalidate?: bool} $features 1.8.0 switches
      * @param array{role: string, min_length: int, min_length_exempt_patterns?: list<string>, max_length: int, debounce_ms: int, keyboard_shortcuts: bool, recent: array{enabled: bool, max: int, storage_key: string}, quick_actions: list<array{label: string, translation_domain: string|null, route: string|null, route_parameters: array<string, scalar>, url: string|null, kind: string, role: string|null}>, assets: array{stylesheet: bool, script: bool, popover_stylesheet?: false|string|null}} $settings Bundle configuration
      */
     public function __construct(
@@ -66,6 +79,9 @@ final class SearchKitExtension extends AbstractExtension
         private readonly array $settings,
         private readonly string $secret = '',
         private readonly ?SearchContextScopeResolverInterface $contextScopes = null,
+        private readonly ?ActionCollector $actions = null,
+        private readonly ?CsrfTokenManagerInterface $csrf = null,
+        private readonly array $features = [],
     ) {
     }
 
@@ -103,14 +119,15 @@ final class SearchKitExtension extends AbstractExtension
         // (keyed hash: the identifier itself never reaches the browser).
         $storageKey = $settings['recent']['storage_key'] . '.' . substr(hash_hmac('sha256', $user instanceof UserInterface ? $user->getUserIdentifier() : '', $this->secret), 0, 16);
 
+        $scope  = $this->scope();
         $config = [
             'url'        => $this->urls->generate(SearchController::ROUTE),
             'minLength'  => $settings['min_length'],
             'maxLength'  => $settings['max_length'],
             'debounceMs' => $settings['debounce_ms'],
             'shortcuts'  => $settings['keyboard_shortcuts'],
-            'scope'      => $this->scope(),
-            'actions'    => [...$this->hostActions($actions), ...$this->configuredActions()],
+            'scope'      => $scope,
+            'actions'    => [...$this->hostActions($actions), ...$this->emptyQueryActions($user, $scope)],
             'recent'     => [
                 'enabled'    => $settings['recent']['enabled'],
                 'max'        => $settings['recent']['max'],
@@ -126,7 +143,63 @@ final class SearchKitExtension extends AbstractExtension
             $config['minLengthExemptPatterns'] = $exemptPatterns;
         }
 
+        return $this->features($config);
+    }
+
+    /**
+     * Adds the keys of the 1.8.0 features that are on (none for a 1.7 configuration).
+     *
+     * @param array<string, mixed> $config
+     *
+     * @return array<string, mixed>
+     */
+    private function features(array $config): array
+    {
+        $t      = fn (string $key): string => $this->translator->trans('search.' . $key, [], self::DOMAIN);
+        $prefix = $this->features['action_prefix'] ?? '';
+        if ($prefix !== '' && $this->actions instanceof ActionCollector && $this->actions->hasProviders()) {
+            $config['actionPrefix'] = $prefix;
+            $config['labels']       = [...$config['labels'], 'actionsOnly' => $t('actions_only')];
+        }
+        $keys = $this->features['filter_keys'] ?? [];
+        if ($keys !== []) {
+            $config['filters'] = [
+                'keys'      => $keys,
+                'valuesUrl' => $this->urls->generate(FilterValuesController::ROUTE),
+                'remove'    => $t('filter.remove'),
+                'values'    => $t('group.filter_values'),
+            ];
+        }
+        if ($this->features['results'] ?? false) {
+            $config['results'] = ['url' => $this->urls->generate(ResultsController::ROUTE), 'label' => $t('see_all_results')];
+        }
+        if (($this->features['revalidate'] ?? false) && $config['recent']['enabled']) {
+            $config['recent'] = [
+                ...$config['recent'],
+                'revalidateUrl' => $this->urls->generate(RecentController::ROUTE),
+                'csrfToken'     => $this->csrf instanceof CsrfTokenManagerInterface ? $this->csrf->getToken(RecentController::CSRF_TOKEN_ID)->getValue() : '',
+            ];
+        }
+
         return $config;
+    }
+
+    /**
+     * The empty-query rows: provider actions for this page (access-checked), or the quick actions.
+     *
+     * @param array{id: string, label: string}|null $scope
+     *
+     * @return list<array<string, string>>
+     */
+    private function emptyQueryActions(?UserInterface $user, ?array $scope): array
+    {
+        if (!$this->actions instanceof ActionCollector || !$this->actions->hasProviders() || !$user instanceof UserInterface) {
+            return $this->actions?->quickActionRows() ?? [];
+        }
+        $request = $this->requestStack->getMainRequest();
+        $context = $request instanceof Request ? SearchContextFactory::create($request, $user) : new SearchContext($user->getUserIdentifier(), '');
+
+        return $this->actions->emptyQueryRows($context, $scope['id'] ?? null);
     }
 
     /**
@@ -218,27 +291,6 @@ final class SearchKitExtension extends AbstractExtension
                 'subtitle' => is_string($action['subtitle'] ?? null) ? $action['subtitle'] : '',
                 'url'      => $action['url'],
                 'kind'     => is_string($action['kind'] ?? null) ? $action['kind'] : 'action',
-            ];
-        }
-
-        return $rows;
-    }
-
-    /**
-     * @return list<array{title: string, subtitle: string, url: string, kind: string}>
-     */
-    private function configuredActions(): array
-    {
-        $rows = [];
-        foreach ($this->settings['quick_actions'] as $action) {
-            if ($action['role'] !== null && !$this->security->isGranted($action['role'])) {
-                continue;
-            }
-            $rows[] = [
-                'title'    => $this->translator->trans($action['label'], [], $action['translation_domain']),
-                'subtitle' => '',
-                'url'      => $action['route'] !== null ? $this->urls->generate($action['route'], $action['route_parameters']) : (string) $action['url'],
-                'kind'     => $action['kind'],
             ];
         }
 

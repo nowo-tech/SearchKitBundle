@@ -13,6 +13,11 @@ use function in_array;
  * The bundle builds it from the main request and the signed-in user, per call, and never keeps it. There is no
  * anonymous context: for a guest the bundle resolves no scope and never asks the resolver, exactly as before.
  *
+ * 1.8.0: for the action providers of the JSON endpoint the path, route and parameters come from the client (`from`,
+ * the page the box claims to be on). The bundle keeps them only when the SearchAccessCheckerInterface allows that page
+ * for the viewer, and passes an empty context otherwise — still treat them as untrusted input (never print a record
+ * name read from them without your own access check).
+ *
  * @author Héctor Franco Aceituno <hectorfranco@nowo.tech>
  * @copyright 2026 Nowo.tech
  */

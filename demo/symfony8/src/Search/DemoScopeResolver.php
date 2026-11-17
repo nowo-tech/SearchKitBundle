@@ -18,7 +18,7 @@ final class DemoScopeResolver implements SearchContextScopeResolverInterface
 {
     public function resolveFor(SearchContext $context): ?SearchScope
     {
-        if ($context->routeName !== 'demo_project') {
+        if (!\in_array($context->routeName, ['demo_project', 'demo_project_tab'], true)) {
             return null;
         }
         $id       = (string) ($context->routeParameters['id'] ?? '');

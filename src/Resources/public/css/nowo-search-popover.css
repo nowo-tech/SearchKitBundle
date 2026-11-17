@@ -290,3 +290,18 @@
   --nowo-search-motion-close: var(--nowo-ui-motion-small-close, 80ms);
   --nowo-search-motion-lift: 0px;
 }
+
+/* 1.8.0: action key hint and the "See all results" row. */
+.nowo-search__option-shortcut {
+  flex: none;
+  margin-left: auto;
+  padding: 0 0.3rem;
+  border: 1px solid var(--nowo-search-border);
+  border-radius: 0.25rem;
+  color: var(--nowo-search-muted);
+  font-size: 0.6875rem;
+}
+
+.nowo-search__group--see-all {
+  border-top: 1px solid var(--nowo-search-border);
+}

@@ -35,9 +35,10 @@ test.describe('search kit demo', () => {
     const popover = page.getByTestId('nowo-search-popover');
     await expect(popover.getByRole('option').first()).toBeVisible();
 
-    await field.fill('billing');
+    // 1.8.0: "billing" alone also finds the Billing settings page (registry); the project name is specific.
+    await field.fill('billing service');
     await expect(popover.locator('[data-group="projects"]')).toBeVisible();
-    await expect(popover.getByRole('option').first().locator('mark')).toHaveText('Billing');
+    await expect(popover.getByRole('option').first().locator('mark')).toHaveText('Billing service');
     await field.press('Enter');
     await expect(page).toHaveURL(/\/en\/projects\/billing$/);
   });
@@ -46,7 +47,7 @@ test.describe('search kit demo', () => {
     await signIn(page, 'bob');
     await page.keyboard.press('Control+k');
     const field = page.getByTestId('nowo-search').getByRole('combobox');
-    await field.fill('billing');
+    await field.fill('platform');
     await expect(page.getByTestId('nowo-search-popover')).toContainText('No results');
     await field.fill('alice');
     await expect(page.getByTestId('nowo-search-popover')).toContainText('No results');

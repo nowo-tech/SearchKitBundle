@@ -1,8 +1,8 @@
 # Search Kit Bundle — baseline code inventory
 
 **Package**: `nowo-tech/search-kit-bundle`  
-**Last audited**: 2026-11-16  
-**Production units**: **50/50**  
+**Last audited**: 2026-11-17 (spec 240, 1.8.0)  
+**Production units**: **90/90**  
 **Audit command**: `find src -type f \( -name '*.php' -o -name '*.twig' -o -name '*.yaml' -o -name '*.ts' -o -name '*.css' \) -not -path 'src/Resources/assets/tests/*' | wc -l`
 
 ## Scope notes
@@ -15,15 +15,15 @@
 
 | Category | Mapped |
 | --- | ---: |
-| Bundle, configuration & DI | 6 |
-| Contracts & model | 14 |
-| Engine & providers | 5 |
-| HTTP | 1 |
-| Twig, markup & theme | 4 |
-| Stylesheets | 2 |
-| Browser (TypeScript) | 11 |
+| Bundle, configuration & DI | 7 |
+| Contracts & model | 30 |
+| Engine & providers | 18 |
+| HTTP | 5 |
+| Twig, markup & theme | 8 |
+| Stylesheets | 3 |
+| Browser (TypeScript) | 12 |
 | Translations | 7 |
-| **Total** | **50** |
+| **Total** | **90** |
 
 
 ## Bundle, configuration & DI
@@ -36,6 +36,7 @@
 | `src/NowoSearchKitBundle.php` | US-01 | FR-BUNDLE-001 |
 | `src/Resources/config/routes.php` | US-01 | FR-ROUTE-001 |
 | `src/Resources/config/services.php` | US-01, US-02 | FR-DI-001 |
+| `src/Resources/synonyms/concepts.php` | US-240-04 | FR-240-SYN-001 |
 
 ## Contracts & model
 
@@ -55,6 +56,22 @@
 | `src/Contract/MinLengthExemptSearchProviderInterface.php` | US-02 | FR-SPI-006 |
 | `src/Contract/MenuTreeSourceInterface.php` | US-06 | FR-PAGES-002 |
 | `src/Model/SearchContext.php` | US-04 | FR-MODEL-002 |
+| `src/Contract/SearchAccessCheckerInterface.php` | US-240-01 … 07 | FR-240-ACCESS-001 |
+| `src/Contract/SearchPageSourceInterface.php` | US-240-01 | FR-240-PAGES-002 |
+| `src/Contract/SearchKeywordsAwareInterface.php` | US-240-01 | FR-240-PAGES-003 |
+| `src/Contract/SearchActionProviderInterface.php` | US-240-02 | FR-240-ACTIONS-001 |
+| `src/Contract/FilterableSearchProviderInterface.php` | US-240-03 | FR-240-FILTER-001 |
+| `src/Contract/SearchFilterValuesProviderInterface.php` | US-240-03 | FR-240-FILTER-002 |
+| `src/Contract/SearchSynonymProviderInterface.php` | US-240-04 | FR-240-SYN-001 |
+| `src/Contract/PaginatedSearchProviderInterface.php` | US-240-06 | FR-240-RESULTS-001 |
+| `src/Contract/SearchReferenceResolverInterface.php` | US-240-07 | FR-240-RECENT-001 |
+| `src/Model/SearchAccessRequest.php` | US-240-01 … 07 | FR-240-ACCESS-001 |
+| `src/Model/SearchPage.php` | US-240-01 | FR-240-PAGES-001 |
+| `src/Model/SearchAction.php` | US-240-02 | FR-240-ACTIONS-001 |
+| `src/Model/SearchFilter.php` | US-240-03 | FR-240-FILTER-001 |
+| `src/Model/SearchFilterValue.php` | US-240-03 | FR-240-FILTER-002 |
+| `src/Model/SearchTerm.php` | US-240-04 | FR-240-SYN-001 |
+| `src/Model/SearchReference.php` | US-240-07 | FR-240-RECENT-001 |
 
 ## Engine & providers
 
@@ -65,12 +82,29 @@
 | `src/Scope/NullScopeResolver.php` | US-04 | FR-SPI-002 |
 | `src/Scope/SearchContextFactory.php` | US-04 | FR-SPI-003 |
 | `src/Search/MinLengthExemptPattern.php` | US-02, US-08 | FR-ENGINE-002 |
+| `src/Search/SearchRequest.php` | US-240-03, US-240-06 | FR-240-LEAK-001 |
+| `src/Search/SearchResult.php` | US-240-03, US-240-06 | FR-240-LEAK-001 |
+| `src/Search/Access/SearchAccess.php` | US-240-01 … 07 | FR-240-ACCESS-001 |
+| `src/Search/Page/PageRegistryProvider.php` | US-240-01 | FR-240-PAGES-001, FR-240-PAGES-002 |
+| `src/Search/Action/ActionCollector.php` | US-240-02 | FR-240-ACTIONS-001 |
+| `src/Search/Filter/SearchFilterParser.php` | US-240-03 | FR-240-FILTER-001 |
+| `src/Search/Text/TextNormalizer.php` | US-240-04 | FR-240-MATCH-001 |
+| `src/Search/Text/TextMatcher.php` | US-240-04 | FR-240-MATCH-001 |
+| `src/Search/Text/FoldedText.php` | US-240-04 | FR-240-MATCH-001, FR-240-COST-001 |
+| `src/Search/Synonym/SynonymExpander.php` | US-240-04 | FR-240-SYN-001 |
+| `src/Search/Synonym/ConceptGroupSynonymProvider.php` | US-240-04 | FR-240-SYN-001 |
+| `src/Search/Ranking/SearchRanker.php` | US-240-05 | FR-240-RANK-001 |
+| `src/Search/Recent/RecentResolver.php` | US-240-07 | FR-240-RECENT-001 |
 
 ## HTTP
 
 | Source path | Spec section | Requirement ID(s) |
 | --- | --- | --- |
-| `src/Controller/SearchController.php` | US-02, US-04, US-08 | FR-API-001 |
+| `src/Controller/SearchController.php` | US-02, US-04, US-08, US-240-02, US-240-03 | FR-API-001 |
+| `src/Controller/ResultsController.php` | US-240-06 | FR-240-RESULTS-001 |
+| `src/Controller/RecentController.php` | US-240-07 | FR-240-RECENT-001 |
+| `src/Controller/FilterValuesController.php` | US-240-03 | FR-240-FILTER-002 |
+| `src/Http/EndpointGuard.php` | US-240-03, US-240-06, US-240-07 | FR-240-RECENT-001, FR-240-FILTER-002 |
 
 ## Twig, markup & theme
 
@@ -80,6 +114,10 @@
 | `src/Twig/SearchKitThemeExtension.php` | US-01 | FR-TWIG-004 |
 | `src/Form/SearchFieldType.php` | US-01 | FR-TWIG-003 |
 | `src/Resources/views/search.html.twig` | US-01, US-03, US-04, US-07 | FR-TWIG-002 |
+| `src/Resources/views/results.html.twig` | US-240-06 | FR-240-RESULTS-001 |
+| `src/Resources/views/results_layout.html.twig` | US-240-06 | FR-240-RESULTS-001 |
+| `src/Resources/views/_results.html.twig` | US-240-06 | FR-240-RESULTS-001 |
+| `src/Resources/views/_results_rows.html.twig` | US-240-06 | FR-240-RESULTS-001 |
 
 ## Stylesheets
 
@@ -87,6 +125,7 @@
 | --- | --- | --- |
 | `src/Resources/public/css/nowo-search.css` | US-03, US-07 | FR-THEME-001 |
 | `src/Resources/public/css/nowo-search-popover.css` | US-03, US-07 | FR-THEME-001 |
+| `src/Resources/public/css/nowo-search-results.css` | US-240-06 | FR-240-RESULTS-001 |
 
 ## Browser (TypeScript)
 
@@ -103,6 +142,7 @@
 | `src/Resources/assets/src/url.ts` | US-08 | FR-TS-003 |
 | `src/Resources/assets/src/min-length.ts` | US-02, US-08 | FR-TS-007 |
 | `src/Resources/assets/src/motion.ts` | US-03, US-07 | FR-TS-008 |
+| `src/Resources/assets/src/filters.ts` | US-240-03 | FR-240-TS-001 |
 
 ## Translations
 

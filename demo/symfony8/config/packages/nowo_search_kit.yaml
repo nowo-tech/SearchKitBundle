@@ -4,6 +4,7 @@ nowo_search_kit:
     rate_limit:
         limit: 30
         interval: '10 seconds'
+    # Fallback of the empty-query list: the demo registers action providers (App\Search\DemoActions), which win.
     quick_actions:
         - { label: 'demo.action.docs', url: '/en/docs/installation', kind: docs }
         - { label: 'demo.action.users', url: '/en/users', kind: users, role: ROLE_ADMIN }
@@ -11,3 +12,23 @@ nowo_search_kit:
         projects: 'tabler:folder'
         docs: 'tabler:book'
         users: 'tabler:users'
+        issues: 'tabler:point'
+
+    # 1.8.0 "search everywhere" (spec 240). Every entry is listed only when App\Search\DemoAccessChecker allows it.
+    pages:
+        - { id: settings.profile, label: demo.settings.profile, route: demo_settings, route_parameters: { section: profile }, trail: [demo.settings.trail], keywords: demo.settings.profile_keywords, icon: 'tabler:user' }
+        - { id: settings.security, label: demo.settings.security, route: demo_settings, route_parameters: { section: security }, trail: [demo.settings.trail], keywords: demo.settings.security_keywords, icon: 'tabler:user' }
+        - { id: settings.billing, label: demo.settings.billing, route: demo_settings, route_parameters: { section: billing }, trail: [demo.settings.trail], keywords: demo.settings.billing_keywords }
+        - { id: settings.language, label: demo.settings.language, route: demo_settings, route_parameters: { section: language }, trail: [demo.settings.trail], keywords: demo.settings.language_keywords }
+    filters:
+        keys: [is, project, type]
+    synonyms:
+        builtin_dictionary: true
+    matching:
+        fuzzy: true
+    results_page:
+        enabled: true
+        layout: base.html.twig
+        per_page: 3
+    recent:
+        revalidate: true

@@ -5,6 +5,7 @@
 - [Scope](#scope)
 - [Attack surface](#attack-surface)
 - [Threat model and mitigations](#threat-model-and-mitigations)
+- [Anti-leak model (1.8.0)](#anti-leak-model-180)
 - [Secrets and cryptography](#secrets-and-cryptography)
 - [Logging](#logging)
 - [Dependencies](#dependencies)
@@ -33,6 +34,7 @@ authentication and firewall, and the host's providers and scope resolver (they d
 | Host quick actions passed to the template | `SearchKitExtension::config()` | Host templates |
 | Configuration (`nowo_search_kit`, including the `toggle_icon_template` path and `min_length_exempt_patterns`), Flex recipe | DI extension | Deployer |
 | Browser storage (`recent.storage_key`) | TypeScript module | Same browser, same origin |
+| 1.8.0: typed filters in `q`, `from` path, `GET {prefix}/filters?key=&q=`, `POST {prefix}/recent` (JSON refs + `X-CSRF-Token`), `GET {prefix}/results` | Engine, controllers | Signed-in users granted `role` (same guard and rate limit as the endpoint) |
 
 ## Threat model and mitigations
 
@@ -47,9 +49,31 @@ authentication and firewall, and the host's providers and scope resolver (they d
 | **Information leaks** | Responses are `Cache-Control: no-store, private` and `X-Robots-Tag: noindex`; error responses carry stable codes, never exception text; a failing provider is logged with its class and the exception class only — never the query (personal data); a row icon that cannot be rendered (unknown name, icon source failure) falls back to the kind icon instead of failing the search. |
 | **Abuse / DoS** | Per-user rate limiter (sliding window 30 / 10 s by default, 429), `min_length` / `max_length`, `per_group` rows, browser debounce and request abort. |
 | **`min_length` exemption** (`min_length_exempt_patterns`, empty by default; Audit HZ (2026-11-07): Pass (good) / Low, HZ-L1, HZ-I1, HZ-I2 and HZ-I5 addressed before release) | Patterns come from the container configuration, never from the request, and run on user input. Only `min_length` is lifted: role check, rate limit and `max_length` cut run first and are unchanged, and only providers implementing `MinLengthExemptSearchProviderInterface` receive such a query, so the others cannot be made to scan for a fragment. The empty query is never exempt. Patterns outside the subset PCRE and JavaScript read alike, `%env()%` values and patterns that do not compile fail container compilation, so the browser's decision and the server's agree, and the server's is the one that counts. Cost: patterns run only on queries below `min_length` (under 50 characters). PCRE's backtrack limit ends a runaway match on the server (refused, logged without the query); the browser has no limit, so a catastrophic pattern can freeze the host's own users' tab. Hosts must keep them linear ([CONFIGURATION](CONFIGURATION.md#queries-exempt-from-min_length)). |
-| **CSRF** | Read-only GET with no side effect; the search field form is never submitted (no token by design, REQ-SEC-005 covers mutations). |
+| **CSRF** | Read-only GET with no side effect; the search field form is never submitted (no token by design, REQ-SEC-005 covers mutations). The 1.8.0 recents revalidation is a POST (it reads only, but carries a body): it requires the `X-CSRF-Token` header (token id `nowo_search_kit_recent`, from the box configuration) and answers 403 `{error: csrf}` otherwise. |
 | **Shared devices** | Recents hold titles and paths of pages the user opened from the box, in `localStorage` of that origin only, under a **per-user key** (`storage_key` + an HMAC of the user identifier keyed with `kernel.secret` — the identifier never reaches the browser), so the next account on the same browser does not see them; they survive logout for the same account; `recent.enabled: false` turns them off; "Clear" empties them. |
 | **Worker-mode state leaks** | No per-request data in shared services (see [FRANKENPHP-WORKER-AUDIT.md](FRANKENPHP-WORKER-AUDIT.md)); Igor audit in `release-check`. |
+
+## Anti-leak model (1.8.0)
+
+Spec 240 rule: everything respects the viewer's permissions in context, **deny by default**; nothing may leak through
+counts, snippets, titles, typed filters, suggestions or recents.
+
+| Channel | Measure |
+| --- | --- |
+| **Deny by default** | `SearchAccess` lists a registry page, page-source entry, palette action or revalidated recent only when one `SearchAccessCheckerInterface` says `true` and none says `false`. No checker, only `null`, or a checker that throws (logged with class names only) → denied. A host that installs 1.8.0 without a checker therefore gets **no** new rows, never more. |
+| **Before counting, ranking and snippets** | The registry checks every candidate **before** it is matched; a denied page is never scored, counted, deduplicated or rendered, and its keywords are never compared (`RegistryActionsRecentTest` asserts the checker saw every candidate). Actions are checked before matching. With `access.filter_all_rows`, every provider row is checked before the total is computed and before ranking. Providers must filter in their query (contract). |
+| **`filter_all_rows` is a safety net** | It removes rows a provider should never have returned, but it cannot hide that they existed: a page of the results page or a group that comes back with fewer rows than `per_page` / `per_group` while more pages follow tells how many hidden rows matched (audit SP-L2). Providers must filter in their query; the option only limits the damage of a provider bug. |
+| **Counts** | A group total above the number of returned rows is shown only when the provider marks it exact for this viewer (`SearchGroup::$exactTotal`); otherwise the engine caps it. A row removed by the access filter makes the total inexact. Merged groups sum exact totals minus duplicates, or count rows. The results page tabs show the number of returned rows only. |
+| **Keywords, snippets, titles** | Keywords (registry, menu, actions) are matched and never sent to the browser; a missing keywords translation never matches its own key. Subtitles of registry rows are the translated breadcrumb. The score and the date of a row never leave the server. |
+| **Typed filters** | Only configured keys are parsed (≤ `filters.max`, values ≤ 100 characters). A provider that does not list a key is skipped (deny by default); a filters-only query reaches only filter-aware providers. Providers resolve values for the viewer and answer an unknown and a forbidden value identically; the functional tests compare the full JSON bodies of `project:gamma` (exists, hidden) and `project:nope` (does not exist), `assignee:carol` / `assignee:nobody`, `type:secret` / `type:nothing`. The engine's `type:` filter runs every eligible provider and drops groups afterwards, so `type:<hidden>` costs the same as `type:<unknown>`. |
+| **Suggestions** | `GET {prefix}/filters` answers `{values: []}` for an unconfigured key, a key no provider supports, a failing provider and a prefix with no visible value alike; providers return only values the viewer may see; at most `values_limit`. |
+| **Recents** | With `recent.revalidate` the browser stores `{url, kind}` only, under the per-user HMAC key; it shows nothing until the server answered. `POST {prefix}/recent` (CSRF header, rate limit, ≤ 32 KB body, ≤ `recent.max` references) keeps a reference only when it is a same-site path of a GET route, the checkers allow it **now**, and a resolver returns a row with the same URL; anything else — unknown, deleted, forbidden, malformed — is dropped the same way, and the browser forgets it. |
+| **Scope and context** | Scoped registry entries need a scope and are checked with it. The `from` path of the JSON endpoint is client input: a same-site path cut to 512 characters, matched as a GET route (no redirect, no fetch), and its route and parameters reach the action providers **only when the access checkers allow that page for the viewer** — otherwise the providers get an empty context (audit SP-L1), so an allowed action cannot carry the name of a hidden page's record. A hidden page and a missing page give the same answer. |
+| **Actions** | GET links only (`SearchAction` refuses non-path / non-http(s) URLs); the bundle never executes anything. |
+| **Results page** | Same guard as the endpoint (guests get the firewall entry point, users without `role` a 403, rate limit → 429), `no-store`, `noindex`, server-rendered without script, every link built by the router. |
+| **Timing** | The registry checks every candidate whatever the query (the checker's cost does not depend on whether a page matches); `type:` runs the same providers for hidden and unknown keys; a hidden and an unknown scope run the same code paths in the bundle. Remainder: a provider's own query may take longer when rows exist but are filtered than when nothing exists — providers should filter in the SQL `WHERE` (one query, same plan) rather than fetch then hide; the per-user rate limit bounds any timing probe. |
+| **Cost** | Bounded per request (audit SP-M1, delta SPd-L1 / SPd-I1). Matching: needles cut to 64 characters / 8 words, haystacks to 512 characters; each query term is folded once (in `SearchQuery`); a registry entry's texts are first folded **together** in one string, and an entry no term can match exactly (every word of a term must occur in it) is rejected without folding or comparing its texts one by one; otherwise each text is folded once (`FoldedText`, words split only for typo comparisons); a text that cannot beat the best score is not compared; synonyms ≤ `max_terms` alternatives for texts ≤ 64 characters; fuzzy only on the typed text (edit distance ≤ 2, words ≤ 32 bytes, candidates outside the length window skipped). Registry: ≤ `max_candidates` entries, ≤ 32 keywords per entry and locale (also menu entries and actions; a debug line names a cut list), ≤ 64 keywords of the other locales after deduplication, and a ceiling of `PageRegistryProvider::MAX_EVALUATIONS` (100,000) comparisons per search. **Two passes:** the exact tiers run over every visible entry first; typos run afterwards, on at most `MAX_FUZZY_EVALUATIONS` (40,000) of the remaining budget, only for entries without an exact match, every edit distance charged (pre-check per candidate word, `SearchQuery::FUZZY_COST` = 16 per text) — so the ceiling never drops an exact match; entries past it are not listed (fewer rows, never more; a notice without the query is logged). Measured with `tests/Unit/Everywhere/CostTest.php` (CPU time, best of 3; 500 entries × 30–32 keywords × 25 terms, fuzzy on and off, plain-text and 7-locale translated entries with distinct keywords): **8.5–9.6 s per search at 2660230; now 12–57 ms** without pcov (16–82 ms with pcov loaded, 21–97 ms while collecting coverage); the test fails above 200 ms. Actions: ≤ `actions.max_candidates` × 33 texts. The per-user rate limit bounds the number of searches. |
+| **Worker mode** | All new services are stateless (constructor-built immutable indexes only); the router context swap used to match a URL as GET during a POST is scoped to one call and restored in `finally`; Igor clean; a kept-alive kernel test alternates viewers. |
 
 ## Secrets and cryptography
 
@@ -73,13 +97,23 @@ dependencies current. Security fixes are released as patch versions of the suppo
 | --- | --- |
 | `GET /search` | Behind the host's session firewall; the bundle re-checks the user and `role` on every request |
 | Pages group | Only menu entries the menu service returns for the current user (DashboardMenuBundle filters by its permission checkers) |
-| Provider groups | Exactly what each host provider returns |
+| Provider groups | Exactly what each host provider returns (with `access.filter_all_rows`, also what the access checkers allow) |
+| Registry pages, page sources, actions, revalidated recents (1.8.0) | Only what the host's `SearchAccessCheckerInterface` allows (deny by default) |
+| `GET {prefix}/results`, `GET {prefix}/filters`, `POST {prefix}/recent` (1.8.0) | 404 until enabled; same user / `role` / rate-limit guard as the endpoint; recents also need the CSRF token |
 
 ## Host responsibilities (residual risks)
 
 - **Providers:** check permissions exactly like the target pages; never count hidden records; treat `scope` as untrusted
   (unknown or forbidden → null); bound every query (`LIMIT $query->limit`).
 - **Scope resolver:** return a scope only after the access check (the chip shows its label).
+- **Access checker (1.8.0):** implement the same rule as your routes' real access control; abstain (`null`) on routes you
+  do not know rather than allowing them. Decide for `$request->userIdentifier`, **never for the session token**: a
+  search by identifier (`searchFor()`) runs for another user than the HTTP session (audit SP-L3).
+- **Action providers (1.8.0):** the `SearchContext` of the JSON endpoint is client-supplied (kept only when the viewer may
+  open that page); check access before printing anything read from it.
+- **Filter value providers (1.8.0):** honour `$limit` in your query; the bundle cuts the list but reads every value you
+  yield first. Typed filters, suggestions and reference resolvers must resolve values for the
+  viewer and answer "unknown" and "forbidden" identically ([CONTRACT-240](CONTRACT-240.md)).
 - **Rate limiter storage:** shared by every worker / replica (e.g. Redis), or the limit only holds per process.
 - **Icons:** row icons are SVG from your own UX icon set (local files or Iconify) — do not point UX Icons at an
   untrusted icon source, and let providers name icons from a fixed set (never from user data: with on-demand Iconify,

@@ -20,6 +20,9 @@ use Twig\TwigFunction;
  * (`form-control`, `btn` …): the compact header widget keeps its own geometry and is painted by nowo-search.css from
  * the `--nowo-search-*` tokens (which default to the UiKit `--nowo-ui-*` tokens).
  *
+ * `nowo_search_kit_has_ui_kit()` (1.8.0) tells whether UiKit is installed: the results page then renders its tabs and
+ * empty state with the UiKit partials.
+ *
  * `nowo_search_kit_toggle_icon_template()` returns the host partial of the toggle icon (`toggle_icon_template`), or
  * null. It is a function rather than a key of `nowo_search_kit_config()` because that array is printed for the browser.
  *
@@ -40,7 +43,8 @@ final class SearchKitThemeExtension extends AbstractExtension
     }
 
     /**
-     * Registers `nowo_search_kit_ui_class()`, `nowo_search_kit_ui_attrs()` and `nowo_search_kit_toggle_icon_template()`.
+     * Registers `nowo_search_kit_ui_class()`, `nowo_search_kit_ui_attrs()`, `nowo_search_kit_toggle_icon_template()` and
+     * `nowo_search_kit_has_ui_kit()`.
      *
      * @return list<TwigFunction> The Twig functions
      */
@@ -50,6 +54,7 @@ final class SearchKitThemeExtension extends AbstractExtension
             new TwigFunction('nowo_search_kit_ui_class', $this->slotClass(...)),
             new TwigFunction('nowo_search_kit_ui_attrs', $this->slotAttributes(...), ['is_safe' => ['html']]),
             new TwigFunction('nowo_search_kit_toggle_icon_template', fn (): ?string => $this->toggleIconTemplate),
+            new TwigFunction('nowo_search_kit_has_ui_kit', fn (): bool => $this->theme instanceof Theme),
         ];
     }
 

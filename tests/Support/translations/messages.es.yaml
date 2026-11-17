@@ -1,0 +1,9 @@
+test:
+    page:
+        profile: "Ajustes de perfil"
+        profile_keywords: "contraseña, clave, avatar"
+        billing: "Facturación"
+        billing_keywords: "factura, pago"
+        language: "Idioma"
+    crumb:
+        settings: "Ajustes"
