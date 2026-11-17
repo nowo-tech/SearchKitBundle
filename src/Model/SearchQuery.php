@@ -11,6 +11,7 @@ use Nowo\SearchKitBundle\Search\Text\TextNormalizer;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 use function array_values;
+use function count;
 
 /**
  * What a provider searches for: the trimmed text, the optional scope id, the current user's identifier and the row
@@ -225,12 +226,28 @@ final readonly class SearchQuery
     }
 
     /**
+     * Whether a term tolerates typos (the typed text with `matching.fuzzy`).
+     *
+     * @return bool True when the typo tier can run
+     */
+    public function hasFuzzyTerm(): bool
+    {
+        foreach ($this->needles as [, , $fuzzy]) {
+            if ($fuzzy) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Whether the typo tier may match one of a candidate's texts: some fuzzy term (the typed text with
      * `matching.fuzzy`) has every word within its allowed edits of a word of the folded, joined texts. False without a
      * fuzzy term. Lets a caller skip a candidate without folding and comparing its texts one by one.
      *
      * @param string $joined The candidate's texts folded together (TextNormalizer::fold())
-     * @param int $evaluations Incremented by FUZZY_COST per fuzzy term checked, for cost budgets
+     * @param int $evaluations Incremented by the number of candidate words per fuzzy term checked, for cost budgets
      *
      * @return bool True when the typo tier can match
      */
@@ -242,7 +259,8 @@ final readonly class SearchQuery
                 continue;
             }
             $words ??= array_values(array_unique(TextNormalizer::words($joined, 2048)));
-            $evaluations += self::FUZZY_COST;
+            // Charged per candidate word: each one may cost two edit distances.
+            $evaluations += count($words);
             if (TextMatcher::mayMatchFuzzily($needle, $words)) {
                 return true;
             }

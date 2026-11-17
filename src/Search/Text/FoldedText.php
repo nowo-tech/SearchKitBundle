@@ -15,7 +15,7 @@ final readonly class FoldedText
 {
     /**
      * @param string $text The folded text
-     * @param list<string> $words Its words (bounded)
+     * @param list<string> $words Its words (bounded; empty for a haystack: see words())
      */
     private function __construct(
         public string $text,
@@ -38,7 +38,8 @@ final readonly class FoldedText
     }
 
     /**
-     * A haystack: cut to TextMatcher::MAX_HAYSTACK characters and 64 words.
+     * A haystack: cut to TextMatcher::MAX_HAYSTACK characters. Its words are split only when a typo comparison needs
+     * them (words()), not for every candidate text.
      *
      * @param string $haystack Text of a candidate
      *
@@ -48,6 +49,16 @@ final readonly class FoldedText
     {
         $text = TextNormalizer::fold(mb_substr($haystack, 0, TextMatcher::MAX_HAYSTACK));
 
-        return new self($text, TextNormalizer::words($text));
+        return new self($text, []);
+    }
+
+    /**
+     * The words of the text: the needle's own (bounded at construction) or, for a haystack, split now (64 at most).
+     *
+     * @return list<string> The words
+     */
+    public function words(): array
+    {
+        return $this->words !== [] ? $this->words : TextNormalizer::words($this->text);
     }
 }

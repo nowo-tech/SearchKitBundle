@@ -79,7 +79,7 @@ final class TextMatcher
             return 0.6;
         }
 
-        return $fuzzy && $needle->words !== [] ? self::fuzzy($needle->words, $haystack->words) : null;
+        return $fuzzy && $needle->words !== [] ? self::fuzzy($needle->words, $haystack->words()) : null;
     }
 
     /**
@@ -106,7 +106,9 @@ final class TextMatcher
      */
     public static function fuzzyFolded(FoldedText $needle, FoldedText $haystack): ?float
     {
-        return $needle->words !== [] && $haystack->words !== [] ? self::fuzzy($needle->words, $haystack->words) : null;
+        $words = $haystack->words();
+
+        return $needle->words !== [] && $words !== [] ? self::fuzzy($needle->words, $words) : null;
     }
 
     /**

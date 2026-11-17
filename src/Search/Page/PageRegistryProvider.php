@@ -27,6 +27,8 @@ use function count;
 use function in_array;
 use function is_string;
 
+use const PREG_SPLIT_NO_EMPTY;
+
 /**
  * The page registry (1.8.0): `nowo_search_kit.pages` plus the SearchPageSourceInterface entries, in the Pages group.
  *
@@ -57,6 +59,12 @@ final readonly class PageRegistryProvider implements IdentifierAwareSearchProvid
      * rest are not listed (fewer rows, never more) and a notice is logged without the query.
      */
     public const int MAX_EVALUATIONS = 100_000;
+
+    /**
+     * Part of MAX_EVALUATIONS the typo pass may spend (audit SPd-I1): fuzzy matching is the costliest tier, and it runs
+     * only after every exact match is in.
+     */
+    public const int MAX_FUZZY_EVALUATIONS = 40_000;
 
     /** @var list<SearchPage> */
     private array $pages;
@@ -114,16 +122,21 @@ final readonly class PageRegistryProvider implements IdentifierAwareSearchProvid
             $score = $query->mayMatchExactly($texts[4]) ? $this->score($texts, $query, $evaluations, SearchQuery::MATCH_EXACT) : null;
             if ($score !== null) {
                 $found[$url] = $this->item($page, $url, $query->locale, $score);
-            } elseif ($query->mayMatchFuzzily($texts[4], $evaluations)) {
+            } elseif ($query->hasFuzzyTerm()) {
                 $pending[$url] = [$page, $texts];
             }
         }
-        // Pass 2 (typos) on the remaining budget, only for the entries without an exact match whose words come close.
+        // Pass 2 (typos) on the remaining budget (at most MAX_FUZZY_EVALUATIONS), only for the entries without an exact
+        // match whose words come close: every edit-distance computation (the pre-check included) is charged.
+        $ceiling = min(self::MAX_EVALUATIONS, $evaluations + self::MAX_FUZZY_EVALUATIONS);
         foreach ($pending as $url => [$page, $texts]) {
-            if ($evaluations >= self::MAX_EVALUATIONS) {
+            if ($evaluations >= $ceiling) {
                 $this->ceilingReached();
 
                 break;
+            }
+            if (!$query->mayMatchFuzzily($texts[4], $evaluations)) {
+                continue;
             }
             $score = $this->score($texts, $query, $evaluations, SearchQuery::MATCH_FUZZY);
             if ($score !== null) {
@@ -327,7 +340,7 @@ final readonly class PageRegistryProvider implements IdentifierAwareSearchProvid
             return [];
         }
 
-        $keywords = array_values(array_filter(array_map(trim(...), explode(',', $message, self::MAX_KEYWORDS + 1)), static fn (string $word): bool => $word !== ''));
+        $keywords = preg_split('/\s*,[\s,]*/u', trim($message, " \t\n\r\0\x0B,"), self::MAX_KEYWORDS + 1, PREG_SPLIT_NO_EMPTY) ?: [];
         if (count($keywords) > self::MAX_KEYWORDS) {
             // Audit SPd-L2: tell the host its list is longer than what is matched (the key, never the query).
             $this->logger?->debug('Search page keywords {key} ({locale}) cut to {max}: the extra ones are ignored.', ['key' => $key, 'locale' => $locale ?? '-', 'max' => self::MAX_KEYWORDS]);
