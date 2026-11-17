@@ -28,6 +28,7 @@ This bundle is **FrankenPHP worker mode friendly**. See [docs/FRANKENPHP-WORKER-
 - **Optional UiKit integration** (REQ-UI-003): with `nowo-tech/ui-kit-bundle` ^2.2 the widget takes the host classes of the UiKit theme slots and the `--nowo-search-*` tokens follow the UiKit tokens ([templates](docs/TEMPLATES.md))
 - **Overridable Twig blocks**, **theme tokens** (`--nowo-search-*`, light / dark), **Symfony UX Icons** with a built-in SVG fallback
 - Framework-agnostic browser module (auto-mounted IIFE), an optional **Stimulus** wrapper and `nowo-search:state` / `nowo-search:navigate` events (morphing icons, Turbo)
+- **Search everywhere (1.8.0)**, permission-aware and **deny by default** through your `SearchAccessCheckerInterface`: a **page registry** with per-locale keywords (cross-locale, never shown), a **command palette** (`>` for actions), **typed filters** (`is:open`, `assignee:me`, `project:`, `type:`) with chips and visible-only suggestions, accent / case folding, optional **fuzzy** matching, **synonyms** (built-in concept groups in 7 locales), relevance + recency **ranking**, a full **results page** and **safe recents** (references only, re-checked on every display) — see [USAGE](docs/USAGE.md#search-everywhere-180), [SECURITY](docs/SECURITY.md#anti-leak-model-180) and the ports for other bundles in [CONTRACT-240](docs/CONTRACT-240.md)
 - **FrankenPHP worker mode** friendly; 7 locales (en, es, fr, de, it, pt, nl)
 
 ## Installation

@@ -11,6 +11,7 @@
 - [Quick actions](#quick-actions)
 - [Icons](#icons)
 - [Pages group](#pages-group)
+- [Search everywhere (1.8.0)](#search-everywhere-180)
 - [Container parameters](#container-parameters)
 - [Timeouts](#timeouts)
 - [FormKit profile](#formkit-profile)
@@ -66,7 +67,48 @@ nowo_search_kit:
         icon: 'tabler:file'
         priority: 100
         skip_when_scoped: true
+        keywords: {}                # 1.8.0: route name → translation key of comma-separated keywords
+        keywords_translation_domain: messages
+        check_access: false         # 1.8.0: also ask the SearchAccessCheckerInterface per menu entry
+        ranked: null                # 1.8.0: score rows (null: on when pages or keywords are configured)
+    # —— 1.8.0 "search everywhere" (every default keeps a 1.7 host unchanged) ——
+    pages: []                       # page registry, see below
+    page_registry:
+        priority: 90                # position among the providers (rows join the Pages group)
+        locales: [en, es, it, fr, pt, de, nl]   # labels / keywords of these locales match too
+        max_candidates: 500         # entries read per search (configured, then page sources)
+        icon: 'tabler:file'
+    access:
+        filter_all_rows: false      # every provider row must pass the access checkers too
+    actions:
+        prefix: '>'                 # a query starting with it lists actions only ('' disables)
+        in_results: true            # matching provider actions on top of a normal query
+        max_candidates: 200
+    filters:
+        keys: []                    # e.g. [is, assignee, project, type]; empty: no parsing
+        max: 5                      # filters per query
+        values_limit: 10            # autocomplete values per call
+    matching:
+        fuzzy: false                # typo tolerance on the typed text
+    synonyms:
+        enabled: true               # expand with the SearchSynonymProviderInterface services (none by default)
+        builtin_dictionary: false   # register the bundle concept groups (7 locales)
+        locales: [en, es, it, fr, pt, de, nl]
+        max_terms: 24
+    ranking:
+        recency_weight: 0.25
+        recency_half_life_days: 30
+    results_page:
+        enabled: false
+        template: '@NowoSearchKitBundle/results.html.twig'
+        layout: '@NowoSearchKitBundle/results_layout.html.twig'   # your layout: blocks title + body
+        per_group: 10
+        per_page: 20
+        top_results: 5
+        max_page: 50
 ```
+
+`recent.revalidate` (1.8.0, default `false`) stores references only and re-checks them on every display.
 
 ## Options
 
@@ -182,7 +224,35 @@ DashboardMenuBundle's Twig extension (permission-filtered tree) — and lists th
 with a breadcrumb (`label` › parents) and absolute paths, deduplicated by URL. `enabled: true` forces it (container error
 when the service is missing), `false` turns it off.
 
+## Search everywhere (1.8.0)
+
+| Key | Default | Effect |
+| --- | --- | --- |
+| `pages[]` | `[]` | Registry entry: `id` (`[A-Za-z0-9._:-]`), `label` (translation key; plain text with `translation_domain: null`), `translation_domain` (`messages`), `route`, `route_parameters` (scalars), `trail` (list of keys), `icon`, `keywords` (translation key of a comma-separated list), `scope` (`none` / `required`), `scope_parameter` (with `required`), `attribute`, `subject` (passed to the access checker). |
+| `page_registry.priority` | `90` | Provider priority of the registry; its rows merge into the Pages group (deduplicated by URL). |
+| `page_registry.locales` | 7 locales | Labels and keywords of these locales match too (cross-locale); the UI locale ranks first. |
+| `page_registry.max_candidates` | `500` | Bounded cost per search. |
+| `access.filter_all_rows` | `false` | Every provider row needs the access checkers (deny by default) before it is counted, ranked or sent. With no checker every row is dropped. |
+| `actions.prefix` | `>` | Actions-only prefix. Up to 3 symbols; `''` turns it off (a `>` query is then an ordinary query). |
+| `actions.in_results` | `true` | Provider actions matching a normal query come first. Without action providers nothing changes. |
+| `filters.keys` | `[]` | Typed filter keys (`[a-z][a-z0-9_-]{0,31}`). `type` is handled by the engine. |
+| `filters.max` / `filters.values_limit` | `5` / `10` | Filters per query; autocomplete values per call. |
+| `matching.fuzzy` | `false` | Typo tolerance in `SearchQuery::matches()` / `score()` (typed text only). |
+| `synonyms.enabled` | `true` | Expansion through the tagged synonym providers (none unless you add one or turn the dictionary on). |
+| `synonyms.builtin_dictionary` | `false` | Registers `ConceptGroupSynonymProvider` (concept groups, 7 locales). |
+| `synonyms.locales` / `max_terms` | 7 / `24` | Locales asked after the UI locale; alternatives per query. |
+| `ranking.recency_weight` / `recency_half_life_days` | `0.25` / `30` | Boost of a row by its `date`. Only rows with a `score` or a `date` are sorted. |
+| `results_page.*` | off | The results page (`{prefix}/results`): template, layout, rows per group / page, top results, last page. |
+| `recent.revalidate` | `false` | References only + `POST {prefix}/recent` (CSRF, rate limit) on every display. Needs an access checker and resolvers, otherwise the recents stay empty. |
+| `menu_pages.keywords` / `keywords_translation_domain` | `{}` / `messages` | Keywords of menu entries by route name (`getRouteName()`); plain keywords with a null domain. |
+| `menu_pages.check_access` | `false` | Ask the access checkers per menu entry too. |
+| `menu_pages.ranked` | `null` | Score the menu rows (sorted with the registry rows); null: on when `pages` or `keywords` is set. |
+
 ## Container parameters
+
+1.8.0 adds `nowo_search_kit.{pages,quick_actions,results_page,engine_options,features}`, one parameter per key of
+`page_registry`, `access`, `actions`, `filters`, `matching`, `synonyms` and `ranking` (e.g.
+`nowo_search_kit.filters.keys`) and `nowo_search_kit.recent.{revalidate,max}`.
 
 `nowo_search_kit.role`, `.min_length`, `.min_length_exempt_patterns`, `.max_length`, `.per_group`, `.icon_set`, `.toggle_icon_template`, `.icons` (merged with the defaults) and
 `.settings` (the browser-facing subset used by the Twig extension).

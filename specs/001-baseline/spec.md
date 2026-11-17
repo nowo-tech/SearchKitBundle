@@ -4,6 +4,7 @@
 **Status**: Active (1.7.0)
 **Last reviewed**: 2026-11-16
 **Inventory**: [`code-inventory.md`](code-inventory.md) — 100% of the production units under `src/`.
+**Extensions**: [`240-search-everywhere`](../240-search-everywhere/spec.md) (1.8.0).
 
 ## Summary
 

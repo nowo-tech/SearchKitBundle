@@ -3,10 +3,10 @@
 | Field | Value |
 |-------|-------|
 | Package | `nowo-tech/search-kit-bundle` (`symfony-bundle`) |
-| Audited revision | `1.7.0` (`feat/arch-001-b1`, 2026-11-11; first audit `1.0`, 2026-10-16) |
+| Audited revision | `1.8.0` (`feat/240-search-everywhere`, 2026-11-17; earlier `1.7.0`, 2026-11-11; first audit `1.0`, 2026-10-16) |
 | Reviewed version | `v1.7.0` (re-checked 2026-11-12 against the kept-alive test below) |
-| Audit date | 2026-11-12 (earlier: 2026-11-11, first: 2026-10-16) |
-| Method | Manual review of every service under `src/` (17 production units at 1.0, see `specs/001-baseline/code-inventory.md`; the 1.7.0 ports and VOs are interfaces and readonly VOs) + Igor deep audit (`make igor`: 29 service files at 1.7.0, 0 KO) + PHPStan FrankenPHP rulesets |
+| Audit date | 2026-11-17 (earlier: 2026-11-12, 2026-11-11, first: 2026-10-16) |
+| Method | Manual review of every service under `src/` (17 production units at 1.0, see `specs/001-baseline/code-inventory.md`; the 1.7.0 ports and VOs are interfaces and readonly VOs) + Igor deep audit (`make igor`: 29 service files at 1.7.0, 63 at 1.8.0, 0 KO) + PHPStan FrankenPHP rulesets |
 | **Verdict** | ✅ **Viable under scenario B** — every service is stateless; nothing is memoized |
 
 ## Table of contents
@@ -30,6 +30,7 @@ A bundle that is safe under **B** is safe under **A** and under classic mode / P
 | Area | Status | Notes |
 |------|--------|-------|
 | Mutable state in shared services | ✅ | `SearchEngine`, `SearchController`, `SearchIcons`, `MenuPagesProvider` are `final readonly`; `SearchKitExtension` and `NullScopeResolver` hold only injected collaborators and configuration. |
+| 1.8.0 services | ✅ | `SearchAccess`, `SearchFilterParser`, `SynonymExpander`, `SearchRanker`, `ActionCollector`, `PageRegistryProvider`, `RecentResolver`, `EndpointGuard` and the three new controllers are `final readonly` with injected collaborators and configuration only. `ConceptGroupSynonymProvider` builds its word index once in the constructor and never changes it (request-independent). `TextNormalizer` / `TextMatcher` are pure static functions. `SearchAccess` matches a recent URL as a GET by setting a fresh `RequestContext` on the router for that one call and putting the request's own context back in `finally` (annotated `@igor-ignore` with that reason). Kept-alive coverage: `SearchEverywhereTest::testOneKeptAliveKernelServesEachViewerOnlyTheirOwnRows` alternates alice / bob in one kernel (totals, filters). |
 | Caches | ✅ | None in the bundle. The rate limiter state lives in the framework limiter storage (shared cache pool). |
 | Static properties / `static` locals | ✅ | None |
 | Request / user / locale captured in services | ✅ | The controller and the Twig extension read the user and the main request per call; no service stores them. Since 1.7.0 the `SearchContext` VO given to the scope resolver is built per call by the static, stateless `SearchContextFactory` and never kept. |
