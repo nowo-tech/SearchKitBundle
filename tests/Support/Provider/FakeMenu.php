@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Nowo\SearchKitBundle\Tests\Support\Provider;
 
+use function is_string;
+
 /**
  * Stand-in for DashboardMenuBundle's MenuExtension: getMenuTree() / getHref() over plain item objects.
  */
@@ -21,9 +23,9 @@ final class FakeMenu
         return $this->trees[$code] ?? [];
     }
 
-    public function getHref(FakeMenuItem $item, int $referenceType = 0): string
+    public function getHref(object $item, int $referenceType = 0): string
     {
-        return $item->href;
+        return property_exists($item, 'href') && is_string($item->href) ? $item->href : '';
     }
 
     /**

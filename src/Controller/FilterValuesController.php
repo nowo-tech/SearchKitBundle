@@ -77,9 +77,6 @@ final readonly class FilterValuesController
         $values = [];
         if (in_array($key, $this->keys, true)) {
             foreach ($this->providers as $provider) {
-                if (count($values) >= $this->limit) {
-                    break;
-                }
                 try {
                     if (!$provider->supportsKey($key)) {
                         continue;

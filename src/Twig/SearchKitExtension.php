@@ -62,7 +62,7 @@ final class SearchKitExtension extends AbstractExtension
      * @param string $secret Keys the per-user suffix of the recents storage key (`kernel.secret`)
      * @param SearchContextScopeResolverInterface|null $contextScopes Resolver port on the SearchContext VO (1.7.0); wins
      *                                                                over $scopes when the host aliases it
-     * @param ActionCollector|null $actions Provider actions / quick actions (1.8.0); null: the quick actions of $settings
+     * @param ActionCollector|null $actions Provider actions / quick actions (1.8.0; the bundle always wires it)
      * @param CsrfTokenManagerInterface|null $csrf Token of the recents revalidation (1.8.0)
      * @param array{action_prefix?: string, filter_keys?: list<string>, results?: bool, revalidate?: bool} $features 1.8.0 switches
      * @param array{role: string, min_length: int, min_length_exempt_patterns?: list<string>, max_length: int, debounce_ms: int, keyboard_shortcuts: bool, recent: array{enabled: bool, max: int, storage_key: string}, quick_actions: list<array{label: string, translation_domain: string|null, route: string|null, route_parameters: array<string, scalar>, url: string|null, kind: string, role: string|null}>, assets: array{stylesheet: bool, script: bool, popover_stylesheet?: false|string|null}} $settings Bundle configuration
@@ -193,11 +193,8 @@ final class SearchKitExtension extends AbstractExtension
      */
     private function emptyQueryActions(?UserInterface $user, ?array $scope): array
     {
-        if (!$this->actions instanceof ActionCollector) {
-            return $this->configuredActions();
-        }
-        if (!$this->actions->hasProviders() || !$user instanceof UserInterface) {
-            return $this->actions->quickActionRows();
+        if (!$this->actions instanceof ActionCollector || !$this->actions->hasProviders() || !$user instanceof UserInterface) {
+            return $this->actions?->quickActionRows() ?? [];
         }
         $request = $this->requestStack->getMainRequest();
         $context = $request instanceof Request ? SearchContextFactory::create($request, $user) : new SearchContext($user->getUserIdentifier(), '');
@@ -294,27 +291,6 @@ final class SearchKitExtension extends AbstractExtension
                 'subtitle' => is_string($action['subtitle'] ?? null) ? $action['subtitle'] : '',
                 'url'      => $action['url'],
                 'kind'     => is_string($action['kind'] ?? null) ? $action['kind'] : 'action',
-            ];
-        }
-
-        return $rows;
-    }
-
-    /**
-     * @return list<array{title: string, subtitle: string, url: string, kind: string}>
-     */
-    private function configuredActions(): array
-    {
-        $rows = [];
-        foreach ($this->settings['quick_actions'] as $action) {
-            if ($action['role'] !== null && !$this->security->isGranted($action['role'])) {
-                continue;
-            }
-            $rows[] = [
-                'title'    => $this->translator->trans($action['label'], [], $action['translation_domain']),
-                'subtitle' => '',
-                'url'      => $action['route'] !== null ? $this->urls->generate($action['route'], $action['route_parameters']) : (string) $action['url'],
-                'kind'     => $action['kind'],
             ];
         }
 

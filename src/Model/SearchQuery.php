@@ -29,7 +29,7 @@ final readonly class SearchQuery
     /** The signed-in user's identifier: providers check permissions against it. */
     public string $userIdentifier;
 
-    /** @var list<SearchFilter> Typed filters (1.8.0), already removed from $text */
+    /** @var list<SearchFilter> Typed filters (1.8.0), already removed from */
     public array $filters;
 
     /** @var list<SearchTerm> Synonym alternatives (1.8.0), without the typed text (see terms()) */
@@ -69,7 +69,7 @@ final readonly class SearchQuery
     ) {
         $this->filters      = array_values($filters);
         $this->alternatives = array_values($terms);
-        $fromUser = $user?->getUserIdentifier();
+        $fromUser           = $user?->getUserIdentifier();
         if ($userIdentifier === null && $fromUser === null) {
             throw new InvalidArgumentException('A search query needs the user identifier.');
         }

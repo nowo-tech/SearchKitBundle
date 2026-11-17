@@ -16,6 +16,8 @@ use function count;
 use function in_array;
 use function is_string;
 
+use const PREG_SPLIT_NO_EMPTY;
+
 /**
  * Expands the query into synonym alternatives before the providers run (1.8.0): SearchQuery::terms().
  *

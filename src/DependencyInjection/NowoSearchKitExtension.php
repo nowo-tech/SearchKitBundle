@@ -146,10 +146,10 @@ final class NowoSearchKitExtension extends Extension implements PrependExtension
         }
 
         // Lists, whatever the configuration format wrote (a YAML map would reach the services keyed).
-        $config['pages']                      = array_values($config['pages']);
-        $config['filters']['keys']            = array_values(array_unique($config['filters']['keys']));
-        $config['page_registry']['locales']   = array_values($config['page_registry']['locales']);
-        $config['synonyms']['locales']        = array_values($config['synonyms']['locales']);
+        $config['pages']                    = array_values($config['pages']);
+        $config['filters']['keys']          = array_values(array_unique($config['filters']['keys']));
+        $config['page_registry']['locales'] = array_values($config['page_registry']['locales']);
+        $config['synonyms']['locales']      = array_values($config['synonyms']['locales']);
         foreach ($config['pages'] as $index => $page) {
             $config['pages'][$index]['trail'] = array_values((array) $page['trail']);
         }

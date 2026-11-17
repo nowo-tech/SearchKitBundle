@@ -115,7 +115,7 @@ final readonly class SearchController
     private function context(Request $request, UserInterface $user): SearchContext
     {
         $from      = mb_substr($request->query->getString('from'), 0, 512);
-        $from      = SearchItem::isSafeUrl($from) && str_starts_with($from, '/') ? (string) strtok($from, '?#') : '';
+        $from      = SearchItem::isSafeUrl($from) && str_starts_with($from, '/') ? strtok($from, '?#') : '';
         $reference = $from !== '' ? $this->access?->referenceFor($from, 'page') : null;
 
         return new SearchContext($user->getUserIdentifier(), $from, $reference?->route, $reference->routeParameters ?? [], $request->getLocale(), array_values($user->getRoles()));

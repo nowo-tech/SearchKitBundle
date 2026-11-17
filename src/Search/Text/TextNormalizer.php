@@ -6,6 +6,8 @@ namespace Nowo\SearchKitBundle\Search\Text;
 
 use function array_slice;
 
+use const PREG_SPLIT_NO_EMPTY;
+
 /**
  * Case and accent folding for in-memory matching (1.8.0): `Contraseña` and `contrasena` compare equal, as do
  * `Übersicht` / `ubersicht` and `Straße` / `strasse`. A fixed table covers the Latin letters of the seven bundle

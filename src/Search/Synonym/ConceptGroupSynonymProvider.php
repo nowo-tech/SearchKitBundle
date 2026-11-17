@@ -28,7 +28,7 @@ final readonly class ConceptGroupSynonymProvider implements SearchSynonymProvide
     /** @var list<array<string, list<string>>> */
     private array $groups;
 
-    /** @var array<string, list<int>> Folded word → indexes in $groups */
+    /** @var array<string, list<int>> Folded word → indexes in */
     private array $index;
 
     /**

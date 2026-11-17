@@ -145,8 +145,8 @@ final readonly class SearchEngine implements SearchEngineInterface
 
         $groups = [];
         $action = null;
-        if ($this->actions instanceof ActionCollector && ($actionsOnly || $this->actionsInResults($query))) {
-            $action = $this->actionGroup($query, $request);
+        if ($this->actions instanceof ActionCollector && ($actionsOnly || $this->actionsInResults($this->actions, $query))) {
+            $action = $this->actionGroup($this->actions, $query, $request);
             if ($action instanceof SearchGroup) {
                 $groups[] = $action;
             }
@@ -233,7 +233,7 @@ final readonly class SearchEngine implements SearchEngineInterface
 
         [$text, $filters] = $this->filters instanceof SearchFilterParser ? $this->filters->parse($text) : [$text, []];
         $short            = mb_strlen($text) < $this->minLength;
-        if ($short && ($filters === [] || $text !== '') && !($filters === [] && $this->isExempt($text))) {
+        if ($short && ($filters === [] || $text !== '') && ($filters !== [] || !$this->isExempt($text))) {
             return null;
         }
         $exempt = $short && $filters === [];
@@ -299,23 +299,19 @@ final readonly class SearchEngine implements SearchEngineInterface
     /**
      * Whether the Actions group goes on top of a normal query: providers registered, no filter, a real query.
      */
-    private function actionsInResults(SearchQuery $query): bool
+    private function actionsInResults(ActionCollector $actions, SearchQuery $query): bool
     {
         return ($this->options['actions_in_results'] ?? true)
             && !$query->belowMinLength
             && !$query->hasFilters()
-            && $this->actions instanceof ActionCollector
-            && $this->actions->hasProviders();
+            && $actions->hasProviders();
     }
 
-    private function actionGroup(SearchQuery $query, SearchRequest $request): ?SearchGroup
+    private function actionGroup(ActionCollector $actions, SearchQuery $query, SearchRequest $request): ?SearchGroup
     {
-        if (!$this->actions instanceof ActionCollector) {
-            return null;
-        }
         $context = $request->context ?? new SearchContext($request->userIdentifier, '', null, [], $request->locale, $request->user instanceof UserInterface ? array_values($request->user->getRoles()) : []);
         try {
-            return $this->actions->search($query, $context, $request->user instanceof UserInterface, $query->limit);
+            return $actions->search($query, $context, $request->user instanceof UserInterface, $query->limit);
         } catch (Throwable $exception) {
             $this->logger?->error('Search actions failed: {exception}.', ['exception' => $exception::class]);
 
@@ -345,7 +341,7 @@ final readonly class SearchEngine implements SearchEngineInterface
 
         $result = [];
         foreach ($merged as $key => $group) {
-            if (!$this->typeAllows((string) $key, $query->filtersOf(self::TYPE_FILTER))) {
+            if (!$this->typeAllows($key, $query->filtersOf(self::TYPE_FILTER))) {
                 continue;
             }
             $group    = $this->ranker instanceof SearchRanker ? $this->ranker->sort($group, $now) : $group;

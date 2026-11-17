@@ -8,6 +8,12 @@ use Nowo\FormKitBundle\NowoFormKitBundle;
 use Nowo\SearchKitBundle\Contract\SearchContextScopeResolverInterface;
 use Nowo\SearchKitBundle\Contract\SearchScopeResolverInterface;
 use Nowo\SearchKitBundle\NowoSearchKitBundle;
+use Nowo\SearchKitBundle\Tests\Support\Everywhere\AssigneeValues;
+use Nowo\SearchKitBundle\Tests\Support\Everywhere\HostActions;
+use Nowo\SearchKitBundle\Tests\Support\Everywhere\IssuesProvider;
+use Nowo\SearchKitBundle\Tests\Support\Everywhere\ProjectTabs;
+use Nowo\SearchKitBundle\Tests\Support\Everywhere\RouteAccessChecker;
+use Nowo\SearchKitBundle\Tests\Support\Everywhere\VetoChecker;
 use Nowo\SearchKitBundle\Tests\Support\Provider\ContextScopeResolver;
 use Nowo\SearchKitBundle\Tests\Support\Provider\DualScopeResolver;
 use Nowo\SearchKitBundle\Tests\Support\Provider\FailingProvider;
@@ -67,8 +73,9 @@ final class TestKernel extends Kernel
      * @param bool $withUxIcons Register symfony/ux-icons
      * @param array<string, mixed>|null $uiKitConfig Register nowo-tech/ui-kit-bundle with this `nowo_ui_kit` config (null: no UiKit)
      * @param string $scopePort Which resolver port the host wires (self::SCOPE_*)
+     * @param bool $everywhere Register the 1.8.0 host services (access checkers, actions, page source, issues, values)
      */
-    public function __construct(private readonly array $searchKitConfig = [], private readonly bool $withUxIcons = true, private readonly ?array $uiKitConfig = null, private readonly string $scopePort = self::SCOPE_CONTEXT)
+    public function __construct(private readonly array $searchKitConfig = [], private readonly bool $withUxIcons = true, private readonly ?array $uiKitConfig = null, private readonly string $scopePort = self::SCOPE_CONTEXT, private readonly bool $everywhere = false)
     {
         parent::__construct('test', false);
     }
@@ -97,7 +104,7 @@ final class TestKernel extends Kernel
 
     public function getCacheDir(): string
     {
-        return sys_get_temp_dir() . '/nowo-search-kit-bundle/' . md5(serialize([$this->searchKitConfig, $this->withUxIcons, $this->uiKitConfig, $this->scopePort])) . '/cache';
+        return sys_get_temp_dir() . '/nowo-search-kit-bundle/' . md5(serialize([$this->searchKitConfig, $this->withUxIcons, $this->uiKitConfig, $this->scopePort, $this->everywhere])) . '/cache';
     }
 
     public function getLogDir(): string
@@ -115,7 +122,7 @@ final class TestKernel extends Kernel
             'php_errors'            => ['log' => true],
             'assets'                => ['enabled' => true],
             'form'                  => ['enabled' => true],
-            'translator'            => ['enabled' => true, 'fallbacks' => ['en']],
+            'translator'            => ['enabled' => true, 'fallbacks' => ['en'], 'paths' => [__DIR__ . '/translations']],
             'default_locale'        => 'en',
             'session'               => ['storage_factory_id' => 'session.storage.factory.mock_file'],
             // Filesystem, not array: the services resetter empties array pools between browser requests.
@@ -164,6 +171,14 @@ final class TestKernel extends Kernel
             default => $services->alias(SearchContextScopeResolverInterface::class, ContextScopeResolver::class),
         };
         $services->set('app.fake_menu', FakeMenu::class)->factory([FakeMenu::class, 'demo']);
+        if ($this->everywhere) {
+            $services->set(RouteAccessChecker::class);
+            $services->set(VetoChecker::class);
+            $services->set(HostActions::class);
+            $services->set(ProjectTabs::class);
+            $services->set(IssuesProvider::class)->tag('nowo_search_kit.provider', ['priority' => 40]);
+            $services->set(AssigneeValues::class);
+        }
         $services->alias(self::ASSET_PACKAGES_ALIAS, 'assets.packages')->public();
         $services->set(self::TRANSLATOR_COLLECTOR, DataCollectorTranslator::class)
             ->decorate('translator')->args([service('.inner')])->public();
@@ -175,6 +190,13 @@ final class TestKernel extends Kernel
         $routes->add('test_page', '/page')->controller([self::class, 'page']);
         $routes->add('test_project_page', '/projects/{id}/page')->controller([self::class, 'page']);
         $routes->add('test_attrs_page', '/page-attrs')->controller([self::class, 'attrsPage']);
+        // 1.8.0 targets (registry pages, actions, issues).
+        $routes->add('test_admin', '/admin')->controller([self::class, 'page']);
+        $routes->add('test_settings', '/settings/{section}')->controller([self::class, 'page']);
+        $routes->add('test_new_issue', '/issues/new')->controller([self::class, 'page']);
+        $routes->add('test_issue', '/issues/{id}')->controller([self::class, 'page'])->requirements(['id' => '\d+']);
+        $routes->add('test_project_tab', '/projects/{id}/tabs/{tab}')->controller([self::class, 'page']);
+        $routes->add('test_post_only', '/post-only')->controller([self::class, 'page'])->methods(['POST']);
     }
 
     /** A signed-in page of the host application: renders the header search. */

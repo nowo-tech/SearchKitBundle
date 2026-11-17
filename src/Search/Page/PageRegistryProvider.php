@@ -46,7 +46,7 @@ final readonly class PageRegistryProvider implements IdentifierAwareSearchProvid
     private array $pages;
 
     /**
-     * @param list<array<string, mixed>> $pages Normalised `nowo_search_kit.pages` rows
+     * @param list<array{id: string, label: string, translation_domain: string|null, route: string, route_parameters: array<string, scalar|null>, trail: list<string>, icon: string|null, keywords: string|null, scope: string, attribute: string|null, subject: string|null, scope_parameter: string|null}> $pages Normalised `nowo_search_kit.pages` rows
      * @param iterable<SearchPageSourceInterface> $sources Tagged page sources
      * @param SearchAccess $access Access checkers (deny by default)
      * @param UrlGeneratorInterface $urls Builds the page URLs
@@ -67,7 +67,7 @@ final readonly class PageRegistryProvider implements IdentifierAwareSearchProvid
         private string $defaultIcon = 'tabler:file',
         private ?LoggerInterface $logger = null,
     ) {
-        /** @var list<array{id: string, label: string, translation_domain: string|null, route: string, route_parameters: array<string, scalar|null>, trail: list<string>, icon: string|null, keywords: string|null, scope: string, attribute: string|null, subject: string|null, scope_parameter: string|null}> $pages */
+        /* @var list<array{id: string, label: string, translation_domain: string|null, route: string, route_parameters: array<string, scalar|null>, trail: list<string>, icon: string|null, keywords: string|null, scope: string, attribute: string|null, subject: string|null, scope_parameter: string|null}> $pages */
         $this->pages = array_map(SearchPage::fromConfig(...), $pages);
     }
 
@@ -170,12 +170,9 @@ final readonly class PageRegistryProvider implements IdentifierAwareSearchProvid
         } catch (Throwable) {
             return null;
         }
-        if (!SearchItem::isSafeUrl($url)) {
-            return null;
-        }
         $request = new SearchAccessRequest($userIdentifier, $url, $page->route, $parameters, $kind, $page->attribute, $page->subject, $scope);
 
-        return $this->access->isAllowed($request) ? $url : null;
+        return SearchItem::isSafeUrl($url) && $this->access->isAllowed($request) ? $url : null;
     }
 
     private function score(SearchPage $page, SearchQuery $query): ?float

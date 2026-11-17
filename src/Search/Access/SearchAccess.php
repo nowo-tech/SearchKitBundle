@@ -9,6 +9,7 @@ use Nowo\SearchKitBundle\Model\SearchAccessRequest;
 use Nowo\SearchKitBundle\Model\SearchItem;
 use Nowo\SearchKitBundle\Model\SearchReference;
 use Psr\Log\LoggerInterface;
+use Symfony\Component\Routing\RequestContext;
 use Symfony\Component\Routing\RouterInterface;
 use Throwable;
 
@@ -137,9 +138,9 @@ final readonly class SearchAccess
         $original = $this->router->getContext();
         $swap     = $original->getMethod() !== 'GET';
         if ($swap) {
-            $context = clone $original;
-            $context->setMethod('GET');
-            $this->router->setContext($context);
+            // A fresh GET context for this one match; the request's own context object is put back in `finally`.
+            // @igor-ignore - Scoped to this call only, restored below (FrankenPHP worker safe)
+            $this->router->setContext(new RequestContext($original->getBaseUrl(), 'GET', $original->getHost(), $original->getScheme(), $original->getHttpPort(), $original->getHttpsPort(), $original->getPathInfo(), $original->getQueryString()));
         }
         try {
             $attributes = $this->router->match($path);
@@ -147,13 +148,11 @@ final readonly class SearchAccess
             return null;
         } finally {
             if ($swap) {
+                // @igor-ignore - Restores the request's own context (same object as before the call)
                 $this->router->setContext($original);
             }
         }
-        $route = $attributes['_route'] ?? null;
-        if (!is_string($route)) {
-            return null;
-        }
+        $route      = $attributes['_route'] ?? null;
         $parameters = [];
         foreach ($attributes as $name => $value) {
             if (is_string($name) && !str_starts_with($name, '_') && ($value === null || is_scalar($value))) {
@@ -161,6 +160,6 @@ final readonly class SearchAccess
             }
         }
 
-        return [$route, $parameters];
+        return is_string($route) ? [$route, $parameters] : null;
     }
 }

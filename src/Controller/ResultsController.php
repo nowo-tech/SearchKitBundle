@@ -105,7 +105,7 @@ final readonly class ResultsController
         $group = preg_match(self::GROUP, $group) === 1 ? $group : null;
         $page  = max(1, min($this->settings['max_page'], $request->query->getInt('page', 1)));
 
-        $view = ['query' => $q, 'scope' => $scope, 'group' => null, 'tabs' => [], 'groups' => [], 'top' => [], 'rows' => [], 'filters' => [], 'page' => $page, 'prev' => null, 'next' => null, 'error' => null, 'actions_only' => false];
+        $view   = ['query' => $q, 'scope' => $scope, 'group' => null, 'tabs' => [], 'groups' => [], 'top' => [], 'rows' => [], 'filters' => [], 'page' => $page, 'prev' => null, 'next' => null, 'error' => null, 'actions_only' => false];
         $status = Response::HTTP_OK;
         if (!$this->guard->accepts($user)) {
             $view['error'] = 'rate_limited';
@@ -138,7 +138,7 @@ final readonly class ResultsController
         $result = $this->engine->execute($search);
 
         $view['actions_only'] = $result->actionsOnly;
-        $view['filters']      = array_map(fn (SearchFilter $filter): array => $filter->toArray() + ['remove' => $this->link($this->without($result->filters, $filter, $result->query?->text ?? ''), $scope, null, 1)], $result->filters);
+        $view['filters']      = array_map(fn (SearchFilter $filter): array => $filter->toArray() + ['remove' => $this->link($this->without($result->filters, $filter, $result->query->text ?? ''), $scope, null, 1)], $result->filters);
         $view['tabs']         = array_map(fn (SearchGroup $g): array => ['key' => $g->key, 'label' => $g->label, 'count' => count($g->items), 'url' => $this->link($q, $scope, $g->key, 1)], $result->groups);
         $keys                 = array_column($view['tabs'], 'key');
 
@@ -152,7 +152,7 @@ final readonly class ResultsController
         $view['group'] = $group;
         $perPage       = $this->settings['per_page'];
         if ($this->engine->isPaginated($group)) {
-            $rows = $this->engine->page($search, $group, $page, $perPage)?->items ?? [];
+            $rows = $this->engine->page($search, $group, $page, $perPage)->items ?? [];
             if ($page > 1) {
                 $view['prev'] = $this->link($q, $scope, $group, $page - 1);
             }

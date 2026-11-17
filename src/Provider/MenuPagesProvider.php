@@ -122,7 +122,7 @@ final readonly class MenuPagesProvider implements SearchProviderInterface, Searc
         }
         $found = null;
         $this->walk(function (object $item, string $label, string $href, string $trail) use ($reference, &$found): void {
-            if ($found === null && $href === $reference->url) {
+            if (!$found instanceof SearchItem && $href === $reference->url) {
                 $found = $this->row($item, $label, $href, $trail, null);
             }
         });

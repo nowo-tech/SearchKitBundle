@@ -39,7 +39,7 @@ final readonly class EndpointGuard
     /**
      * The signed-in user, or the error answer.
      *
-     * @return UserInterface|JsonResponse The user, or 401 / 403 / 429 JSON
+     * @return JsonResponse|UserInterface The user, or 401 / 403 / 429 JSON
      */
     public function check(): UserInterface|JsonResponse
     {
