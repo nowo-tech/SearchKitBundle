@@ -433,7 +433,10 @@ values the viewer may see. **Resolve every value for the viewer and answer an un
 distance 1 for 4–6 letters, 2 from 7). Cost is bounded: 64 characters and 8 words of needle, 512 characters and 64 words
 of haystack, `page_registry.max_candidates` / `actions.max_candidates` candidates, and at most 100,000 comparisons per
 registry search: the exact tiers run over every visible entry first, typos only on the remaining budget (at most
-40,000), so an exact match is never dropped for the cost of fuzzy matching.
+40,000), so an exact match is never dropped for the cost of fuzzy matching. Typos are compared tier by tier across the
+entries (labels first, then breadcrumbs and keywords) and each comparison is charged for the words it reads, so a
+registry of 150 entries × 8 keywords × 7 locales lists every typo match, and a larger one that reaches the budget
+drops the least relevant matches first (1.8.1).
 
 `SearchSynonymProviderInterface::synonymsOf(word, locale)` services expand the query before providers run
 (`SearchQuery::terms()`: the typed text, then the alternatives, UI locale first). `synonyms.builtin_dictionary: true`

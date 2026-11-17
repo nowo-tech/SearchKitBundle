@@ -34,6 +34,9 @@ final class TextMatcher
     /** Longest haystack compared (characters). */
     public const int MAX_HAYSTACK = 512;
 
+    /** Best score of the typo tier (no edit); each edit takes 0.05 off it, down to 0.1. */
+    public const float FUZZY_MAX = 0.5;
+
     /** Longest word compared by edit distance (bytes, after folding). */
     private const int MAX_FUZZY_WORD = 32;
 
@@ -93,7 +96,21 @@ final class TextMatcher
      */
     public static function mayMatchFuzzily(FoldedText $needle, array $words): bool
     {
-        return $needle->words !== [] && self::fuzzy($needle->words, $words) !== null;
+        return self::fuzzyWords($needle, $words) !== null;
+    }
+
+    /**
+     * Typo score of a needle against a list of words (1.8.1): what the typo tier gives a text with exactly these words.
+     * For a one-word needle and the words of several texts merged, it equals the best typo score of those texts.
+     *
+     * @param FoldedText $needle FoldedText::needle()
+     * @param list<string> $words Folded words (deduplicate them first)
+     *
+     * @return float|null The fuzzy score, or null
+     */
+    public static function fuzzyWords(FoldedText $needle, array $words): ?float
+    {
+        return $needle->words !== [] && $words !== [] ? self::fuzzy($needle->words, $words) : null;
     }
 
     /**
@@ -106,9 +123,7 @@ final class TextMatcher
      */
     public static function fuzzyFolded(FoldedText $needle, FoldedText $haystack): ?float
     {
-        $words = $haystack->words();
-
-        return $needle->words !== [] && $words !== [] ? self::fuzzy($needle->words, $words) : null;
+        return self::fuzzyWords($needle, $haystack->words());
     }
 
     /**
@@ -195,6 +210,6 @@ final class TextMatcher
             $edits += $best;
         }
 
-        return max(0.1, 0.5 - 0.05 * $edits);
+        return max(0.1, self::FUZZY_MAX - 0.05 * $edits);
     }
 }

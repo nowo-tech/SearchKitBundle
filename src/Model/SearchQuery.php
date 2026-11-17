@@ -207,6 +207,52 @@ final readonly class SearchQuery
     }
 
     /**
+     * The typo tier of score() (what scoreFolded() gives in MATCH_FUZZY mode) at a cost proportional to the work done
+     * (1.8.1, audit SP3-L1): the distinct words of the texts are taken once (FoldedText::wordsOf()) and each fuzzy term
+     * is compared with them. For a one-word term that is the score itself (the closest word wins wherever it is); a
+     * term of several words, whose words must all come close in one text, is then compared text by text, only when the
+     * merged words came close. A term that cannot beat the best score so far is not compared.
+     *
+     * @param list<string> $texts Raw texts of a candidate
+     * @param int $evaluations Incremented by the work done, for cost budgets: one per text (folding), one per distinct
+     *                         word and fuzzy term (at most two edit distances per term word), FUZZY_COST per text
+     *                         compared one by one
+     *
+     * @return float|null The typo score in ]0, TextMatcher::FUZZY_MAX], or null when no typo matches
+     */
+    public function scoreTypos(array $texts, int &$evaluations = 0): ?float
+    {
+        $words  = null;
+        $folded = null;
+        $best   = null;
+        foreach ($this->needles as [$needle, $weight, $fuzzy]) {
+            if (!$fuzzy || ($best !== null && $best >= $weight * TextMatcher::FUZZY_MAX)) {
+                continue;
+            }
+            if ($words === null) {
+                $evaluations += count($texts);
+                $words = FoldedText::wordsOf($texts);
+            }
+            $evaluations += count($words);
+            $found = TextMatcher::fuzzyWords($needle, $words);
+            if ($found !== null && count($needle->words) > 1 && count($texts) > 1) {
+                $folded ??= array_map(FoldedText::haystack(...), $texts);
+                $found = null;
+                foreach ($folded as $haystack) {
+                    $evaluations += self::FUZZY_COST;
+                    $score = TextMatcher::fuzzyFolded($needle, $haystack);
+                    $found = $score !== null && ($found === null || $score > $found) ? $score : $found;
+                }
+            }
+            if ($found !== null && ($best === null || $found * $weight > $best)) {
+                $best = $found * $weight;
+            }
+        }
+
+        return $best;
+    }
+
+    /**
      * Whether some term could match one of these texts exactly: every word of a term occurs in the folded, joined texts
      * (a necessary condition of every exact tier). Lets a caller skip folding a candidate's texts one by one.
      *

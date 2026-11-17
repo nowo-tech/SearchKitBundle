@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+  - [Fixed](#fixed)
 - [[1.8.0] - 2026-11-17](#180---2026-11-17)
   - [Added](#added)
   - [Changed](#changed)
@@ -30,27 +31,52 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   - [Changed](#changed-4)
 - [[1.2.1] - 2026-10-30](#121---2026-10-30)
   - [Changed](#changed-5)
-  - [Fixed](#fixed)
+  - [Fixed](#fixed-1)
 - [[1.2.0] - 2026-10-23](#120---2026-10-23)
   - [Added](#added-4)
 - [[1.1.1] - 2026-10-22](#111---2026-10-22)
   - [Changed](#changed-6)
-  - [Fixed](#fixed-1)
+  - [Fixed](#fixed-2)
 - [[1.1.0] - 2026-10-18](#110---2026-10-18)
   - [Added](#added-5)
   - [Changed](#changed-7)
 - [[1.0.3] - 2026-10-18](#103---2026-10-18)
-  - [Fixed](#fixed-2)
+  - [Fixed](#fixed-3)
 - [[1.0.2] - 2026-10-16](#102---2026-10-16)
   - [Added](#added-6)
-  - [Fixed](#fixed-3)
+  - [Fixed](#fixed-4)
 - [[1.0.1] - 2026-10-16](#101---2026-10-16)
   - [Security](#security-1)
-  - [Fixed](#fixed-4)
+  - [Fixed](#fixed-5)
 - [[1.0.0] - 2026-10-16](#100---2026-10-16)
   - [Added](#added-7)
 
 ## [Unreleased]
+
+Target: **1.8.1** (patch).
+
+### Fixed
+
+- Fuzzy matching (`matching.fuzzy: true`) in the page registry lists every typo match of a Beacon-size registry
+  (audit SP3-L1). The typo pass used to charge every distinct word of an entry's 7-locale texts plus 16 per text, so
+  its 40,000 budget covered about 36 entries, cut in configuration order: 150 entries × 8 keywords × 7 locales, all
+  carrying `password`, listed 38 of 150 rows for `paswword`. Now:
+  - the typo pass runs tier by tier across every entry without an exact match (all the labels, then the breadcrumbs,
+    the UI-locale keywords, the other locales), so a larger registry that reaches the budget drops the least relevant
+    texts, not the last entries;
+  - a tier that cannot beat an entry's best score (its weight × 0.5, the best typo score) is skipped, which leaves the
+    ranking equal to comparing every tier;
+  - a tier costs what is done: one per text, one per distinct word (new `SearchQuery::scoreTypos()`, words merged once
+    by new `FoldedText::wordsOf()`), and 16 per text only for a multi-word query whose words came close.
+
+  The auditor's shape now lists 150 of 150 rows (500 × 30 × 7: 500 of 500, was 25). The budgets are unchanged
+  (`MAX_EVALUATIONS` 100,000, `MAX_FUZZY_EVALUATIONS` 40,000); exact matches are still never lost, access is still
+  checked before any scoring, and the ceiling notice holds no query text (it is now logged once per search).
+- An exact registry entry scoring below what a label typo can give (0.5) also has its label compared for typos and keeps
+  the better score (audit SP3-I1): label "Passwort settings" with the keyword "superclave", query `password` with the
+  synonym `clave`, now ranks 0.45 instead of 0.402.
+- `TextMatcher::FUZZY_MAX` (0.5) and `TextMatcher::fuzzyWords()` are public; `SearchQuery::mayMatchFuzzily()` is kept
+  but no longer used by the registry.
 
 ## [1.8.0] - 2026-11-17
 
