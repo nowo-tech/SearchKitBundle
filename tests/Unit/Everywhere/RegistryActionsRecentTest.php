@@ -98,12 +98,14 @@ final class RegistryActionsRecentTest extends TestCase
         $logger = Fixtures::logger();
         $pages  = [];
         for ($i = 0; $i < 400; ++$i) {
-            $pages[] = ['id' => 'p' . $i, 'label' => 'Entry ' . $i, 'translation_domain' => null, 'route' => 'issue', 'route_parameters' => ['id' => $i], 'trail' => [], 'icon' => null, 'keywords' => implode(', ', range(1, 32)), 'scope' => 'none', 'attribute' => null, 'subject' => null, 'scope_parameter' => null];
+            // 31 keywords of distinct words, then the one a typo comes close to.
+            $keywords = implode(', ', [...array_map(static fn (int $k): string => 'fill' . $i . 'x' . $k . ' word' . $k . ' tail' . $k . ' more' . $i, range(1, 31)), 'archive']);
+            $pages[]  = ['id' => 'p' . $i, 'label' => 'Entry ' . $i, 'translation_domain' => null, 'route' => 'issue', 'route_parameters' => ['id' => $i], 'trail' => [], 'icon' => null, 'keywords' => $keywords, 'scope' => 'none', 'attribute' => null, 'subject' => null, 'scope_parameter' => null];
         }
         $registry = new PageRegistryProvider($pages, [], Fixtures::access(), Fixtures::router(), Fixtures::translator(), ['en'], 500, 'tabler:file', $logger);
         $terms    = array_map(static fn (int $i): SearchTerm => new SearchTerm('alt' . $i, 'en', true), range(1, 24));
-        // A typo on every label: each entry costs its fuzzy comparisons (FUZZY_COST each) until the ceiling.
-        $group = $registry->search(new SearchQuery('entrx', null, 5, null, false, 'alice', [], 'en', $terms, true));
+        // A typo on one keyword of every entry: each keyword tier costs its texts and distinct words until the ceiling.
+        $group = $registry->search(new SearchQuery('archivx', null, 5, null, false, 'alice', [], 'en', $terms, true));
         self::assertNotNull($group);
         self::assertLessThan(400, $group->total, 'entries past the ceiling are not listed');
         self::assertSame(['notice: Search page registry stopped at its evaluation ceiling (100000).'], $logger->lines);

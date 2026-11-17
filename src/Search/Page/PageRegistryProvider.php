@@ -15,6 +15,7 @@ use Nowo\SearchKitBundle\Model\SearchQuery;
 use Nowo\SearchKitBundle\Model\SearchReference;
 use Nowo\SearchKitBundle\Search\Access\SearchAccess;
 use Nowo\SearchKitBundle\Search\Text\FoldedText;
+use Nowo\SearchKitBundle\Search\Text\TextMatcher;
 use Nowo\SearchKitBundle\Search\Text\TextNormalizer;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
@@ -36,8 +37,9 @@ use const PREG_SPLIT_NO_EMPTY;
  * scoped), URL generation, **access check (deny by default)**, and only then matching — on the label, the breadcrumb
  * and the keywords (UI locale first, then the labels and keywords of the other `page_registry.locales`; keywords are
  * never shown). Bounded (audit SP-M1): 32 keywords per entry and locale, 64 of the other locales after deduplication,
- * every text folded once, and at most MAX_EVALUATIONS term × text comparisons per search. A denied entry is never
- * matched, counted, ranked or rendered, and the group total is the number of visible matches (exact).
+ * every text folded once, and at most MAX_EVALUATIONS term × text comparisons per search. Exact tiers first over every
+ * visible entry, then typos tier by tier (1.8.1, audit SP3-L1). A denied entry is never matched, counted, ranked or
+ * rendered, and the group total is the number of visible matches (exact).
  *
  * Also resolves recent references to registry pages (SearchReferenceResolverInterface). Holds no state.
  *
@@ -62,9 +64,12 @@ final readonly class PageRegistryProvider implements IdentifierAwareSearchProvid
 
     /**
      * Part of MAX_EVALUATIONS the typo pass may spend (audit SPd-I1): fuzzy matching is the costliest tier, and it runs
-     * only after every exact match is in.
+     * only after every exact match is in, tier by tier (audit SP3-L1).
      */
     public const int MAX_FUZZY_EVALUATIONS = 40_000;
+
+    /** Weight of each tier of texts: label, breadcrumb, UI-locale keywords, other locales (keywords and labels). */
+    private const array TIER_WEIGHTS = [1.0, 0.9, 0.95 * 0.9, 0.85 * 0.9];
 
     /** @var list<SearchPage> */
     private array $pages;
@@ -104,55 +109,115 @@ final readonly class PageRegistryProvider implements IdentifierAwareSearchProvid
      */
     public function search(SearchQuery $query): ?SearchGroup
     {
-        $found       = [];
+        $exact       = [];
         $pending     = [];
         $evaluations = 0;
+        $stopped     = false;
         // Pass 1 (exact tiers) over every visible candidate: an exact match is never cut by the cost of typos.
         foreach ($this->candidates($query) as $page) {
             $url = $this->visibleUrl($page, $query->userIdentifier, $query->scope, SearchAccessRequest::KIND_PAGE);
-            if ($url === null || array_key_exists($url, $found) || array_key_exists($url, $pending)) {
+            if ($url === null || array_key_exists($url, $exact) || array_key_exists($url, $pending)) {
                 continue;
             }
             if ($evaluations >= self::MAX_EVALUATIONS) {
-                $this->ceilingReached();
+                $stopped = $this->ceilingReached($stopped);
 
                 break;
             }
             $texts = $this->texts($page, $query->locale);
-            $score = $query->mayMatchExactly($texts[4]) ? $this->score($texts, $query, $evaluations, SearchQuery::MATCH_EXACT) : null;
+            $score = $query->mayMatchExactly($texts[4]) ? $this->score($texts, $query, $evaluations) : null;
             if ($score !== null) {
-                $found[$url] = $this->item($page, $url, $query->locale, $score);
+                $exact[$url] = [$page, $texts, $score];
             } elseif ($query->hasFuzzyTerm()) {
-                $pending[$url] = [$page, $texts];
+                $pending[$url] = [$page, $texts, null];
             }
         }
-        // Pass 2 (typos) on the remaining budget (at most MAX_FUZZY_EVALUATIONS), only for the entries without an exact
-        // match whose words come close: every edit-distance computation (the pre-check included) is charged.
-        $ceiling = min(self::MAX_EVALUATIONS, $evaluations + self::MAX_FUZZY_EVALUATIONS);
-        foreach ($pending as $url => [$page, $texts]) {
-            if ($evaluations >= $ceiling) {
-                $this->ceilingReached();
-
-                break;
-            }
-            if (!$query->mayMatchFuzzily($texts[4], $evaluations)) {
-                continue;
-            }
-            $score = $this->score($texts, $query, $evaluations, SearchQuery::MATCH_FUZZY);
-            if ($score !== null) {
-                $found[$url] = $this->item($page, $url, $query->locale, $score);
+        $typos = $query->hasFuzzyTerm() ? $this->typos($query, $exact, $pending, $evaluations, $stopped) : [];
+        $found = [];
+        foreach ([$exact, $typos] as $entries) {
+            foreach ($entries as $url => [$page, , $score]) {
+                if ($score !== null) {
+                    $found[] = $this->item($page, $url, $query->locale, $score);
+                }
             }
         }
         if ($found === []) {
             return null;
         }
 
-        return new SearchGroup(self::KEY, $this->translator->trans('search.group.pages', [], 'NowoSearchKitBundle'), array_values($found), count($found), null, null, true);
+        return new SearchGroup(self::KEY, $this->translator->trans('search.group.pages', [], 'NowoSearchKitBundle'), $found, count($found), null, null, true);
     }
 
-    private function ceilingReached(): void
+    /**
+     * Pass 2 (typos, audit SP3-L1), on the remaining budget (at most MAX_FUZZY_EVALUATIONS): tier by tier across every
+     * entry without an exact match — all the labels first, then the breadcrumbs, the UI-locale keywords and the other
+     * locales — so that a cut drops the least relevant texts, not the last entries in configuration order. A tier that
+     * cannot beat an entry's best score (its weight × TextMatcher::FUZZY_MAX) is skipped, which leaves the ranking
+     * equal to comparing every tier. Each tier is charged what SearchQuery::scoreTypos() does (texts, distinct words).
+     *
+     * Audit SP3-I1: an exact entry scoring below what a label typo can give also has its label compared for typos (as
+     * comparing every tier would), and keeps the better score.
+     *
+     * @param array<string, array{0: SearchPage, 1: array{0: list<string>, 1: list<string>, 2: list<string>, 3: list<string>, 4: string}, 2: float|null}> $exact Updated in place (SP3-I1)
+     * @param array<string, array{0: SearchPage, 1: array{0: list<string>, 1: list<string>, 2: list<string>, 3: list<string>, 4: string}, 2: float|null}> $pending
+     *
+     * @return array<string, array{0: SearchPage, 1: array{0: list<string>, 1: list<string>, 2: list<string>, 3: list<string>, 4: string}, 2: float|null}> The pending entries with their typo scores, in configuration order
+     */
+    private function typos(SearchQuery $query, array &$exact, array $pending, int &$evaluations, bool $stopped): array
     {
-        $this->logger?->notice('Search page registry stopped at its evaluation ceiling ({ceiling}).', ['ceiling' => self::MAX_EVALUATIONS]);
+        $ceiling = min(self::MAX_EVALUATIONS, $evaluations + self::MAX_FUZZY_EVALUATIONS);
+        foreach (self::TIER_WEIGHTS as $tier => $weight) {
+            // The label tier also re-scores the exact entries a label typo could beat (SP3-I1), after the others.
+            if (!$this->typoTier($query, $pending, $tier, $weight, $evaluations, $ceiling)
+                || ($tier === 0 && !$this->typoTier($query, $exact, $tier, $weight, $evaluations, $ceiling))) {
+                $this->ceilingReached($stopped);
+
+                break;
+            }
+        }
+
+        return $pending;
+    }
+
+    /**
+     * One tier of the typo pass over a list of entries, their best score updated in place.
+     *
+     * @param array<string, array{0: SearchPage, 1: array{0: list<string>, 1: list<string>, 2: list<string>, 3: list<string>, 4: string}, 2: float|null}> $entries
+     * @param int<0, 3> $tier Index in TIER_WEIGHTS (and in the texts)
+     *
+     * @return bool False when the ceiling stopped it
+     */
+    private function typoTier(SearchQuery $query, array &$entries, int $tier, float $weight, int &$evaluations, int $ceiling): bool
+    {
+        $bound = $weight * TextMatcher::FUZZY_MAX;
+        foreach ($entries as $url => [, $texts, $best]) {
+            if ($texts[$tier] === [] || ($best !== null && $best >= $bound)) {
+                continue;
+            }
+            if ($evaluations >= $ceiling) {
+                return false;
+            }
+            $score = $query->scoreTypos($texts[$tier], $evaluations);
+            if ($score !== null && ($best === null || $score * $weight > $best)) {
+                $entries[$url][2] = $score * $weight;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Logs the ceiling notice once per search (without the query).
+     *
+     * @return bool True: the notice is logged
+     */
+    private function ceilingReached(bool $logged): bool
+    {
+        if (!$logged) {
+            $this->logger?->notice('Search page registry stopped at its evaluation ceiling ({ceiling}).', ['ceiling' => self::MAX_EVALUATIONS]);
+        }
+
+        return true;
     }
 
     /**
@@ -279,19 +344,20 @@ final readonly class PageRegistryProvider implements IdentifierAwareSearchProvid
     }
 
     /**
-     * Best score of an entry: its label in full, the breadcrumb at 0.9, its UI-locale keywords at 0.855 and the other
-     * locales at 0.765; a text that cannot beat the best score so far is not compared (nor folded).
+     * Best exact score of an entry (TIER_WEIGHTS: its label in full, the breadcrumb at 0.9, its UI-locale keywords at
+     * 0.855 and the other locales at 0.765); a text that cannot beat the best score so far is not compared (nor folded).
      *
      * @param array{0: list<string>, 1: list<string>, 2: list<string>, 3: list<string>, 4: string} $texts
      */
-    private function score(array $texts, SearchQuery $query, int &$evaluations, int $mode): ?float
+    private function score(array $texts, SearchQuery $query, int &$evaluations): ?float
     {
         $best = null;
-        foreach ([[$texts[0], 1.0], [$texts[1], 0.9], [$texts[2], 0.95 * 0.9], [$texts[3], 0.85 * 0.9]] as [$haystacks, $weight]) {
+        foreach (self::TIER_WEIGHTS as $tier => $weight) {
+            $haystacks = $texts[$tier];
             if ($haystacks === [] || ($best !== null && $best >= $weight)) {
                 continue;
             }
-            $score = $query->scoreFolded(array_map(FoldedText::haystack(...), $haystacks), $evaluations, $mode);
+            $score = $query->scoreFolded(array_map(FoldedText::haystack(...), $haystacks), $evaluations, SearchQuery::MATCH_EXACT);
             if ($score !== null && ($best === null || $score * $weight > $best)) {
                 $best = $score * $weight;
             }
