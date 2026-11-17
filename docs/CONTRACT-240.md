@@ -87,8 +87,10 @@ interface SearchAccessCheckerInterface
 }
 ```
 
-SearchKit asks every checker for every registry page, page-source entry, palette action, recent reference and — with
-`access.filter_all_rows` — every provider row. Allowed only when **one checker says true and none says false**; no
+SearchKit asks every checker for every registry page, page-source entry, palette action, recent reference, the `from`
+page of the JSON endpoint and — with `access.filter_all_rows` — every provider row. **Decide for
+`$request->userIdentifier`, never for the session token** (`Security::getUser()`, token storage): a search by identifier
+runs for another user than the HTTP session. Allowed only when **one checker says true and none says false**; no
 checker, only `null`, or a checker that throws → **denied**.
 
 `SearchAccessRequest` carries `userIdentifier`, `url`, `route` (null for an external URL), `routeParameters` (scalars,
@@ -183,7 +185,8 @@ row (same URL) or `null` for unknown / deleted / forbidden alike. Never cache th
 
 `SearchFilterValuesProviderInterface::values($key, $prefix, $userIdentifier, $scope, $limit)` returns only values the
 viewer may see (members of the viewer's projects, projects the viewer may open, states). Unknown key, unknown prefix
-and forbidden prefix all answer `[]`.
+and forbidden prefix all answer `[]`. Honour `$limit` in the query: the bundle cuts the list, but only after reading
+every value you yield.
 
 ## Synonyms
 
@@ -217,7 +220,10 @@ groups across en es it fr pt de nl (`Resources/synonyms/concepts.php`).
 keywords, icon, shortcut, context}` — **GET links only** (the bundle cannot run anything). Each action is listed only
 when the access checkers allow its URL. The Actions group comes first in the results, `>` lists actions only, and the
 empty-query list comes from the providers (the static `quick_actions` remain the fallback when there is none).
-`shortcut` is a display hint; `context` is shown under the label (e.g. the project it acts on).
+`shortcut` is a display hint; `context` is shown under the label (e.g. the project it acts on). On the JSON endpoint the
+`SearchContext` page is client-supplied (`from`): SearchKit keeps its route and parameters only when the access checkers
+allow that page for the viewer and passes an empty context otherwise; still check access before showing anything read
+from it.
 
 ## Per-bundle contracts
 
@@ -287,9 +293,11 @@ provider class is registered only when `nowo-tech/search-kit-bundle` is installe
 ## Checklist for a provider
 
 - [ ] Off by default; refuses to run without its access port.
-- [ ] Permission filter in the query, before count, rank and snippet.
+- [ ] Permission filter in the query, before count, rank and snippet (`access.filter_all_rows` is only a safety net:
+      short pages reveal how many hidden rows matched).
 - [ ] Unknown and forbidden scope / filter value / reference → the same empty answer.
-- [ ] `supportedFilters()` lists only the keys it really applies.
+- [ ] `supportedFilters()` lists only the keys it really applies; filter value providers honour `$limit`.
+- [ ] In-memory matching uses `SearchQuery::score()` / `scoreFolded()` (terms folded once); keywords ≤ 32 per item.
 - [ ] `exactTotal: true` only for a permission-filtered count.
 - [ ] `score` / `date` set from visible data.
 - [ ] Recents: `resolve()` re-checks now, same URL, `null` otherwise.

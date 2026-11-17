@@ -232,7 +232,7 @@ when the service is missing), `false` turns it off.
 | `page_registry.priority` | `90` | Provider priority of the registry; its rows merge into the Pages group (deduplicated by URL). |
 | `page_registry.locales` | 7 locales | Labels and keywords of these locales match too (cross-locale); the UI locale ranks first. |
 | `page_registry.max_candidates` | `500` | Bounded cost per search. |
-| `access.filter_all_rows` | `false` | Every provider row needs the access checkers (deny by default) before it is counted, ranked or sent. With no checker every row is dropped. |
+| `access.filter_all_rows` | `false` | Every provider row needs the access checkers (deny by default) before it is counted, ranked or sent. With no checker every row is dropped. A **safety net, not a substitute** for filtering in the provider's query: a page or a group that comes back short while more rows follow reveals how many hidden rows matched ([SECURITY](SECURITY.md#anti-leak-model-180)). |
 | `actions.prefix` | `>` | Actions-only prefix. Up to 3 symbols; `''` turns it off (a `>` query is then an ordinary query). |
 | `actions.in_results` | `true` | Provider actions matching a normal query come first. Without action providers nothing changes. |
 | `filters.keys` | `[]` | Typed filter keys (`[a-z][a-z0-9_-]{0,31}`). `type` is handled by the engine. |

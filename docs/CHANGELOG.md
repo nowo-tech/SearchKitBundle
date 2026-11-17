@@ -98,6 +98,13 @@ Target: **1.8.0** (minor, BC: a 1.7 host keeps working without changes). Beacon 
 
 ### Security
 
+- Audit SP fixes before release (no GHSA, unreleased code): registry matching cost has a ceiling (terms and texts folded
+  once, ≤ 32 keywords per entry and locale, other-locale keywords deduplicated and capped at 64, early stop on a full
+  match, substring pre-filter, exact tiers before fuzzy, `PageRegistryProvider::MAX_EVALUATIONS` = 100,000 comparisons
+  per search; 500 × 30 × 25 went from 8.5–9.6 s to 29–47 ms, regression test `CostTest` < 200 ms) (SP-M1); the client-supplied `from` context reaches action providers only when
+  the viewer may open that page (SP-L1); docs: `filter_all_rows` is a safety net (SP-L2), checkers decide for
+  `$request->userIdentifier` (SP-L3), value providers honour `$limit` (SP-I5); the results page runs the engine once
+  per view (SP-I2).
 - Anti-leak model documented in `docs/SECURITY.md`: filtered before counting, ranking and snippets; unknown and
   forbidden values answer identically; recents hold no titles and are re-checked on every display.
 
