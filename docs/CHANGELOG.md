@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.8.0] - 2026-11-17](#180---2026-11-17)
   - [Added](#added)
   - [Changed](#changed)
   - [Security](#security)
@@ -50,6 +51,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   - [Added](#added-7)
 
 ## [Unreleased]
+
+## [1.8.0] - 2026-11-17
 
 Target: **1.8.0** (minor, BC: a 1.7 host keeps working without changes). Beacon spec 240 "search everywhere"
 (D-20261117-11): everything respects the viewer's permissions, deny by default.
