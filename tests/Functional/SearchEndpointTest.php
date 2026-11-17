@@ -55,7 +55,9 @@ final class SearchEndpointTest extends TestCase
         self::assertSame(['projects', 'echo'], array_column($data['groups'], 'key'));
 
         $projects = $data['groups'][0];
-        self::assertSame(13, $projects['total']);
+        // 1.8.0 leak rule: the provider claims 13 without marking it exact for this viewer, so the engine caps the
+        // total to the 3 rows it returned (SearchGroup::$exactTotal keeps a permission-filtered count).
+        self::assertSame(3, $projects['total']);
         self::assertSame(['url' => '/projects?q=Shop', 'label' => 'See all'], $projects['more']);
         self::assertSame(['Acme Shop', 'Beta Shop', 'Gamma Shop'], array_column($projects['items'], 'title'));
         self::assertStringContainsString('<svg', (string) $projects['items'][0]['icon'], 'tabler:bug is in the icon set');

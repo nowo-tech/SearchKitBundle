@@ -1,0 +1,16 @@
+{# Rows of the results page (1.8.0): `rows` = list of {title, subtitle, url, kind, icon, badge, shortcut?}. #}
+<ul class="nowo-search-results__rows">
+    {% for row in rows %}
+        <li class="nowo-search-results__row" data-kind="{{ row.kind }}">
+            <a class="nowo-search-results__link" href="{{ row.url }}">
+                <span class="nowo-search-results__icon" aria-hidden="true">{{ row.icon }}</span>
+                <span class="nowo-search-results__text">
+                    <span class="nowo-search-results__row-title">{{ row.title }}</span>
+                    {% if row.subtitle is not empty %}<span class="nowo-search-results__row-subtitle">{{ row.subtitle }}</span>{% endif %}
+                </span>
+                {% if row.badge %}<span class="nowo-search__badge nowo-search__badge--{{ row.badge.tone }}">{{ row.badge.label }}</span>{% endif %}
+                {% if row.shortcut is defined %}<kbd class="nowo-search-results__kbd">{{ row.shortcut }}</kbd>{% endif %}
+            </a>
+        </li>
+    {% endfor %}
+</ul>

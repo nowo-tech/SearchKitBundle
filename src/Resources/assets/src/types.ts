@@ -14,6 +14,8 @@ export interface SearchItem {
   kind?: string;
   icon?: string | null;
   badge?: SearchBadge | null;
+  /** Key hint shown at the end of the row (actions, 1.8.0). */
+  shortcut?: string;
 }
 
 /** A titled group of rows with an optional "See all" link. */
@@ -36,6 +38,16 @@ export interface SearchLabels {
   recent: string;
   actions: string;
   clearRecent: string;
+  /** Status of a `>` query (1.8.0, only with action providers). */
+  actionsOnly?: string;
+}
+
+/** Typed filters (1.8.0, only when `filters.keys` is configured). */
+export interface SearchFilterConfig {
+  keys: string[];
+  valuesUrl: string;
+  remove: string;
+  values: string;
 }
 
 /** JSON of `data-nowo-search-config` (built by `nowo_search_kit_config()`). */
@@ -49,9 +61,22 @@ export interface SearchConfig {
   shortcuts: boolean;
   scope: { id: string; label: string } | null;
   actions: SearchItem[];
-  recent: { enabled: boolean; max: number; storageKey: string };
+  recent: {
+    enabled: boolean;
+    max: number;
+    storageKey: string;
+    /** 1.8.0 `recent.revalidate`: store references only and ask this endpoint for the rows on every display. */
+    revalidateUrl?: string;
+    csrfToken?: string;
+  };
   popoverCss: string | null;
   labels: SearchLabels;
+  /** 1.8.0: a query starting with it lists actions only (present only with action providers). */
+  actionPrefix?: string;
+  /** 1.8.0: typed filters (chips + autocomplete). */
+  filters?: SearchFilterConfig;
+  /** 1.8.0: the results page ("See all results" as the last row). */
+  results?: { url: string; label: string };
 }
 
 /** Options of a mounted search box (JavaScript only; the Twig configuration covers everything else). */

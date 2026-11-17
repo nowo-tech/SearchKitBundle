@@ -1,13 +1,15 @@
 import { CLOSING_ATTR, closeWithEffect, finishClosing } from './motion';
 import { appendHighlighted, isMac } from './highlight';
 import { compileExemptPatterns, isMinLengthExempt } from './min-length';
-import { readRecent, rememberRecent, writeRecent } from './recent';
+import { completeFilter, parseFilterTokens, pendingFilter, removeFilterToken } from './filters';
+import type { PendingFilter } from './filters';
+import { readRecent, readRecentRefs, rememberRecent, rememberRecentRef, writeRecent, writeRecentRefs } from './recent';
 import { sanitizeSvg } from './svg';
 import { isSafeUrl } from './url';
 import type { SearchConfig, SearchGroup, SearchItem, SearchOptions, SearchState } from './types';
 
 /** Group keys rendered from the config (not from the endpoint): their rows use the kind `<template>` icons. */
-const LOCAL_GROUPS = new Set(['recent', 'actions']);
+const LOCAL_GROUPS = new Set(['recent', 'actions', 'filter-values']);
 
 /** Detail of the cancelable `nowo-search:navigate` event (cancel it to navigate yourself, e.g. with Turbo). */
 export interface NavigateDetail {
@@ -22,6 +24,11 @@ export interface NavigateDetail {
  * under it. Debounced, aborted fetches to the endpoint; grouped rows navigated with the arrow keys (ARIA combobox +
  * listbox); Enter opens, Ctrl/⌘ Enter opens a new tab; Esc or a click outside folds it back. With a short query it
  * lists the viewer's recent picks and the quick actions. The dropdown stylesheet is injected on first hover / focus.
+ *
+ * 1.8.0: a query starting with `actionPrefix` lists actions only; typed filters of `filters.keys` show as chips (click
+ * to remove) and `key:` suggests visible values; "See all results" ends the list when the results page is on; with
+ * `recent.revalidateUrl` the recents are stored as references (URL + kind) and re-checked by the server every time the
+ * box opens (nothing is shown until the server answered).
  *
  * Events on the root: `nowo-search:state` (`{state}`: idle / open / loading — hook a morphing icon on it) and the
  * cancelable `nowo-search:navigate` (`{url, newTab}`).
@@ -41,6 +48,11 @@ export class GlobalSearch {
   private request: AbortController | null = null;
   private active = -1;
   private stylesLoaded = false;
+  private chips: HTMLElement | null = null;
+  private pending: PendingFilter | null = null;
+  /** Revalidated recents of the current opening (null: not answered yet). */
+  private recentRows: SearchItem[] | null = null;
+  private recentRequest: AbortController | null = null;
   private readonly listeners: Array<[EventTarget, string, EventListener]> = [];
 
   /**
@@ -77,7 +89,10 @@ export class GlobalSearch {
     this.listen(this.root, 'pointerenter', () => this.preload());
     this.listen(this.root, 'focusin', () => this.preload());
     this.listen(this.toggle, 'click', () => (this.isOpen ? this.close() : this.open()));
-    this.listen(this.input, 'input', () => this.debounce());
+    this.listen(this.input, 'input', () => {
+      this.renderChips();
+      this.debounce();
+    });
     this.listen(this.input, 'keydown', (event) => this.keydown(event as KeyboardEvent));
     this.listen(this.results, 'click', (event) => this.choose(event as MouseEvent));
     this.listen(this.results, 'mousemove', (event) => this.hover(event));
@@ -89,6 +104,13 @@ export class GlobalSearch {
       this.root.querySelectorAll('[data-part="shortcut"]').forEach((el) => (el.textContent = '⌘ K'));
       this.root.querySelectorAll('[data-part="mod-key"]').forEach((el) => (el.textContent = '⌘'));
     }
+    if (this.config.filters) {
+      this.chips = document.createElement('span');
+      this.chips.className = 'nowo-search__chips';
+      this.chips.dataset.part = 'chips';
+      this.input.before(this.chips);
+      this.listen(this.chips, 'click', (event) => this.removeChip(event));
+    }
     // Announce the initial state once, so hosts can sync a custom toggle icon (the markup already says idle).
     this.setState(this.isOpen ? 'open' : 'idle');
   }
@@ -96,6 +118,8 @@ export class GlobalSearch {
   /** Removes every listener and aborts a pending request. */
   destroy(): void {
     this.cancel();
+    this.recentRequest?.abort();
+    this.recentRequest = null;
     this.listeners.forEach(([target, type, listener]) => target.removeEventListener(type, listener));
     this.listeners.length = 0;
   }
@@ -108,6 +132,7 @@ export class GlobalSearch {
       this.toggle.setAttribute('aria-expanded', 'true');
       this.setState('open');
       this.setFieldTabbable(true);
+      this.revalidateRecent();
       this.refresh();
     }
     this.input.focus();
@@ -167,11 +192,28 @@ export class GlobalSearch {
     }
   }
 
-  /** Re-renders for the current text: recents + actions when short and not exempt, otherwise fetch. */
+  /**
+   * Re-renders for the current text: value suggestions while a `key:` filter is being typed (when the server has
+   * some), recents + actions when short and not exempt, otherwise fetch.
+   */
   refresh(): void {
     window.clearTimeout(this.timer);
+    const filters = this.config.filters;
+    this.pending = filters ? pendingFilter(this.input.value, filters.keys) : null;
+    if (this.pending !== null && filters) {
+      void this.fetchFilterValues(this.pending, filters.valuesUrl);
+      return;
+    }
+    this.searchText();
+  }
+
+  /** The normal path of refresh(): idle list or results. */
+  private searchText(): void {
     const query = this.input.value.trim();
-    if (query.length < this.config.minLength && !isMinLengthExempt(query, this.exemptPatterns)) {
+    const prefix = this.config.actionPrefix ?? '';
+    const actionsOnly = prefix !== '' && query.startsWith(prefix);
+    const hasFilters = this.config.filters ? parseFilterTokens(query, this.config.filters.keys).length > 0 : false;
+    if (!actionsOnly && !hasFilters && query.length < this.config.minLength && !isMinLengthExempt(query, this.exemptPatterns)) {
       this.cancel();
       this.renderIdle(query);
       return;
@@ -241,6 +283,7 @@ export class GlobalSearch {
     if (target?.closest('[data-nowo-search-clear-recent]')) {
       event.preventDefault();
       writeRecent(this.config.recent.storageKey, [], this.config.recent.max);
+      this.recentRows = [];
       this.refresh();
       this.input.focus();
       return;
@@ -270,6 +313,9 @@ export class GlobalSearch {
     if (this.scopeId !== '') {
       url.searchParams.set('scope', this.scopeId);
     }
+    if (this.config.actionPrefix) {
+      url.searchParams.set('from', window.location.pathname);
+    }
     try {
       const response = await fetch(url.toString(), {
         headers: { Accept: 'application/json' },
@@ -283,8 +329,11 @@ export class GlobalSearch {
       if (!response.ok) {
         throw new Error(String(response.status));
       }
-      const data = (await response.json()) as { groups?: SearchGroup[] };
+      const data = (await response.json()) as { groups?: SearchGroup[]; actionsOnly?: boolean };
       this.renderGroups(Array.isArray(data.groups) ? data.groups : [], query);
+      if (data.actionsOnly === true && this.config.labels.actionsOnly) {
+        this.status.textContent = this.config.labels.actionsOnly;
+      }
     } catch (error) {
       if ((error as Error).name === 'AbortError') {
         return;
@@ -325,7 +374,7 @@ export class GlobalSearch {
 
   private renderIdle(query: string): void {
     const groups: SearchGroup[] = [];
-    const recent = this.config.recent.enabled ? readRecent(this.config.recent.storageKey, this.config.recent.max) : [];
+    const recent = this.idleRecent();
     if (recent.length > 0) {
       groups.push({ key: 'recent', label: this.config.labels.recent, total: recent.length, items: recent });
     }
@@ -362,6 +411,7 @@ export class GlobalSearch {
       return;
     }
     this.renderList(groups, query);
+    this.appendSeeAll(query);
     const count = groups.reduce((sum, group) => sum + group.items.filter((row) => isSafeUrl(row.url)).length, 0);
     this.status.textContent = this.config.labels.results.replace('__COUNT__', () => String(count));
     this.syncPopover();
@@ -465,6 +515,12 @@ export class GlobalSearch {
     }
     link.append(text);
 
+    if (item.shortcut) {
+      const shortcut = document.createElement('kbd');
+      shortcut.className = 'nowo-search__option-shortcut';
+      shortcut.textContent = item.shortcut;
+      link.append(shortcut);
+    }
     if (item.badge) {
       const badge = document.createElement('span');
       badge.className = `nowo-search__badge nowo-search__badge--${item.badge.tone.replace(/[^a-z0-9_-]/gi, '')}`;
@@ -498,16 +554,24 @@ export class GlobalSearch {
   }
 
   private go(option: HTMLElement, newTab: boolean): void {
+    if (option.dataset.filterValue !== undefined && this.pending !== null) {
+      this.input.value = completeFilter(this.input.value, this.pending, option.dataset.filterValue);
+      this.input.focus();
+      this.renderChips();
+      this.refresh();
+      return;
+    }
     const url = option.getAttribute('href') ?? '';
     if (!isSafeUrl(url)) {
       return;
     }
     if (this.config.recent.enabled && !('more' in option.dataset)) {
-      rememberRecent(
-        this.config.recent.storageKey,
-        { title: option.dataset.title ?? '', subtitle: option.dataset.subtitle ?? '', url, kind: option.dataset.kind ?? 'page' },
-        this.config.recent.max,
-      );
+      const picked = { title: option.dataset.title ?? '', subtitle: option.dataset.subtitle ?? '', url, kind: option.dataset.kind ?? 'page' };
+      if (this.config.recent.revalidateUrl) {
+        rememberRecentRef(this.config.recent.storageKey, picked, this.config.recent.max);
+      } else {
+        rememberRecent(this.config.recent.storageKey, picked, this.config.recent.max);
+      }
     }
     const detail: NavigateDetail = { url, newTab };
     const proceed = this.root.dispatchEvent(new CustomEvent('nowo-search:navigate', { bubbles: true, cancelable: true, detail }));
@@ -521,6 +585,186 @@ export class GlobalSearch {
     }
     this.close(false);
     window.location.assign(url);
+  }
+
+  /** Recents of the idle list: the stored rows, or (revalidation) only what the server confirmed for this opening. */
+  private idleRecent(): SearchItem[] {
+    if (!this.config.recent.enabled) {
+      return [];
+    }
+    if (this.config.recent.revalidateUrl) {
+      return this.recentRows ?? [];
+    }
+    return readRecent(this.config.recent.storageKey, this.config.recent.max);
+  }
+
+  /**
+   * Asks the server which stored references the viewer may still open (POST, CSRF header) and keeps only those —
+   * in storage too. Until it answers nothing is shown; an error shows nothing.
+   */
+  private revalidateRecent(): void {
+    const url = this.config.recent.revalidateUrl;
+    if (!this.config.recent.enabled || !url) {
+      return;
+    }
+    this.recentRequest?.abort();
+    this.recentRows = null;
+    const refs = readRecentRefs(this.config.recent.storageKey, this.config.recent.max);
+    if (refs.length === 0) {
+      this.recentRows = [];
+      return;
+    }
+    const request = new AbortController();
+    this.recentRequest = request;
+    void fetch(new URL(url, window.location.origin).toString(), {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-Token': this.config.recent.csrfToken ?? '' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ refs }),
+      signal: request.signal,
+    })
+      .then(async (response) => {
+        const data = response.ok ? ((await response.json()) as { items?: SearchItem[] }) : {};
+        const items = (Array.isArray(data.items) ? data.items : []).filter((row) => typeof row.title === 'string' && isSafeUrl(row.url));
+        const kept = new Set(items.map((row) => row.url));
+        // Only a real answer prunes the storage (a 429 or a network error keeps the references for next time).
+        if (response.ok) {
+          writeRecentRefs(
+            this.config.recent.storageKey,
+            refs.filter((ref) => kept.has(ref.url)),
+            this.config.recent.max,
+          );
+        }
+        this.recentRows = items.map((row) => ({ title: row.title, subtitle: typeof row.subtitle === 'string' ? row.subtitle : '', url: row.url, kind: row.kind ?? 'page' }));
+      })
+      .catch(() => {
+        this.recentRows = [];
+      })
+      .finally(() => {
+        if (this.recentRequest === request) {
+          this.recentRequest = null;
+          if (this.isOpen && this.request === null) {
+            this.refresh();
+          }
+        }
+      });
+  }
+
+  /** Shows the complete filter tokens of the field as chips (click one to remove it). */
+  private renderChips(): void {
+    const filters = this.config.filters;
+    if (!filters || !this.chips) {
+      return;
+    }
+    this.chips.replaceChildren();
+    for (const token of parseFilterTokens(this.input.value, filters.keys)) {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'nowo-search__chip';
+      chip.dataset.token = token.raw;
+      chip.title = filters.remove;
+      chip.setAttribute('aria-label', `${filters.remove}: ${token.raw}`);
+      chip.textContent = token.raw;
+      this.chips.append(chip);
+    }
+  }
+
+  private removeChip(event: Event): void {
+    const chip = (event.target as Element | null)?.closest<HTMLElement>('[data-token]');
+    if (!chip) {
+      return;
+    }
+    event.preventDefault();
+    this.input.value = removeFilterToken(this.input.value, chip.dataset.token ?? '');
+    this.renderChips();
+    this.input.focus();
+    this.refresh();
+  }
+
+  /** Suggestions for the `key:prefix` being typed (only values the viewer may see, from the server). */
+  private async fetchFilterValues(pending: PendingFilter, valuesUrl: string): Promise<void> {
+    this.cancel();
+    const request = new AbortController();
+    this.request = request;
+    this.setLoading(true);
+    const url = new URL(valuesUrl, window.location.origin);
+    url.searchParams.set('key', pending.key);
+    url.searchParams.set('q', pending.prefix);
+    if (this.scopeId !== '') {
+      url.searchParams.set('scope', this.scopeId);
+    }
+    try {
+      const response = await fetch(url.toString(), { headers: { Accept: 'application/json' }, credentials: 'same-origin', signal: request.signal });
+      const data = response.ok ? ((await response.json()) as { values?: Array<{ value: string; label: string }> }) : {};
+      const values = (Array.isArray(data.values) ? data.values : []).filter((value) => typeof value.value === 'string' && value.value !== '');
+      if (this.request === request) {
+        this.request = null;
+        this.setLoading(false);
+      }
+      // No suggestion (none visible, or an error): the text is searched as typed.
+      if (values.length === 0) {
+        this.pending = null;
+        this.searchText();
+        return;
+      }
+      this.renderFilterValues(values);
+    } catch (error) {
+      if (this.request === request) {
+        this.request = null;
+        this.setLoading(false);
+      }
+      if ((error as Error).name !== 'AbortError') {
+        this.pending = null;
+        this.searchText();
+      }
+    }
+  }
+
+  private renderFilterValues(values: Array<{ value: string; label: string }>): void {
+    this.renderList([], '');
+    if (this.config.filters) {
+      const groupKey = 'filter-values';
+      const section = document.createElement('div');
+      section.className = 'nowo-search__group';
+      section.setAttribute('role', 'group');
+      section.dataset.group = groupKey;
+      const heading = document.createElement('div');
+      heading.className = 'nowo-search__group-label';
+      heading.id = `${this.idPrefix}-group-${groupKey}`;
+      heading.textContent = this.config.filters.values;
+      section.setAttribute('aria-labelledby', heading.id);
+      section.append(heading);
+      values.forEach((value, index) => {
+        const option = this.option({ title: typeof value.label === 'string' && value.label !== '' ? value.label : value.value, subtitle: '', url: '/', kind: 'item' }, groupKey, this.pending?.prefix ?? '', index);
+        option.removeAttribute('href');
+        option.dataset.filterValue = value.value;
+        section.append(option);
+      });
+      this.results.append(section);
+      this.input.setAttribute('aria-expanded', 'true');
+      this.highlight(0, false);
+    }
+    this.status.textContent = '';
+    this.syncPopover();
+  }
+
+  /** "See all results" as the last row, when the results page is on (never for a `>` query). */
+  private appendSeeAll(query: string): void {
+    const results = this.config.results;
+    const prefix = this.config.actionPrefix ?? '';
+    if (!results || !isSafeUrl(results.url) || (prefix !== '' && query.startsWith(prefix))) {
+      return;
+    }
+    const url = new URL(results.url, window.location.origin);
+    url.searchParams.set('q', query);
+    if (this.scopeId !== '') {
+      url.searchParams.set('scope', this.scopeId);
+    }
+    const section = document.createElement('div');
+    section.className = 'nowo-search__group nowo-search__group--see-all';
+    section.dataset.group = 'see-all';
+    section.append(this.option({ title: results.label, subtitle: '', url: `${url.pathname}${url.search}`, kind: 'action' }, 'see-all', '', this.options().length, true));
+    this.results.append(section);
   }
 
   private listen(target: EventTarget, type: string, listener: EventListener): void {

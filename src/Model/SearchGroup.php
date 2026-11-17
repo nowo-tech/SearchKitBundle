@@ -12,6 +12,9 @@ use function count;
 /**
  * A titled group of rows with the number of matches and an optional "See all" link.
  *
+ * Leak rule (1.8.0): the engine never shows a total above the number of rows the provider returned, unless the
+ * provider marks it exact for this viewer ($exactTotal) — i.e. counted with the same permission filter as the rows.
+ *
  * @author Héctor Franco Aceituno <hectorfranco@nowo.tech>
  * @copyright 2026 Nowo.tech
  */
@@ -24,6 +27,8 @@ final readonly class SearchGroup
      * @param int|null $total Number of matches (null: the number of rows)
      * @param string|null $moreUrl "See all" target (path or http(s) URL), or null
      * @param string|null $moreLabel "See all" text
+     * @param bool $exactTotal $total counts only rows this viewer may open (1.8.0); otherwise the engine caps it to
+     *                         the number of returned rows
      */
     public function __construct(
         public string $key,
@@ -32,7 +37,22 @@ final readonly class SearchGroup
         public ?int $total = null,
         public ?string $moreUrl = null,
         public ?string $moreLabel = null,
+        public bool $exactTotal = false,
     ) {
+    }
+
+    /**
+     * The same group with other rows and total (the engine filters, merges and sorts with it).
+     *
+     * @param list<SearchItem> $items The rows
+     * @param int|null $total The total (null: the number of rows)
+     * @param bool|null $exactTotal Whether the total is exact (null: unchanged)
+     *
+     * @return self A copy
+     */
+    public function withItems(array $items, ?int $total = null, ?bool $exactTotal = null): self
+    {
+        return new self($this->key, $this->label, $items, $total, $this->moreUrl, $this->moreLabel, $exactTotal ?? $this->exactTotal);
     }
 
     /**
@@ -48,7 +68,7 @@ final readonly class SearchGroup
             return $this;
         }
 
-        return new self($this->key, $this->label, array_slice($this->items, 0, $limit), $this->total ?? count($this->items), $this->moreUrl, $this->moreLabel);
+        return new self($this->key, $this->label, array_slice($this->items, 0, $limit), $this->total ?? count($this->items), $this->moreUrl, $this->moreLabel, $this->exactTotal);
     }
 
     /**

@@ -72,3 +72,68 @@ export function rememberRecent(key: string, item: SearchItem, max: number): void
   const entry: SearchItem = { title: item.title, subtitle: item.subtitle, url: item.url, kind: item.kind ?? 'page' };
   writeRecent(key, [entry, ...readRecent(key, max).filter((row) => row.url !== item.url)], max);
 }
+
+/** A recent pick stored as a reference only (`recent.revalidate`, 1.8.0): never a title or a subtitle. */
+export interface RecentRef {
+  url: string;
+  kind: string;
+}
+
+/**
+ * The stored references (also reads 1.7 rows, keeping only their URL and kind).
+ *
+ * @param key localStorage key
+ * @param max Maximum rows
+ * @returns The references, newest first
+ */
+export function readRecentRefs(key: string, max: number): RecentRef[] {
+  try {
+    const parsed: unknown = JSON.parse(window.localStorage.getItem(key) ?? '[]');
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed
+      .filter(
+        (row): row is RecentRef =>
+          typeof row === 'object' && row !== null && typeof (row as RecentRef).url === 'string' && isSameSitePath((row as RecentRef).url),
+      )
+      .map((row) => ({ url: row.url, kind: typeof row.kind === 'string' && KIND.test(row.kind) ? row.kind : 'page' }))
+      .slice(0, max);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Stores references only (removes the key when empty). Failures are ignored.
+ *
+ * @param key localStorage key
+ * @param refs References to store
+ * @param max Maximum rows
+ */
+export function writeRecentRefs(key: string, refs: RecentRef[], max: number): void {
+  try {
+    if (refs.length === 0) {
+      window.localStorage.removeItem(key);
+    } else {
+      window.localStorage.setItem(key, JSON.stringify(refs.slice(0, max).map((ref) => ({ url: ref.url, kind: ref.kind }))));
+    }
+  } catch {
+    // Blocked storage: recents are a convenience only.
+  }
+}
+
+/**
+ * Puts a pick on top of the references (URL + kind only). Off-site URLs are not remembered.
+ *
+ * @param key localStorage key
+ * @param item The picked row
+ * @param max Maximum rows
+ */
+export function rememberRecentRef(key: string, item: SearchItem, max: number): void {
+  if (!isSameSitePath(item.url)) {
+    return;
+  }
+  const kind = item.kind !== undefined && KIND.test(item.kind) ? item.kind : 'page';
+  writeRecentRefs(key, [{ url: item.url, kind }, ...readRecentRefs(key, max).filter((ref) => ref.url !== item.url)], max);
+}
