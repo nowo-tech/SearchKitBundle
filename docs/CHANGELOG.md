@@ -105,9 +105,10 @@ Target: **1.8.0** (minor, BC: a 1.7 host keeps working without changes). Beacon 
   the viewer may open that page (SP-L1); docs: `filter_all_rows` is a safety net (SP-L2), checkers decide for
   `$request->userIdentifier` (SP-L3), value providers honour `$limit` (SP-I5); the results page runs the engine once
   per view (SP-I2). Delta: registry matching in two passes (exact over every visible entry, then typos on the
-  remaining budget: an exact match is never cut by fuzzy cost, SPd-L1); one joined fold per entry with exact / fuzzy
-  pre-checks; keyword caps documented where hosts configure them, debug line when a list is cut (SPd-L2); a 7-locale
-  translated `CostTest` case (12–65 ms, SPd-I1); the demo e2e warms the worker first (SPd-I2).
+  remaining budget, at most 40,000: an exact match is never cut by fuzzy cost, SPd-L1); one joined fold per entry as an
+  exact pre-check, edit distances charged per candidate word, words split only for typos; keyword caps documented
+  where hosts configure them, debug line when a list is cut (SPd-L2); a 7-locale translated `CostTest` case, CPU time
+  best of 3 (12–57 ms without pcov, SPd-I1); the demo e2e warms the worker first (SPd-I2).
 - Anti-leak model documented in `docs/SECURITY.md`: filtered before counting, ranking and snippets; unknown and
   forbidden values answer identically; recents hold no titles and are re-checked on every display.
 
