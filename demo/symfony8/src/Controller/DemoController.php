@@ -13,6 +13,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Security\Http\Authentication\AuthenticationUtils;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Demo for NowoSearchKitBundle: landing page, in-memory sign-in and the pages the search results open.
@@ -23,6 +24,10 @@ use Symfony\Component\Security\Http\Authentication\AuthenticationUtils;
 final class DemoController extends AbstractController
 {
     private const string LOCALE = 'en|es';
+
+    public function __construct(private readonly TranslatorInterface $translator)
+    {
+    }
 
     #[Route('/', name: 'homepage_default', methods: ['GET'])]
     public function homeDefault(): Response
@@ -48,6 +53,42 @@ final class DemoController extends AbstractController
         }
 
         return $this->render('demo/page.html.twig', ['title' => $projects[$id][0], 'text' => $projects[$id][1]]);
+    }
+
+    #[Route('/{_locale}/projects/{id}/{tab}', name: 'demo_project_tab', requirements: ['_locale' => self::LOCALE, 'tab' => 'issues|files|members'], methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function projectTab(string $id, string $tab): Response
+    {
+        $user     = $this->getUser();
+        $projects = $user === null ? [] : DemoData::projectsFor($user->getUserIdentifier());
+        if (!isset($projects[$id])) {
+            throw new NotFoundHttpException();
+        }
+
+        return $this->render('demo/page.html.twig', ['title' => $projects[$id][0] . ' · ' . $this->trans('demo.tab.' . $tab), 'text' => $projects[$id][1]]);
+    }
+
+    #[Route('/{_locale}/issues/{id}', name: 'demo_issue', requirements: ['_locale' => self::LOCALE, 'id' => '\d+'], methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function issue(int $id): Response
+    {
+        $user = $this->getUser();
+        if ($user === null || !DemoData::canSeeIssue($user->getUserIdentifier(), $id)) {
+            throw new NotFoundHttpException();
+        }
+
+        return $this->render('demo/page.html.twig', ['title' => DemoData::ISSUES[$id][0], 'text' => DemoData::PROJECTS[DemoData::ISSUES[$id][1]][0]]);
+    }
+
+    #[Route('/{_locale}/settings/{section}', name: 'demo_settings', requirements: ['_locale' => self::LOCALE, 'section' => 'profile|security|billing|language'], methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function settings(string $section): Response
+    {
+        if ($section === 'billing' && !$this->isGranted('ROLE_ADMIN')) {
+            throw new NotFoundHttpException();
+        }
+
+        return $this->render('demo/page.html.twig', ['title' => $this->trans('demo.settings.' . $section), 'text' => $this->trans('demo.page.hint')]);
     }
 
     #[Route('/{_locale}/docs/{slug}', name: 'demo_doc', requirements: ['_locale' => self::LOCALE], methods: ['GET'])]
@@ -83,6 +124,11 @@ final class DemoController extends AbstractController
             'login_form'  => $form,
             'login_error' => $auth->getLastAuthenticationError(),
         ]);
+    }
+
+    private function trans(string $key): string
+    {
+        return $this->translator->trans($key);
     }
 
     #[Route('/logout', name: 'demo_logout', methods: ['GET'])]

@@ -97,8 +97,9 @@ final class TextAndFiltersTest extends TestCase
         self::assertSame(['x'], array_map(static fn (SearchTerm $term): string => $term->text, $empty->terms()));
         self::assertEqualsWithDelta(0.75, (float) $empty->score('x'), 0.0001, 'no UI locale: every synonym counts as another locale');
 
-        $fuzzy = new SearchQuery('pasword', null, 5, null, false, 'u', [], null, [], true);
+        $fuzzy = new SearchQuery('pasword', null, 5, null, false, 'u', [], null, [new SearchTerm('factura', 'es', true)], true);
         self::assertTrue($fuzzy->matches('Password'));
+        self::assertFalse($fuzzy->matches('doble factor'), 'never fuzzy on a synonym');
         self::assertTrue((new SearchQuery('Ñandú', null, 5, null, false, 'u'))->matches('nandu salvaje'), 'matches() folds accents (1.8.0)');
     }
 

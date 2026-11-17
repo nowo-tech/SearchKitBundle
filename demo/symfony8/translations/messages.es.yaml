@@ -22,6 +22,7 @@ demo:
   page:
     hint: 'Pulsa Ctrl/⌘ K para buscar desde aquí.'
   group:
+    issues: Incidencias
     projects: Proyectos
     docs: Documentación
     users: Usuarios
@@ -39,3 +40,26 @@ demo:
     password: Contraseña
     submit: 'Entrar'
     signed_in: 'Sesión iniciada como %user%.'
+  palette:
+    security: 'Abrir ajustes de seguridad'
+    users: 'Gestionar usuarios'
+    docs: 'Leer la documentación'
+    members: 'Miembros del proyecto'
+  settings:
+    trail: Ajustes
+    profile: 'Perfil'
+    profile_keywords: 'nombre, avatar, foto, correo'
+    security: 'Seguridad'
+    security_keywords: 'contraseña, clave, doble factor, sesiones'
+    billing: 'Facturación'
+    billing_keywords: 'factura, pago, plan'
+    language: 'Idioma'
+    language_keywords: 'idioma, traducción'
+  tab:
+    trail: Proyecto
+    issues: Incidencias
+    issues_keywords: 'errores, tickets'
+    files: Archivos
+    files_keywords: 'documentos, adjuntos'
+    members: Miembros
+    members_keywords: 'equipo, personas'

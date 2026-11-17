@@ -125,7 +125,8 @@ final readonly class SearchQuery
      * Best relevance of the haystacks for this query (1.8.0), for SearchItem::$score.
      *
      * The typed text counts in full, a synonym in the UI locale 0.85 of it, a synonym in another locale 0.75 — so a
-     * match in the viewer's language ranks first. See TextMatcher for the tiers.
+     * match in the viewer's language ranks first. Fuzzy matching ($fuzzy) applies to the typed text only, never to a
+     * synonym. See TextMatcher for the tiers.
      *
      * @param string ...$haystacks Texts to look in
      *
@@ -137,7 +138,8 @@ final readonly class SearchQuery
         foreach ($this->terms() as $term) {
             $weight = !$term->synonym ? 1.0 : ($term->locale !== null && $term->locale === $this->locale ? 0.85 : 0.75);
             foreach ($haystacks as $haystack) {
-                $score = TextMatcher::score($term->text, $haystack, $this->fuzzy);
+                // Typos are tolerated on the typed text only: a fuzzy synonym would match far too much.
+                $score = TextMatcher::score($term->text, $haystack, $this->fuzzy && !$term->synonym);
                 if ($score !== null && ($best === null || $score * $weight > $best)) {
                     $best = $score * $weight;
                 }
