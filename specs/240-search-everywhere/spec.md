@@ -88,6 +88,8 @@ Stable ports and a written contract for ManualKit, DashboardMenu, ChatKit, Uptim
 | FR-240-RESULTS-001 | `nowo_search_kit_results`: tabs, counts of returned rows, top results, chips, paging (`PaginatedSearchProviderInterface`), configurable template / layout, UiKit partials, no script. |
 | FR-240-RECENT-001 | `recent.revalidate`: references only; `POST {prefix}/recent` with CSRF header, rate limit, body ≤ 32 KB, ≤ `recent.max` refs; checker + `SearchReferenceResolverInterface`. |
 | FR-240-TS-001 | Browser: `>` bypasses `minLength`, `from` path, chips, value suggestions (fallback to search), see-all row, revalidated recents. |
+| FR-240-COST-001 | Bounded matching cost (audit SP-M1): terms and texts folded once, ≤ 32 keywords per entry and locale, ≤ 64 other-locale keywords after deduplication, substring pre-filter, exact tiers before fuzzy, early stop, ≤ 100,000 comparisons per registry search (fuzzy = 8); regression test 500 × 30 × 25 < 200 ms. |
+| FR-240-CONTEXT-001 | The client-supplied `from` context reaches action providers only when the viewer may open that page (audit SP-L1). |
 | FR-240-I18N-001 | Every new string in en es it fr pt de nl. |
 | FR-240-BC-001 | Defaults keep a 1.7 host unchanged (documented exceptions in UPGRADING: total cap, accent folding, `>` prefix, merge by key). |
 | FR-240-WORKER-001 | Stateless services, Igor clean, kept-alive kernel test with alternating viewers; standard and DDD hosts (identifier-aware providers). |

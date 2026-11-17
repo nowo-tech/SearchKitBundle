@@ -2,7 +2,7 @@
 
 **Package**: `nowo-tech/search-kit-bundle`  
 **Last audited**: 2026-11-17 (spec 240, 1.8.0)  
-**Production units**: **89/89**  
+**Production units**: **90/90**  
 **Audit command**: `find src -type f \( -name '*.php' -o -name '*.twig' -o -name '*.yaml' -o -name '*.ts' -o -name '*.css' \) -not -path 'src/Resources/assets/tests/*' | wc -l`
 
 ## Scope notes
@@ -17,13 +17,13 @@
 | --- | ---: |
 | Bundle, configuration & DI | 7 |
 | Contracts & model | 30 |
-| Engine & providers | 17 |
+| Engine & providers | 18 |
 | HTTP | 5 |
 | Twig, markup & theme | 8 |
 | Stylesheets | 3 |
 | Browser (TypeScript) | 12 |
 | Translations | 7 |
-| **Total** | **89** |
+| **Total** | **90** |
 
 
 ## Bundle, configuration & DI
@@ -90,6 +90,7 @@
 | `src/Search/Filter/SearchFilterParser.php` | US-240-03 | FR-240-FILTER-001 |
 | `src/Search/Text/TextNormalizer.php` | US-240-04 | FR-240-MATCH-001 |
 | `src/Search/Text/TextMatcher.php` | US-240-04 | FR-240-MATCH-001 |
+| `src/Search/Text/FoldedText.php` | US-240-04 | FR-240-MATCH-001, FR-240-COST-001 |
 | `src/Search/Synonym/SynonymExpander.php` | US-240-04 | FR-240-SYN-001 |
 | `src/Search/Synonym/ConceptGroupSynonymProvider.php` | US-240-04 | FR-240-SYN-001 |
 | `src/Search/Ranking/SearchRanker.php` | US-240-05 | FR-240-RANK-001 |
