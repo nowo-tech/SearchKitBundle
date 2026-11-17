@@ -30,7 +30,10 @@ interface SearchActionProviderInterface
     /**
      * The actions for this context.
      *
-     * @param SearchContext $context The viewer and the page the search box is on (path / route of the page that asked)
+     * @param SearchContext $context The viewer and the page the search box is on. On the JSON endpoint the page is
+     *                               client-supplied (`from`): kept only when the access checkers allow it for the
+     *                               viewer, empty otherwise — treat it as untrusted and check access before you show
+     *                               anything read from it
      * @param string|null $scope Scope id of the search (client input: an unknown or forbidden id yields no scoped action)
      *
      * @return iterable<SearchAction> The actions (the bundle reads at most `actions.max_candidates` of them)

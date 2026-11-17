@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\SearchKitBundle\Model;
 
 use InvalidArgumentException;
+use Nowo\SearchKitBundle\Search\Text\FoldedText;
 use Nowo\SearchKitBundle\Search\Text\TextMatcher;
 use Symfony\Component\Security\Core\User\UserInterface;
 
@@ -26,6 +27,9 @@ use function array_values;
  */
 final readonly class SearchQuery
 {
+    /** Evaluation cost of one fuzzy comparison (edit distances) relative to an exact one, for cost budgets. */
+    public const int FUZZY_COST = 8;
+
     /** The signed-in user's identifier: providers check permissions against it. */
     public string $userIdentifier;
 
@@ -34,6 +38,9 @@ final readonly class SearchQuery
 
     /** @var list<SearchTerm> Synonym alternatives (1.8.0), without the typed text (see terms()) */
     private array $alternatives;
+
+    /** @var list<array{0: FoldedText, 1: float, 2: bool}> Every term folded once: needle, weight, fuzzy (audit SP-M1) */
+    private array $needles;
 
     /**
      * @param string $text Trimmed query, at most `max_length` characters; at least `min_length` unless $belowMinLength
@@ -69,7 +76,13 @@ final readonly class SearchQuery
     ) {
         $this->filters      = array_values($filters);
         $this->alternatives = array_values($terms);
-        $fromUser           = $user?->getUserIdentifier();
+        $needles            = [];
+        foreach ($this->terms() as $term) {
+            $weight    = !$term->synonym ? 1.0 : ($term->locale !== null && $term->locale === $locale ? 0.85 : 0.75);
+            $needles[] = [FoldedText::needle($term->text), $weight, $fuzzy && !$term->synonym];
+        }
+        $this->needles = $needles;
+        $fromUser      = $user?->getUserIdentifier();
         if ($userIdentifier === null && $fromUser === null) {
             throw new InvalidArgumentException('A search query needs the user identifier.');
         }
@@ -134,19 +147,67 @@ final readonly class SearchQuery
      */
     public function score(string ...$haystacks): ?float
     {
-        $best = null;
-        foreach ($this->terms() as $term) {
-            $weight = !$term->synonym ? 1.0 : ($term->locale !== null && $term->locale === $this->locale ? 0.85 : 0.75);
-            foreach ($haystacks as $haystack) {
-                // Typos are tolerated on the typed text only: a fuzzy synonym would match far too much.
-                $score = TextMatcher::score($term->text, $haystack, $this->fuzzy && !$term->synonym);
-                if ($score !== null && ($best === null || $score * $weight > $best)) {
-                    $best = $score * $weight;
+        return $this->scoreFolded(array_values(array_map(FoldedText::haystack(...), $haystacks)));
+    }
+
+    /**
+     * score() on haystacks already folded (FoldedText::haystack()): fold a candidate's texts once, compare with every
+     * term (each folded once in the constructor). A term none of whose words occurs in any of the texts is rejected
+     * with one substring test (unless it is fuzzy); a text that cannot beat the best score is not compared.
+     *
+     * @param list<FoldedText> $haystacks Folded texts
+     * @param int $evaluations Incremented by the number of text comparisons made (cost budgets)
+     *
+     * @return float|null The score in ]0, 1], or null when nothing matches
+     */
+    public function scoreFolded(array $haystacks, int &$evaluations = 0): ?float
+    {
+        $joined = implode("\n", array_map(static fn (FoldedText $haystack): string => $haystack->text, $haystacks));
+        $best   = null;
+        foreach ($this->needles as [$needle, $weight, $fuzzy]) {
+            if ($best !== null && $best >= $weight) {
+                continue;
+            }
+            $found = null;
+            // Exact tiers first, on every text; one substring test rejects a term none of whose words occurs.
+            if ($this->occurs($needle, $joined)) {
+                foreach ($haystacks as $haystack) {
+                    ++$evaluations;
+                    $score = TextMatcher::scoreFolded($needle, $haystack);
+                    $found = $score !== null && ($found === null || $score > $found) ? $score : $found;
                 }
+            }
+            // Typos (typed text only, never a synonym) only when no exact tier matched; each costs FUZZY_COST.
+            if ($found === null && $fuzzy) {
+                foreach ($haystacks as $haystack) {
+                    $evaluations += self::FUZZY_COST;
+                    $score = TextMatcher::fuzzyFolded($needle, $haystack);
+                    $found = $score !== null && ($found === null || $score > $found) ? $score : $found;
+                }
+            }
+            if ($found !== null && ($best === null || $found * $weight > $best)) {
+                $best = $found * $weight;
             }
         }
 
         return $best;
+    }
+
+    /**
+     * Whether every word of a needle occurs somewhere in the joined texts (a necessary condition of every exact tier).
+     */
+    private function occurs(FoldedText $needle, string $joined): bool
+    {
+        if ($needle->words === []) {
+            return str_contains($joined, $needle->text);
+        }
+        foreach ($needle->words as $word) {
+            if (!str_contains($joined, $word)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

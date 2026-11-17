@@ -14,12 +14,14 @@ use Nowo\SearchKitBundle\Model\SearchPage;
 use Nowo\SearchKitBundle\Model\SearchQuery;
 use Nowo\SearchKitBundle\Model\SearchReference;
 use Nowo\SearchKitBundle\Search\Access\SearchAccess;
+use Nowo\SearchKitBundle\Search\Text\FoldedText;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Throwable;
 
 use function array_key_exists;
+use function array_slice;
 use function count;
 use function in_array;
 use function is_string;
@@ -30,7 +32,8 @@ use function is_string;
  * For every candidate, in this order: scope rule (`none` entries only while unscoped, `required` entries only while
  * scoped), URL generation, **access check (deny by default)**, and only then matching — on the label, the breadcrumb
  * and the keywords (UI locale first, then the labels and keywords of the other `page_registry.locales`; keywords are
- * never shown). A denied entry is never
+ * never shown). Bounded (audit SP-M1): 32 keywords per entry and locale, 64 of the other locales after deduplication,
+ * every text folded once, and at most MAX_EVALUATIONS term × text comparisons per search. A denied entry is never
  * matched, counted, ranked or rendered, and the group total is the number of visible matches (exact).
  *
  * Also resolves recent references to registry pages (SearchReferenceResolverInterface). Holds no state.
@@ -41,6 +44,18 @@ use function is_string;
 final readonly class PageRegistryProvider implements IdentifierAwareSearchProviderInterface, SearchReferenceResolverInterface
 {
     public const string KEY = 'pages';
+
+    /** Most keywords read per entry and per locale (like SearchAction::MAX_KEYWORDS). */
+    public const int MAX_KEYWORDS = 32;
+
+    /** Most keywords of the other locales kept per entry, after deduplication. */
+    public const int MAX_OTHER_KEYWORDS = 64;
+
+    /**
+     * Ceiling of term × text comparisons per search (audit SP-M1). Entries are scored in order until it is reached; the
+     * rest are not listed (fewer rows, never more) and a notice is logged without the query.
+     */
+    public const int MAX_EVALUATIONS = 100_000;
 
     /** @var list<SearchPage> */
     private array $pages;
@@ -80,13 +95,19 @@ final readonly class PageRegistryProvider implements IdentifierAwareSearchProvid
      */
     public function search(SearchQuery $query): ?SearchGroup
     {
-        $found = [];
+        $found       = [];
+        $evaluations = 0;
         foreach ($this->candidates($query) as $page) {
             $url = $this->visibleUrl($page, $query->userIdentifier, $query->scope, SearchAccessRequest::KIND_PAGE);
             if ($url === null || array_key_exists($url, $found)) {
                 continue;
             }
-            $score = $this->score($page, $query);
+            if ($evaluations >= self::MAX_EVALUATIONS) {
+                $this->logger?->notice('Search page registry stopped at its evaluation ceiling ({ceiling}).', ['ceiling' => self::MAX_EVALUATIONS]);
+
+                break;
+            }
+            $score = $this->score($this->texts($page, $query->locale), $query, $evaluations);
             if ($score !== null) {
                 $found[$url] = $this->item($page, $url, $query->locale, $score);
             }
@@ -175,28 +196,68 @@ final readonly class PageRegistryProvider implements IdentifierAwareSearchProvid
         return SearchItem::isSafeUrl($url) && $this->access->isAllowed($request) ? $url : null;
     }
 
-    private function score(SearchPage $page, SearchQuery $query): ?float
+    /**
+     * The folded texts of an entry, each folded once: label, breadcrumb, UI-locale keywords and the keywords (and
+     * labels) of the other locales — capped per locale, deduplicated across locales.
+     *
+     * @return array{0: list<FoldedText>, 1: list<FoldedText>, 2: list<FoldedText>, 3: list<FoldedText>}
+     */
+    private function texts(SearchPage $page, ?string $locale): array
     {
-        $best   = $query->score($this->text($page->label, $page->translationDomain, $query->locale));
-        $trail  = $this->trail($page, $query->locale);
-        $scores = [$trail !== '' ? $query->score($trail) : null];
-        foreach ($this->keywordLocales($query->locale) as $position => $locale) {
-            $keywords = $page->keywords !== null ? $this->keywords($page->keywords, $page->translationDomain, $locale) : [];
+        $trail = $this->trail($page, $locale);
+        $seen  = [];
+        $raw   = [];
+        $own   = [];
+        $other = [];
+        // Plain-text entries (no domain) are the same in every locale: one pass.
+        $locales = $page->translationDomain === null ? [$locale] : $this->keywordLocales($locale);
+        foreach ($locales as $position => $keywordLocale) {
+            $keywords = $page->keywords !== null ? $this->keywords($page->keywords, $page->translationDomain, $keywordLocale) : [];
             // In another locale the label is one more keyword (an English viewer typing "ajustes" finds "Settings").
             if ($position > 0 && $page->translationDomain !== null) {
-                $label = $this->text($page->label, $page->translationDomain, $locale);
+                $label = $this->text($page->label, $page->translationDomain, $keywordLocale);
                 if ($label !== $page->label) {
                     $keywords[] = $label;
                 }
             }
-            if ($keywords !== []) {
-                $score    = $query->score(...$keywords);
-                $scores[] = $score !== null ? $score * ($position === 0 ? 0.95 : 0.85) : null;
+            foreach ($keywords as $keyword) {
+                // Identical keywords across locales (untranslated lists) are folded once.
+                if (isset($raw[$keyword]) || ($position > 0 && count($other) >= self::MAX_OTHER_KEYWORDS)) {
+                    continue;
+                }
+                $raw[$keyword] = true;
+                $folded        = FoldedText::haystack($keyword);
+                if ($folded->text === '' || isset($seen[$folded->text])) {
+                    continue;
+                }
+                $seen[$folded->text] = true;
+                if ($position === 0) {
+                    $own[] = $folded;
+                } else {
+                    $other[] = $folded;
+                }
             }
         }
-        foreach ($scores as $score) {
-            if ($score !== null && ($best === null || $score * 0.9 > $best)) {
-                $best = $score * 0.9;
+
+        return [[FoldedText::haystack($this->text($page->label, $page->translationDomain, $locale))], $trail !== '' ? [FoldedText::haystack($trail)] : [], $own, $other];
+    }
+
+    /**
+     * Best score of an entry: its label in full, the breadcrumb at 0.9, its UI-locale keywords at 0.855 and the other
+     * locales at 0.765; a text that cannot beat the best score so far is not compared.
+     *
+     * @param array{0: list<FoldedText>, 1: list<FoldedText>, 2: list<FoldedText>, 3: list<FoldedText>} $texts
+     */
+    private function score(array $texts, SearchQuery $query, int &$evaluations): ?float
+    {
+        $best = null;
+        foreach ([[$texts[0], 1.0], [$texts[1], 0.9], [$texts[2], 0.95 * 0.9], [$texts[3], 0.85 * 0.9]] as [$haystacks, $weight]) {
+            if ($haystacks === [] || ($best !== null && $best >= $weight)) {
+                continue;
+            }
+            $score = $query->scoreFolded($haystacks, $evaluations);
+            if ($score !== null && ($best === null || $score * $weight > $best)) {
+                $best = $score * $weight;
             }
         }
 
@@ -243,6 +304,6 @@ final readonly class PageRegistryProvider implements IdentifierAwareSearchProvid
             return [];
         }
 
-        return array_values(array_filter(array_map(trim(...), explode(',', $message)), static fn (string $word): bool => $word !== ''));
+        return array_slice(array_values(array_filter(array_map(trim(...), explode(',', $message, self::MAX_KEYWORDS + 1)), static fn (string $word): bool => $word !== '')), 0, self::MAX_KEYWORDS);
     }
 }

@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Nowo\SearchKitBundle\Controller;
 
 use Nowo\SearchKitBundle\Icon\SearchIcons;
+use Nowo\SearchKitBundle\Model\SearchAccessRequest;
 use Nowo\SearchKitBundle\Model\SearchContext;
 use Nowo\SearchKitBundle\Model\SearchFilter;
 use Nowo\SearchKitBundle\Model\SearchGroup;
 use Nowo\SearchKitBundle\Model\SearchItem;
+use Nowo\SearchKitBundle\Model\SearchReference;
 use Nowo\SearchKitBundle\Model\SearchScope;
 use Nowo\SearchKitBundle\Search\Access\SearchAccess;
 use Nowo\SearchKitBundle\Search\SearchEngine;
@@ -30,7 +32,8 @@ use Symfony\Component\Security\Core\User\UserInterface;
  * a `scope` that is not a valid id is ignored (unscoped search). Results come from the providers, which only return
  * what the user may open; an inaccessible scope therefore answers 200 with no groups, never 403.
  *
- * 1.8.0: `from` (the path of the page the box is on, same-site only) gives the action providers their context; the
+ * 1.8.0: `from` (the path of the page the box is on, same-site only, client input) gives the action providers their
+ * context only when the access checkers allow that page for the viewer (otherwise an empty context); the
  * answer adds `filters` (the typed filters recognised, for the chips) and `actionsOnly` (a `>` query) only when they
  * apply, so a 1.7 answer is unchanged.
  *
@@ -116,8 +119,14 @@ final readonly class SearchController
     {
         $from      = mb_substr($request->query->getString('from'), 0, 512);
         $from      = SearchItem::isSafeUrl($from) && str_starts_with($from, '/') ? strtok($from, '?#') : '';
+        $identity  = $user->getUserIdentifier();
         $reference = $from !== '' ? $this->access?->referenceFor($from, 'page') : null;
+        // `from` is client input (audit SP-L1): its route and parameters reach the action providers only when the viewer
+        // may open that page; otherwise the context is empty (no path, no route), never a hidden page's parameters.
+        if (!$reference instanceof SearchReference || !$this->access?->allowsUrl($from, $identity, SearchAccessRequest::KIND_PAGE)) {
+            return new SearchContext($identity, '', null, [], $request->getLocale(), array_values($user->getRoles()));
+        }
 
-        return new SearchContext($user->getUserIdentifier(), $from, $reference?->route, $reference->routeParameters ?? [], $request->getLocale(), array_values($user->getRoles()));
+        return new SearchContext($identity, $from, $reference->route, $reference->routeParameters, $request->getLocale(), array_values($user->getRoles()));
     }
 }

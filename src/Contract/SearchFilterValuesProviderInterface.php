@@ -38,7 +38,8 @@ interface SearchFilterValuesProviderInterface
      * @param string $prefix What the viewer typed after `key:` (may be empty; at most 100 characters)
      * @param string $userIdentifier The viewer
      * @param string|null $scope Scope id of the search, or null (client input)
-     * @param int $limit Most values returned (the bundle cuts longer lists)
+     * @param int $limit Most values returned: honour it in your query (the bundle cuts longer lists, but it has to read
+     *                   every value you yield first)
      *
      * @return list<SearchFilterValue> The suggestions
      */

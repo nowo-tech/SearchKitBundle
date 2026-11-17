@@ -18,6 +18,7 @@ use Nowo\SearchKitBundle\Model\SearchItem;
 use Nowo\SearchKitBundle\Model\SearchPage;
 use Nowo\SearchKitBundle\Model\SearchQuery;
 use Nowo\SearchKitBundle\Model\SearchReference;
+use Nowo\SearchKitBundle\Model\SearchTerm;
 use Nowo\SearchKitBundle\Search\Access\SearchAccess;
 use Nowo\SearchKitBundle\Search\Action\ActionCollector;
 use Nowo\SearchKitBundle\Search\Page\PageRegistryProvider;
@@ -76,6 +77,36 @@ final class RegistryActionsRecentTest extends TestCase
         $files = $registry->search($this->query('documents', null, 'acme'));
         self::assertSame(['/projects/acme/tabs/files'], array_map(static fn (SearchItem $i): string => $i->url, $files->items ?? []));
         self::assertSame('tabler:folder', $files?->items[0]->icon);
+    }
+
+    public function testKeywordsAreCappedPerLocaleAndAcrossLocales(): void
+    {
+        $words = static fn (string $prefix, int $count): string => implode(', ', array_map(static fn (int $i): string => $prefix . $i, range(1, $count)));
+        // es repeats an English keyword with another case: folded once, kept once.
+        $messages = ['en' => ['kw' => $words('alpha', 40)], 'es' => ['kw' => 'ALPHA1, ' . $words('beta', 31)], 'it' => ['kw' => $words('gamma', 32)], 'fr' => ['kw' => $words('delta', 32)]];
+        $page     = [['id' => 'p', 'label' => 'Page', 'translation_domain' => 'messages', 'route' => 'page', 'route_parameters' => [], 'trail' => [], 'icon' => null, 'keywords' => 'kw', 'scope' => 'none', 'attribute' => null, 'subject' => null, 'scope_parameter' => null]];
+        $registry = new PageRegistryProvider($page, [], Fixtures::access(), Fixtures::router(), Fixtures::translator($messages), ['en', 'es', 'it', 'fr']);
+        self::assertNotNull($registry->search($this->query('alpha32')));
+        self::assertNull($registry->search($this->query('alpha33')), 'at most 32 keywords per locale');
+        self::assertNotNull($registry->search($this->query('gamma32')));
+        self::assertNotNull($registry->search($this->query('delta1')), 'the duplicate left room for one more');
+        self::assertNull($registry->search($this->query('delta2')), 'at most 64 keywords of the other locales');
+    }
+
+    public function testTheEvaluationCeilingStopsTheScanAndSaysSo(): void
+    {
+        $logger = Fixtures::logger();
+        $pages  = [];
+        for ($i = 0; $i < 400; ++$i) {
+            $pages[] = ['id' => 'p' . $i, 'label' => 'Entry ' . $i, 'translation_domain' => null, 'route' => 'issue', 'route_parameters' => ['id' => $i], 'trail' => [], 'icon' => null, 'keywords' => implode(', ', range(1, 32)), 'scope' => 'none', 'attribute' => null, 'subject' => null, 'scope_parameter' => null];
+        }
+        $registry = new PageRegistryProvider($pages, [], Fixtures::access(), Fixtures::router(), Fixtures::translator(), ['en'], 500, 'tabler:file', $logger);
+        $terms    = array_map(static fn (int $i): SearchTerm => new SearchTerm('alt' . $i, 'en', true), range(1, 24));
+        // A typo on every label: each entry costs its fuzzy comparisons (FUZZY_COST each) until the ceiling.
+        $group = $registry->search(new SearchQuery('entrx', null, 5, null, false, 'alice', [], 'en', $terms, true));
+        self::assertNotNull($group);
+        self::assertLessThan(400, $group->total, 'entries past the ceiling are not listed');
+        self::assertSame(['notice: Search page registry stopped at its evaluation ceiling (100000).'], $logger->lines);
     }
 
     public function testSourcesAreBoundedAndAFailingSourceIsSkipped(): void

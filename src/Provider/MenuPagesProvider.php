@@ -14,6 +14,7 @@ use Nowo\SearchKitBundle\Model\SearchItem;
 use Nowo\SearchKitBundle\Model\SearchQuery;
 use Nowo\SearchKitBundle\Model\SearchReference;
 use Nowo\SearchKitBundle\Search\Access\SearchAccess;
+use Nowo\SearchKitBundle\Search\Page\PageRegistryProvider;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
@@ -210,6 +211,7 @@ final readonly class MenuPagesProvider implements SearchProviderInterface, Searc
             $raw[]   = $message === $key && $this->keywordsDomain !== null ? '' : $message;
         }
 
-        return array_values(array_filter(array_map(trim(...), explode(',', implode(',', $raw))), static fn (string $word): bool => $word !== ''));
+        // Bounded like the registry (audit SP-M1): at most 32 keywords per entry.
+        return array_slice(array_values(array_filter(array_map(trim(...), explode(',', implode(',', $raw))), static fn (string $word): bool => $word !== '')), 0, PageRegistryProvider::MAX_KEYWORDS);
     }
 }

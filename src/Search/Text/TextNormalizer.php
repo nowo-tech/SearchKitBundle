@@ -43,6 +43,10 @@ final class TextNormalizer
      */
     public static function fold(string $text): string
     {
+        // ASCII fast path (most keywords and labels): nothing to fold but the case.
+        if (preg_match('/[^\x00-\x7F]/', $text) !== 1) {
+            return trim((string) preg_replace('/\s+/', ' ', strtolower($text)));
+        }
         $text = strtr(mb_strtolower($text, 'UTF-8'), self::FOLD);
 
         return trim((string) preg_replace(['/\p{Mn}+/u', '/\s+/u'], ['', ' '], $text));

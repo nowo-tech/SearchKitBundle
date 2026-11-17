@@ -43,6 +43,10 @@ final class TextAndFiltersTest extends TestCase
         yield 'every word prefixes' => ['usu perf', 'Perfil de usuario', false, 0.6];
         yield 'one word only' => ['zzz', 'Perfil', false, null];
         yield 'missing word' => ['usu zzz', 'Perfil de usuario', false, null];
+        yield 'inside, not a prefix' => ['sario perf', 'Perfil de usuario', false, null];
+        yield 'no word in needle' => ['--', 'a--b', false, 0.7];
+        yield 'later word start' => ['usu', 'ausu usuario', false, 0.8];
+        yield 'ascii fast path' => ['PERFIL   de', "perfil\tDE usuario", false, 0.9];
         yield 'empty needle' => ['  ', 'Perfil', false, null];
         yield 'empty haystack' => ['x', '', false, null];
         yield 'fuzzy off' => ['pasword', 'Password', false, null];
@@ -101,6 +105,7 @@ final class TextAndFiltersTest extends TestCase
         self::assertTrue($fuzzy->matches('Password'));
         self::assertFalse($fuzzy->matches('doble factor'), 'never fuzzy on a synonym');
         self::assertTrue((new SearchQuery('Ñandú', null, 5, null, false, 'u'))->matches('nandu salvaje'), 'matches() folds accents (1.8.0)');
+        self::assertTrue((new SearchQuery('--', null, 5, null, false, 'u'))->matches('a--b'), 'a needle without words is still compared');
     }
 
     public function testFiltersOnTheQuery(): void

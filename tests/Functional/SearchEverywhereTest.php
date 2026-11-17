@@ -127,9 +127,18 @@ final class SearchEverywhereTest extends TestCase
         self::assertSame(['Project members'], array_column($context['groups'][0]['items'], 'title'));
         self::assertSame('acme', $context['groups'][0]['items'][0]['subtitle']);
         self::assertSame([], $this->json($client, '/search?q=%3Eteam&from=' . rawurlencode('//evil.test/projects/acme/page'))['groups']);
+        $report = $this->json($client, '/search?q=%3Ereport&from=' . rawurlencode('/projects/acme/page'));
+        self::assertSame(['acme'], array_column($report['groups'][0]['items'], 'subtitle'), 'alice may open that page: its context reaches the providers');
 
         $client->loginUser(new InMemoryUser('bob', 'x', ['ROLE_USER']));
         self::assertSame([], $this->json($client, '/search?q=%3Eteam&from=' . rawurlencode('/projects/acme/page'))['groups'], 'bob may not open acme');
+        // Audit SP-L1: an allowed action must not carry the context of a page bob may not open (client-supplied `from`).
+        self::assertSame([], $this->json($client, '/search?q=%3Ereport&from=' . rawurlencode('/projects/acme/page'))['groups']);
+        self::assertSame(
+            str_replace('nope', 'acme', $this->body($client, '/search?q=%3Enew&from=' . rawurlencode('/projects/nope/page'))),
+            $this->body($client, '/search?q=%3Enew&from=' . rawurlencode('/projects/acme/page')),
+            'a hidden page and a missing page give the same context',
+        );
         $client->loginUser(new InMemoryUser('admin', 'x', ['ROLE_ADMIN']));
         self::assertContains('Admin console', array_column($this->json($client, '/search?q=%3E')['groups'][0]['items'], 'title'));
     }
@@ -346,12 +355,12 @@ final class SearchEverywhereTest extends TestCase
         self::assertSame(['url' => '/search/results', 'label' => 'See all results'], $config['results']);
         self::assertSame('/search/recent', $config['recent']['revalidateUrl']);
         self::assertSame('Actions only', $config['labels']['actionsOnly']);
-        self::assertSame(['Host action', 'New issue', 'Read the docs', 'Project members'], array_column($config['actions'], 'title'), 'host rows, then the context-aware, access-checked provider actions (no quick actions)');
+        self::assertSame(['Host action', 'New issue', 'Read the docs', 'Report a bug here', 'Project members'], array_column($config['actions'], 'title'), 'host rows, then the context-aware, access-checked provider actions (no quick actions)');
         self::assertSame('n i', $config['actions'][1]['shortcut']);
 
         $client->loginUser(new InMemoryUser('bob', 'x', ['ROLE_USER']));
         $client->request(Request::METHOD_GET, '/projects/acme/page');
-        self::assertSame(['Host action', 'New issue', 'Read the docs'], array_column($this->configFromPage($client)['actions'], 'title'));
+        self::assertSame(['Host action', 'New issue', 'Read the docs', 'Report a bug here'], array_column($this->configFromPage($client)['actions'], 'title'), 'the page bob is really on (server side), not a client claim');
         self::assertNotSame($config['recent']['storageKey'], $this->configFromPage($client)['recent']['storageKey'], 'one recents key per user');
     }
 

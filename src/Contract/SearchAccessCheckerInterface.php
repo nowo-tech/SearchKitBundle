@@ -20,6 +20,10 @@ use Nowo\SearchKitBundle\Model\SearchAccessRequest;
  * No checker at all, or only null answers, means **denied**: the registry, the provider actions and the revalidated
  * recents then list nothing. A checker that throws counts as a denial (logged, the search still answers).
  *
+ * **Decide for `$request->userIdentifier`, never for the session token** (`Security::getUser()`, the token storage):
+ * a search by identifier (SearchEngineInterface::searchFor(), CLI, API) runs for another user than the HTTP session,
+ * and a checker reading the session would list that session user's pages to the searched user.
+ *
  * Decide on the request only (no side effects, no per-request caching in a property: FrankenPHP worker mode), and do
  * the same amount of work whether the target exists or not where practical.
  *

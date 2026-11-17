@@ -48,31 +48,51 @@ final class TextMatcher
      */
     public static function score(string $needle, string $haystack, bool $fuzzy = false): ?float
     {
-        $needle   = TextNormalizer::fold(mb_substr($needle, 0, self::MAX_NEEDLE));
-        $haystack = TextNormalizer::fold(mb_substr($haystack, 0, self::MAX_HAYSTACK));
-        if ($needle === '' || $haystack === '') {
+        return self::scoreFolded(FoldedText::needle($needle), FoldedText::haystack($haystack), $fuzzy);
+    }
+
+    /**
+     * Score of a folded haystack for a folded needle (no folding here: fold each text once, then compare many).
+     *
+     * @param FoldedText $needle FoldedText::needle()
+     * @param FoldedText $haystack FoldedText::haystack()
+     * @param bool $fuzzy Allow typos (edit distance per word length)
+     *
+     * @return float|null The score in ]0, 1], or null when it does not match
+     */
+    public static function scoreFolded(FoldedText $needle, FoldedText $haystack, bool $fuzzy = false): ?float
+    {
+        if ($needle->text === '' || $haystack->text === '') {
             return null;
         }
-        if ($haystack === $needle) {
+        if ($haystack->text === $needle->text) {
             return 1.0;
         }
-        if (str_starts_with($haystack, $needle)) {
+        if (str_starts_with($haystack->text, $needle->text)) {
             return 0.9;
         }
-        if (preg_match('/(?<![\p{L}\p{N}])' . preg_quote($needle, '/') . '/u', $haystack) === 1) {
-            return 0.8;
+        $position = strpos($haystack->text, $needle->text);
+        if ($position !== false) {
+            return self::atWordStart($haystack->text, $needle->text, $position) ? 0.8 : 0.7;
         }
-        if (str_contains($haystack, $needle)) {
-            return 0.7;
-        }
-
-        $needleWords   = TextNormalizer::words($needle, self::MAX_WORDS);
-        $haystackWords = TextNormalizer::words($haystack);
-        if (self::everyWordPrefixes($needleWords, $haystackWords)) {
+        if (self::everyWordPrefixes($needle->words, $haystack->text)) {
             return 0.6;
         }
 
-        return $fuzzy && $needleWords !== [] ? self::fuzzy($needleWords, $haystackWords) : null;
+        return $fuzzy && $needle->words !== [] ? self::fuzzy($needle->words, $haystack->words) : null;
+    }
+
+    /**
+     * Only the typo tier of scoreFolded() (for callers that ran the exact tiers first, on every text).
+     *
+     * @param FoldedText $needle FoldedText::needle()
+     * @param FoldedText $haystack FoldedText::haystack()
+     *
+     * @return float|null The fuzzy score, or null
+     */
+    public static function fuzzyFolded(FoldedText $needle, FoldedText $haystack): ?float
+    {
+        return $needle->words !== [] && $haystack->words !== [] ? self::fuzzy($needle->words, $haystack->words) : null;
     }
 
     /**
@@ -90,24 +110,32 @@ final class TextMatcher
     }
 
     /**
-     * @param list<string> $needleWords
-     * @param list<string> $haystackWords
+     * Whether one occurrence of the needle (the first at $position or a later one) starts a word.
      */
-    private static function everyWordPrefixes(array $needleWords, array $haystackWords): bool
+    private static function atWordStart(string $haystack, string $needle, int $position): bool
+    {
+        while ($position !== false) {
+            if ($position === 0 || preg_match('/[\p{L}\p{N}]$/u', substr($haystack, 0, $position)) !== 1) {
+                return true;
+            }
+            $position = strpos($haystack, $needle, $position + 1);
+        }
+
+        return false;
+    }
+
+    /**
+     * Whether every needle word starts a word of the haystack (a substring test first, the word-boundary test after).
+     *
+     * @param list<string> $needleWords
+     */
+    private static function everyWordPrefixes(array $needleWords, string $haystack): bool
     {
         if (count($needleWords) < 2) {
             return false;
         }
         foreach ($needleWords as $word) {
-            $found = false;
-            foreach ($haystackWords as $candidate) {
-                if (str_starts_with($candidate, $word)) {
-                    $found = true;
-
-                    break;
-                }
-            }
-            if (!$found) {
+            if (!str_contains($haystack, $word) || preg_match('/(?<![\p{L}\p{N}])' . preg_quote($word, '/') . '/u', $haystack) !== 1) {
                 return false;
             }
         }

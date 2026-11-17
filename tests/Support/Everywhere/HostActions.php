@@ -19,6 +19,10 @@ final class HostActions implements SearchActionProviderInterface
         yield new SearchAction('Admin console', '/admin', ['secret-admin-keyword']);
         yield new SearchAction('Read the docs', 'https://example.com/docs', ['help']);
         yield new SearchAction('Unrouted', '/nowhere', ['unrouted']);
+        // Audit SP-L1 probe: an allowed URL whose subtitle comes from the page context (the project of the page).
+        if ($context->routeName === 'test_project_page') {
+            yield new SearchAction('Report a bug here', '/issues/new', ['report'], null, null, (string) ($context->routeParameters['id'] ?? ''));
+        }
         $project = $scope ?? ($context->routeName === 'test_project_page' ? (string) ($context->routeParameters['id'] ?? '') : null);
         if ($project !== null && $project !== '') {
             yield new SearchAction('Project members', '/projects/' . rawurlencode($project) . '/tabs/members', ['team'], null, null, $project);

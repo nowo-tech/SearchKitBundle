@@ -132,9 +132,13 @@ final readonly class ResultsController
      */
     private function search(array $view, UserInterface $user, Request $request, ?string $group, int $page): array
     {
-        $q      = (string) $view['query'];
-        $scope  = $view['scope'] !== null ? (string) $view['scope'] : null;
-        $search = new SearchRequest($q, $user, null, $scope, $request->getLocale(), null, $this->settings['per_group']);
+        $q     = (string) $view['query'];
+        $scope = $view['scope'] !== null ? (string) $view['scope'] : null;
+        // One engine run per page view (audit SP-I2): a group whose provider does not page is read from this run with
+        // `per_page` rows; a paginated group runs only its own provider once more.
+        $paged  = $group !== null && $this->engine->isPaginated($group);
+        $limit  = $group !== null && !$paged ? $this->settings['per_page'] : $this->settings['per_group'];
+        $search = new SearchRequest($q, $user, null, $scope, $request->getLocale(), null, $limit);
         $result = $this->engine->execute($search);
 
         $view['actions_only'] = $result->actionsOnly;
@@ -151,7 +155,7 @@ final readonly class ResultsController
 
         $view['group'] = $group;
         $perPage       = $this->settings['per_page'];
-        if ($this->engine->isPaginated($group)) {
+        if ($paged) {
             $rows = $this->engine->page($search, $group, $page, $perPage)->items ?? [];
             if ($page > 1) {
                 $view['prev'] = $this->link($q, $scope, $group, $page - 1);
@@ -160,9 +164,8 @@ final readonly class ResultsController
                 $view['next'] = $this->link($q, $scope, $group, $page + 1);
             }
         } else {
-            $one  = $this->engine->execute(new SearchRequest($q, $user, null, $scope, $request->getLocale(), null, $perPage));
             $rows = [];
-            foreach ($one->groups as $candidate) {
+            foreach ($result->groups as $candidate) {
                 if ($candidate->key === $group) {
                     $rows = $candidate->items;
                 }
