@@ -6,57 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Table of contents
 
-
 - [[Unreleased]](#unreleased)
-  - [Added](#added)
-  - [Changed](#changed)
-  - [Docs](#docs)
+- [[1.9.0] - 2026-11-19](#190---2026-11-19)
 - [[1.8.1] - 2026-11-17](#181---2026-11-17)
-  - [Fixed](#fixed)
 - [[1.8.0] - 2026-11-17](#180---2026-11-17)
-  - [Added](#added-1)
-  - [Changed](#changed-1)
-  - [Security](#security)
-  - [Demo](#demo)
-  - [Docs](#docs-1)
-  - [Tests](#tests)
 - [[1.7.0] - 2026-11-11](#170---2026-11-11)
-  - [Added](#added-2)
-  - [Deprecated](#deprecated)
-  - [Changed](#changed-2)
 - [[1.6.0] - 2026-11-07](#160---2026-11-07)
-  - [Added](#added-3)
 - [[1.5.0] - 2026-11-07](#150---2026-11-07)
-  - [Changed](#changed-3)
 - [[1.4.0] - 2026-11-06](#140---2026-11-06)
-  - [Added](#added-4)
 - [[1.3.1] - 2026-10-31](#131---2026-10-31)
-  - [Changed](#changed-4)
 - [[1.3.0] - 2026-10-30](#130---2026-10-30)
-  - [Changed](#changed-5)
 - [[1.2.1] - 2026-10-30](#121---2026-10-30)
-  - [Changed](#changed-6)
-  - [Fixed](#fixed-1)
 - [[1.2.0] - 2026-10-23](#120---2026-10-23)
-  - [Added](#added-5)
 - [[1.1.1] - 2026-10-22](#111---2026-10-22)
-  - [Changed](#changed-7)
-  - [Fixed](#fixed-2)
 - [[1.1.0] - 2026-10-18](#110---2026-10-18)
-  - [Added](#added-6)
-  - [Changed](#changed-8)
 - [[1.0.3] - 2026-10-18](#103---2026-10-18)
-  - [Fixed](#fixed-3)
 - [[1.0.2] - 2026-10-16](#102---2026-10-16)
-  - [Added](#added-7)
-  - [Fixed](#fixed-4)
 - [[1.0.1] - 2026-10-16](#101---2026-10-16)
-  - [Security](#security-1)
-  - [Fixed](#fixed-5)
 - [[1.0.0] - 2026-10-16](#100---2026-10-16)
-  - [Added](#added-8)
 
 ## [Unreleased]
+
+## [1.9.0] - 2026-11-19
 
 Target: **1.9.0** (minor, additive).
 
