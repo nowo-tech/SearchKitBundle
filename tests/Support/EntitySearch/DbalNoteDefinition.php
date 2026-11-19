@@ -29,7 +29,8 @@ use function is_string;
 use function rawurlencode;
 
 /**
- * DBAL definition of the test notes: tenant and archived rows filtered in SQL, hidden rows by the batch check (one
+ * DBAL definition of the test notes (`$maxCandidates` and `$hiddenFirst`, 1.11.1: a small window and hidden rows
+ * ordered before visible ones, for the kit's order-independence self-test): tenant and archived rows filtered in SQL, hidden rows by the batch check (one
  * pass, no query), `owner:<name>` scopes. With `$ownerBound` (1.11.0), it scans at most that many owners whose notes
  * match the text — like a bundle that reads at most N boards — and marks the candidates partial when more exist.
  */
@@ -40,6 +41,8 @@ final class DbalNoteDefinition extends EntitySearchDefinition
         private readonly Viewer $viewer,
         private readonly ?int $ownerBound = null,
         private readonly bool $marksPartial = true,
+        private readonly ?int $maxCandidates = null,
+        private readonly bool $hiddenFirst = false,
     ) {
     }
 
@@ -99,8 +102,13 @@ final class DbalNoteDefinition extends EntitySearchDefinition
             ->where('n.tenant = :tenant')
             ->andWhere('n.archived = :archived')
             ->setParameter('tenant', (string) $tenant)
-            ->setParameter('archived', false, ParameterType::BOOLEAN)
-            ->orderBy('n.id', 'ASC');
+            ->setParameter('archived', false, ParameterType::BOOLEAN);
+        if ($this->hiddenFirst) {
+            // 1.11.1: the worst order for the kit — every row the viewer may not see before every visible one, like
+            // equal timestamps with a random id tiebreak at its unluckiest draw.
+            $queryBuilder->orderBy('n.hidden', 'DESC');
+        }
+        $queryBuilder->addOrderBy('n.id', 'ASC');
         $words = SearchWords::words($query->text);
         if ($this->ownerBound === null || $words === []) {
             return $queryBuilder;
@@ -153,6 +161,11 @@ final class DbalNoteDefinition extends EntitySearchDefinition
     public function seeAllUrl(SearchQuery $query): string
     {
         return '/notes?q=' . rawurlencode($query->text);
+    }
+
+    public function maxCandidates(): int
+    {
+        return $this->maxCandidates ?? parent::maxCandidates();
     }
 
     public function idField(): string

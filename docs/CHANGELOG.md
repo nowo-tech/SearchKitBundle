@@ -30,6 +30,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+Target: **1.11.1** (patch).
+
+### Fixed
+
+- **Contract kit: `testContractHiddenRowsBeyondTheWindowChangeNothing` no longer depends on the insertion order.** It
+  seeded `maxCandidates()` hidden rows between two visible ones, so the matches exceeded the window by two. A
+  definition whose order does not follow insertion — for example equal timestamps with a random id tiebreak — could
+  sort both visible rows past the window and fail the test by chance ("A visible row must still be found"; about one
+  run in 231 with a 20-row window). The kit now seeds `maxCandidates() - 1` hidden rows: the window is still full,
+  and at least one visible row is always in it. The other window test,
+  `testContractHiddenRowsAroundVisibleOnesNeverShrinkAnExactTotal`, was already order-independent. A new self-test
+  runs the whole kit against a definition that orders every hidden row before every visible one (the unluckiest
+  order); it failed this test with the 1.11.0 kit. No runtime change.
+
 ## [1.11.0] - 2026-11-19
 
 Target: **1.11.0** (minor, additive).

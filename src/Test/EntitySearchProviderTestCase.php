@@ -400,6 +400,11 @@ abstract class EntitySearchProviderTestCase extends TestCase
 
     /**
      * Hidden rows that fill the candidate window change neither the total nor whether it is exact (no count oracle).
+     *
+     * 1.11.1: `maxCandidates() - 1` hidden rows between two visible ones, so the window is full (one row more than
+     * it holds) and at least one visible row lands in it whatever the definition's order — newest or oldest first,
+     * or equal timestamps with a random id tiebreak. With `maxCandidates()` hidden rows (1.9.0–1.11.0) an order
+     * unrelated to the insertion order could push both visible rows out and fail the test by chance.
      */
     public function testContractHiddenRowsBeyondTheWindowChangeNothing(): void
     {
@@ -416,7 +421,7 @@ abstract class EntitySearchProviderTestCase extends TestCase
 
         $marker = $this->marker();
         $this->seed($tenant, $marker . 'first');
-        for ($row = 0; $row < $candidates; ++$row) {
+        for ($row = 0; $row < $candidates - 1; ++$row) {
             $this->seedHidden($tenant, $marker . 'h' . $row);
         }
         $this->seed($tenant, $marker . 'last');
@@ -437,7 +442,8 @@ abstract class EntitySearchProviderTestCase extends TestCase
      * ones, in a small candidate window (at most 10 rows), either change nothing — the definition filters them in SQL,
      * required by default for sensitive groups — or make the total inexact: a count marked exact never shrinks because
      * of rows the viewer may not see. Visible rows they push out of the window stay missing (only SQL filtering avoids
-     * that).
+     * that). Independent of the definition's order: with PHP-only filtering the window may hold no visible row at all
+     * (null is accepted), with SQL filtering the hidden rows never reach it.
      */
     public function testContractHiddenRowsAroundVisibleOnesNeverShrinkAnExactTotal(): void
     {
