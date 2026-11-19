@@ -5,6 +5,7 @@ This guide lists the changes integrators must apply when upgrading between versi
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.11.1](#to-1111)
 - [To 1.11.0](#to-1110)
 - [To 1.10.1](#to-1101)
 - [To 1.10.0](#to-1100)
@@ -32,6 +33,14 @@ This guide lists the changes integrators must apply when upgrading between versi
 - [1.0.0 (2026-10-16)](#100-2026-10-16)
 
 ## Unreleased
+
+## To 1.11.1
+
+From **1.11.0**:
+
+```bash
+composer update nowo-tech/search-kit-bundle
+```
 
 Target: **1.11.1** (patch). Nothing to change. The contract kit's `testContractHiddenRowsBeyondTheWindowChangeNothing`
 now seeds one hidden row fewer, so it no longer fails by chance when the definition's order does not follow insertion
