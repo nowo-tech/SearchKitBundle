@@ -128,6 +128,8 @@ jobs:
         run: composer test-coverage
 
   # 1.9.0: the entity search LIKE / limit / access / query-budget path on real servers (the main suite runs it on SQLite).
+  # 1.11.0: the DBAL 3 cells run the same group (and the contract kit with its QueryCountingMiddleware) on DBAL 3,
+  # on SQLite and on the cell's server.
   database:
     name: Database - ${{ matrix.database.name }}
     runs-on: ubuntu-latest
@@ -151,6 +153,18 @@ jobs:
             url: postgresql://postgres:root@127.0.0.1:5432/searchkit?serverVersion=16
             port: 5432
             health: pg_isready -U postgres
+          - name: MySQL 8.4 (DBAL 3)
+            image: mysql:8.4
+            url: mysql://root:root@127.0.0.1:3306/searchkit?serverVersion=8.4.0
+            port: 3306
+            health: mysqladmin ping -h 127.0.0.1 -proot
+            dbal: '^3.10'
+          - name: PostgreSQL 16 (DBAL 3)
+            image: postgres:16
+            url: postgresql://postgres:root@127.0.0.1:5432/searchkit?serverVersion=16
+            port: 5432
+            health: pg_isready -U postgres
+            dbal: '^3.10'
 
     services:
       database:
@@ -198,6 +212,19 @@ jobs:
 
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Downgrade to DBAL ${{ matrix.database.dbal }}
+        if: matrix.database.dbal
+        run: |
+          composer require --dev --no-update --no-interaction "doctrine/dbal:${{ matrix.database.dbal }}"
+          composer update --with-all-dependencies --prefer-dist --no-progress --no-interaction doctrine/dbal doctrine/orm
+          composer show doctrine/dbal | grep -E '^versions'
+
+      - name: Run the database tests on SQLite (DBAL 3)
+        if: matrix.database.dbal
+        env:
+          SYMFONY_DEPRECATIONS_HELPER: max[direct]=0
+        run: vendor/bin/phpunit --group database --no-coverage
 
       - name: Run the database tests
         env:

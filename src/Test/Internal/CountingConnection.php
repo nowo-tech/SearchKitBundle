@@ -49,11 +49,15 @@ final class CountingConnection extends AbstractConnectionMiddleware
 
     /**
      * Records and runs a statement.
+     *
+     * Declared `int`, which both DBAL 3 (`exec(): int`) and DBAL 4 (`exec(): int|string`) accept (1.11.0; 1.9–1.10
+     * declared the DBAL 4 type, a fatal error on DBAL 3). DBAL 4 gives a numeric string only for a row count above
+     * PHP_INT_MAX, which a test never reaches.
      */
-    public function exec(string $sql): int|string
+    public function exec(string $sql): int
     {
         $this->counter->record($sql);
 
-        return parent::exec($sql);
+        return (int) parent::exec($sql);
     }
 }
