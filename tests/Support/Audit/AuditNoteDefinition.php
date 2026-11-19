@@ -26,6 +26,7 @@ final class AuditNoteDefinition extends EntitySearchDefinition
         public int $candidates = 100,
         public bool $bindReserved = false,
         public bool $sensitive = false,
+        public bool $hiddenInSql = false,
     ) {
     }
 
@@ -74,6 +75,9 @@ final class AuditNoteDefinition extends EntitySearchDefinition
             ->orderBy('n.id', 'ASC');
         if ($this->tenantInSql) {
             $qb->andWhere('n.tenant = :tenant')->setParameter('tenant', (string) $tenant);
+        }
+        if ($this->hiddenInSql) {
+            $qb->andWhere('n.hidden = :hidden')->setParameter('hidden', false, ParameterType::BOOLEAN);
         }
         if ($this->bindReserved) {
             // a host filter that happens to use a reserved name

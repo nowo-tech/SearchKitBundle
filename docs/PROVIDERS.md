@@ -18,6 +18,7 @@ scope, escaped LIKE, bounded limit, access checks, the shared host event, the vi
 - [Full text](#full-text)
 - [Recents](#recents)
 - [Display data for the shown rows: prepareItems()](#display-data-for-the-shown-rows-prepareitems)
+- [Rows hidden only in PHP still use the candidate window](#rows-hidden-only-in-php-still-use-the-candidate-window)
 - [The host visibility event](#the-host-visibility-event)
 - [Group switches](#group-switches)
 - [Helpers](#helpers)
@@ -103,11 +104,12 @@ Per call, always in this order:
    `SearchKitEvents::ITEM_VISIBILITY` event for the page, where a host deny wins;
 8. the page cut out of the visible rows, the visible total within the window, `seeAllUrl()`, then the shown rows
    rendered: **one** `prepareItems()` call with exactly those rows (1.10.0), and `toPreparedItem()` — by default
-   `toItem()` — per shown row only. The total is exact unless the **visible** rows fill the whole window (then it is a lower bound and
-   SearchKit shows the rows it lists). Rows the viewer may not see are never counted and never decide the exactness;
-   but hidden rows **inside** the window take places, so once the matches exceed `maxCandidates()` they can lower the
-   visible count (and the rows reachable by paging). **Filter per-row visibility in SQL** (`baseQuery()`) wherever
-   possible, and keep `filterVisible()` for what SQL cannot express.
+   `toItem()` — per shown row only. Rows the viewer may not see are never counted. The total is exact only when the
+   SQL fetch did **not** fill the window (1.10.1): once `maxCandidates()` rows came back, visible or not, it is a lower
+   bound and SearchKit shows the rows it lists. Hidden rows **inside** the window still take places, so they can lower
+   the visible count and the rows reachable by paging — see
+   [Rows hidden only in PHP](#rows-hidden-only-in-php-still-use-the-candidate-window). **Filter per-row visibility in
+   SQL** (`baseQuery()`) wherever possible, and keep `filterVisible()` for what SQL cannot express.
 
 **Any refusal is `null`**: no group, no count, no hint, so a forbidden or hidden row looks exactly like a missing one.
 An exception thrown by a hook reaches SearchKit, which logs the class names (never the query text) and drops the group.
@@ -275,6 +277,34 @@ Rules:
 - **Within the query budget.** Its statements count towards the search's query budget; the contract kit allows one per
   call by default (`prepareItemsBudget()`), and none for the default no-op.
 
+## Rows hidden only in PHP still use the candidate window
+
+SearchKit reads at most `maxCandidates()` rows in the order of `baseQuery()`, and only then runs `filterVisible()` and
+the host event. A row those checks drop is never shown or counted, but it has already taken a place in the window.
+When the matches exceed the window and hidden rows come first (newer ones, with the usual newest-first order), fewer
+visible rows remain: 7 hidden rows ahead of 6 visible ones in a 10-row window leave 3.
+
+That is a side channel. A viewer who can create rows of their own and search for a substring can watch the number of
+their own rows that show up shrink, and so learn that rows they cannot see exist and contain that substring. Since
+1.10.1 SearchKit never marks such a total exact: a window the fetch filled always gives a lower bound
+(`exactTotal` false), which SearchKit caps to the rows it lists. That fixes only the exact claim. The rows that are
+pushed out of the window remain missing (3 instead of 6 above), and that cannot be fixed after the fetch.
+
+One binary signal also remains. When the visible rows exceed the page size, the inexact flag tells the viewer whether
+the visible and hidden matches together reach `maxCandidates()`. Again, only filtering hidden rows in `baseQuery()`
+removes it.
+
+So:
+
+- **Push access rules into `baseQuery()`** wherever SQL can express them (membership joins, owner or visibility
+  columns, an `EXISTS` on the grants table). Keep `filterVisible()` for what SQL cannot express.
+- **Sensitive groups must** filter in SQL every row the viewer may not see, so that hidden rows never take places in
+  the window. In the contract kit, `hiddenRowsFilteredInSql()` defaults to `sensitive()`, so for a sensitive group the
+  kit asserts that hidden rows change nothing at all. If only PHP or a host event can decide the visibility, override
+  the hook to return `false`, and document in your bundle that the group accepts this side channel.
+- A host deny (`ITEM_VISIBILITY`) is a PHP filter too. Use it for rules that span bundles, not as the main access
+  check of a large record set.
+
 ## The host visibility event
 
 After the bundle's own check, every provider dispatches **one** `SearchItemVisibilityEvent`
@@ -347,8 +377,10 @@ and database:
 
 - refusals give `null` (no tenant, feature off, malformed and unknown scopes, a host deny — also after a listener that
   allows and stops propagation);
-- no other-tenant row, no row your access check hides and no archived row is ever shown or counted, and hidden rows
-  filling the candidate window change neither the total nor its exactness;
+- no other-tenant row, no row your access check hides and no archived row is ever shown or counted, and hidden rows —
+  filling the window, or (1.10.1) placed before and after the visible ones in a window of at most 10 rows — either
+  change nothing (required when `hiddenRowsFilteredInSql()` is `true`) or make the total inexact, never a smaller total
+  still marked exact;
 - literal wildcards (`%`, `_`, `!`, `\`), the limit and the visible total, bounded results pages;
 - recents: a visible row resolves; a hidden, archived or other-tenant row, another URL or kind, no tenant and the
   feature off give `null`;
@@ -415,6 +447,7 @@ final class TaskSearchContractTest extends EntitySearchProviderTestCase
 | `disableFeature()` | Turns the feature (or `view`) off for the current viewer. |
 | `queryBudget()` | Most statements per search (default 2), `prepareItems()` included. |
 | `prepareItemsBudget()` | 1.10.0. Most statements of one `prepareItems()` call (default 1). |
+| `hiddenRowsFilteredInSql()` | 1.10.1. Default: the definition's `sensitive()`. Return `true` when `baseQuery()` itself filters out every row `seedHidden()` creates; the kit then asserts that hidden rows change nothing at all (rows, total, exactness). A sensitive group must filter in SQL; it may override the hook to `false` only when PHP or a host event alone can decide the visibility, and then documents that it accepts the side channel. |
 | `changeSeededText($id, $text): bool` | 1.10.0, optional. Changes a seeded row's searchable text (the new text contains the old one) and returns `true`; the worker-safety check then also renders a changed row on the reused definition. Default `false`: that step is skipped, since the kit cannot change a row on its own. |
 
 Each test seeds rows under a fresh random marker, so the tests need no cleanup and never see each other's rows. Add

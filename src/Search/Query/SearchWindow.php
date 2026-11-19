@@ -8,18 +8,20 @@ use function array_slice;
 use function count;
 use function max;
 use function min;
+use function trigger_deprecation;
 
 /**
  * The bounded window of one search (1.9.0): how many candidate rows are read, which visible rows make the requested
  * page, and the visible total.
  *
  * The provider reads at most `candidates` rows, checks access on them, then cuts the page out of the **visible** rows.
- * The total is the number of visible rows in the window, and whether it is exact depends on the visible rows only:
- * it is a lower bound ("N+", SearchKit then caps it to the rows shown) when the visible rows fill the whole window.
- * A row the viewer may not see is never counted, and the exactness never depends on it. But hidden rows **inside**
- * the window take places a visible row could have had: once the matches exceed the candidates, hidden rows can lower
- * the visible count (and the rows reachable by paging). Filter per-row visibility in SQL (baseQuery()) wherever
- * possible, so the window holds only rows the viewer may see. Immutable.
+ * The total is the number of visible rows in the window. It is exact only when the SQL fetch did **not** fill the
+ * window (1.10.1): once `candidates` rows came back — visible or not — more matches may follow, so the total is a
+ * lower bound ("N+", SearchKit then caps it to the rows shown). That keeps a shrunken total from being marked exact;
+ * it does not bring back visible rows that hidden rows pushed out of the window. A row the viewer may not see is never counted. But
+ * hidden rows **inside** the window take places a visible row could have had: once the matches exceed the candidates,
+ * rows hidden only in PHP can lower the visible count (and the rows reachable by paging). Filter per-row visibility
+ * in SQL (baseQuery()) wherever possible, so the window holds only rows the viewer may see. Immutable.
  *
  * @author Héctor Franco Aceituno <hectorfranco@nowo.tech>
  * @copyright 2026 Nowo.tech
@@ -73,14 +75,23 @@ final readonly class SearchWindow
     }
 
     /**
-     * Whether the visible total is exact: false when the visible rows fill the window (more may follow). Derived from
-     * the visible rows only, never from the rows the viewer may not see.
+     * Whether the visible total is exact: false when the window is full (more may follow). Pass `$fetched`, the
+     * number of rows the SQL fetch returned (1.10.1): a window filled by rows the viewer may not see is full too, and
+     * claiming an exact total there would let hidden rows newer than the visible ones shrink a count still marked
+     * exact. This only stops a shrunken total from being marked exact: visible rows that hidden rows pushed out of
+     * the window stay missing (filter in SQL to avoid that). Without `$fetched` only the visible rows are compared, as
+     * in 1.9 — deprecated since 1.10.1, `$fetched` is required in 2.0.
      *
      * @param list<mixed> $visible Visible candidates
+     * @param int|null $fetched Rows the candidate fetch returned (null: deprecated, the visible rows decide)
      */
-    public function isExact(array $visible): bool
+    public function isExact(array $visible, ?int $fetched = null): bool
     {
-        return count($visible) < $this->candidates;
+        if ($fetched === null) {
+            trigger_deprecation('nowo-tech/search-kit-bundle', '1.10.1', 'Calling "%s::isExact()" without the number of fetched rows is deprecated; it is required in 2.0.', self::class);
+        }
+
+        return count($visible) < $this->candidates && ($fetched === null || $fetched < $this->candidates);
     }
 
     /**

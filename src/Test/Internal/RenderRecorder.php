@@ -18,7 +18,8 @@ use function count;
 
 /**
  * @internal the bundle's definition, unchanged, with every prepareItems() and toPreparedItem() call recorded (test
- *           kit only): the rows' ids, the context object and the statements prepareItems() sent
+ *           kit only): the rows' ids, the context object and the statements prepareItems() sent; optionally with a
+ *           smaller candidate window (1.10.1)
  *
  * @author Héctor Franco Aceituno <hectorfranco@nowo.tech>
  * @copyright 2026 Nowo.tech
@@ -38,6 +39,7 @@ final class RenderRecorder extends EntitySearchDefinition
     public function __construct(
         private readonly EntitySearchDefinition $inner,
         private readonly QueryCounter $counter,
+        private readonly ?int $window = null,
     ) {
     }
 
@@ -141,7 +143,7 @@ final class RenderRecorder extends EntitySearchDefinition
 
     public function maxCandidates(): int
     {
-        return $this->inner->maxCandidates();
+        return $this->window ?? $this->inner->maxCandidates();
     }
 
     public function sensitive(): bool

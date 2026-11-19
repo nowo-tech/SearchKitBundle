@@ -52,8 +52,9 @@ use function trim;
  * 6. at most `maxCandidates()` rows in one query;
  * 7. the bundle's access check on the candidates (batched: filterVisible), then **one** SearchKitEvents::ITEM_VISIBILITY
  *    event for the page, where a host deny wins;
- * 8. the page cut out of the visible rows, the visible total within the window (exact unless the visible rows fill
- *    the whole window — never derived from rows the viewer may not see), the "see all" link;
+ * 8. the page cut out of the visible rows, the visible total within the window (never counting rows the viewer may
+ *    not see; exact only when the SQL fetch did not fill the window, whoever the rows were visible to — rows hidden
+ *    only in PHP can still push visible ones out of the window), the "see all" link;
  * 9. the shown rows rendered: **one** prepareItems() call with exactly those rows and a new SearchItemContext, then
  *    toPreparedItem() per row (no call when no row is shown).
  *
@@ -150,8 +151,9 @@ final readonly class EntitySearchProvider implements PaginatedSearchProviderInte
         }
         $this->match($queryBuilder, $text, $query);
 
-        $visible = $this->visible($window->candidatesOf($this->fetch($queryBuilder, $window->fetchLimit())), $tenant, $query, $group);
-        $shown   = $window->slice($visible);
+        $candidates = $window->candidatesOf($this->fetch($queryBuilder, $window->fetchLimit()));
+        $visible    = $this->visible($candidates, $tenant, $query, $group);
+        $shown      = $window->slice($visible);
         if ($shown === []) {
             return null;
         }
@@ -164,7 +166,7 @@ final readonly class EntitySearchProvider implements PaginatedSearchProviderInte
             $total,
             $this->definition->seeAllUrl($query),
             $this->seeAllLabel($query, $total),
-            $window->isExact($visible),
+            $window->isExact($visible, count($candidates)),
         );
     }
 

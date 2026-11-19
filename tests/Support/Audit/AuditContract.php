@@ -33,11 +33,17 @@ final class AuditContract extends EntitySearchProviderTestCase
     /** A 1.9-style test: seedArchived() skips instead of declaring hasArchivedState() false. */
     public bool $skipArchived = false;
 
+    /** The definition filters hidden rows in SQL. */
+    public bool $hiddenInSql = false;
+
+    /** What the test declares (hiddenRowsFilteredInSql()); null: the kit's default (the definition's sensitive()). */
+    public ?bool $declareHiddenInSql = null;
+
     private ?Viewer $viewer = null;
 
     protected function definition(): EntitySearchDefinition
     {
-        return new AuditNoteDefinition(NoteDatabase::get()->connection, $this->viewer(), $this->tenantInSql, $this->checkHidden, $this->candidates, false, $this->sensitiveDefinition);
+        return new AuditNoteDefinition(NoteDatabase::get()->connection, $this->viewer(), $this->tenantInSql, $this->checkHidden, $this->candidates, false, $this->sensitiveDefinition, $this->hiddenInSql);
     }
 
     protected function queryCounter(): QueryCounter
@@ -77,6 +83,11 @@ final class AuditContract extends EntitySearchProviderTestCase
     protected function supportsRecents(): bool
     {
         return false;
+    }
+
+    protected function hiddenRowsFilteredInSql(): bool
+    {
+        return $this->declareHiddenInSql ?? parent::hiddenRowsFilteredInSql();
     }
 
     protected function sensitiveTitles(): bool

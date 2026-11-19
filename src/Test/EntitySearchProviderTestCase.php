@@ -129,6 +129,21 @@ abstract class EntitySearchProviderTestCase extends TestCase
     }
 
     /**
+     * Whether baseQuery() itself filters out every row seedHidden() creates (1.10.1), so rows hidden from the viewer
+     * never take places in the candidate window. True: the kit asserts that hidden rows change nothing at all (rows,
+     * total, exactness). False: hidden rows may make the total inexact (`exactTotal` false) and push visible rows out
+     * of the window, but never leave a smaller total marked exact.
+     *
+     * Default: the definition's sensitive() — a sensitive group must filter in SQL. Override it to false only when
+     * the visibility can only be decided in PHP or by a host event, and document that the group accepts the count
+     * side channel of the candidate window.
+     */
+    protected function hiddenRowsFilteredInSql(): bool
+    {
+        return $this->definition()->sensitive();
+    }
+
+    /**
      * Whether the records have an archived or soft-deleted state that baseQuery() filters out (1.10.0). False: the
      * archived checks are skipped and seedArchived() is never called. Default: true.
      */
@@ -387,7 +402,59 @@ abstract class EntitySearchProviderTestCase extends TestCase
         self::assertInstanceOf(SearchGroup::class, $group, 'A visible row must still be found.');
         self::assertSame(count($group->items), $group->total, 'Only visible rows are counted.');
         self::assertLessThanOrEqual(2, $group->total);
-        self::assertSame($reference->exactTotal, $group->exactTotal, 'Hidden rows must not change whether the total is exact.');
+        if ($this->hiddenRowsFilteredInSql()) {
+            self::assertSame($reference->exactTotal, $group->exactTotal, 'Hidden rows changed the results: the definition hides rows only in PHP, so they take places in the candidate window (a count side channel). Either filter them in baseQuery(), or — when only PHP or a host event can decide the visibility — override hiddenRowsFilteredInSql() to return false and document that the group accepts that side channel.');
+        } else {
+            self::assertTrue($group->exactTotal === $reference->exactTotal || !$group->exactTotal, 'Hidden rows may only make the total inexact.');
+        }
+    }
+
+    /**
+     * 1.10.1: rows hidden from the viewer and **newer** (or older: the kit does not know the order) than the visible
+     * ones, in a small candidate window (at most 10 rows), either change nothing — the definition filters them in SQL,
+     * required by default for sensitive groups — or make the total inexact: a count marked exact never shrinks because
+     * of rows the viewer may not see. Visible rows they push out of the window stay missing (only SQL filtering avoids
+     * that).
+     */
+    public function testContractHiddenRowsAroundVisibleOnesNeverShrinkAnExactTotal(): void
+    {
+        [$tenant] = $this->tenants();
+        $this->actAs($tenant, self::VIEWER_A);
+        $window   = min(10, $this->definition()->maxCandidates());
+        $provider = new EntitySearchProvider(new RenderRecorder($this->definition(), $this->queryCounter(), $window), new EventDispatcher());
+
+        $plain = $this->marker();
+        for ($row = 0; $row < 6; ++$row) {
+            $this->seed($tenant, $plain . 'v' . $row);
+        }
+        $reference = $provider->search($this->query($plain, 10));
+        self::assertInstanceOf(SearchGroup::class, $reference);
+
+        $marker = $this->marker();
+        for ($row = 0; $row < 7; ++$row) {
+            $this->seedHidden($tenant, $marker . 'o' . $row);
+        }
+        for ($row = 0; $row < 6; ++$row) {
+            $this->seed($tenant, $marker . 'v' . $row);
+        }
+        for ($row = 0; $row < 7; ++$row) {
+            $this->seedHidden($tenant, $marker . 'n' . $row);
+        }
+        $group = $provider->search($this->query($marker, 10));
+
+        $unchanged = $group instanceof SearchGroup
+            && count($group->items) === count($reference->items)
+            && $group->total === $reference->total
+            && $group->exactTotal === $reference->exactTotal;
+        if ($this->hiddenRowsFilteredInSql()) {
+            self::assertTrue($unchanged, 'Hidden rows changed the results: the definition hides rows only in PHP, so they take places in the candidate window (a count side channel). Either filter them in baseQuery(), or — when only PHP or a host event can decide the visibility — override hiddenRowsFilteredInSql() to return false and document that the group accepts that side channel.');
+
+            return;
+        }
+        self::assertTrue($unchanged || ($group instanceof SearchGroup ? !$group->exactTotal : true), 'Rows hidden only in PHP filled the window: the total must not be marked exact.');
+        if ($group instanceof SearchGroup) {
+            self::assertLessThanOrEqual(count($reference->items), count($group->items), 'Hidden rows must never be shown.');
+        }
     }
 
     /**

@@ -28,6 +28,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+Target: **1.10.1** (patch).
+
+### Fixed
+
+- **Entity providers: a shrunken total is no longer marked exact.** The total was marked exact whenever the
+  *visible* rows did not fill the candidate window. Rows hidden only in PHP (`filterVisible()` or a host deny) that
+  came before the visible ones could therefore shrink a total that was still claimed exact. For example, 7 hidden rows
+  ahead of 6 visible ones in a 10-row window gave total 3, exact. Now `exactTotal` is false whenever the SQL fetch
+  returned `maxCandidates()` rows, whoever may see them. This applies in the palette, on the results page and in the
+  "see all" count. The total stays a lower bound, which SearchKit caps to the rows it lists. `SearchWindow::isExact()`
+  takes the number of fetched rows as a second argument.
+  **Only the exact-total claim is fixed.** In the same example the viewer still sees 3 rows instead of 6: visible rows
+  pushed out of the window stay missing. That shrink is still a count side channel until the definition filters its
+  hidden rows in SQL (see "Rows hidden only in PHP still use the candidate window" in PROVIDERS.md).
+
+### Added
+
+- **Contract kit**: `testContractHiddenRowsAroundVisibleOnesNeverShrinkAnExactTotal` places hidden rows before and
+  after the visible ones in a window of at most 10 rows and requires either no change or an inexact total. The new
+  optional hook `hiddenRowsFilteredInSql()` (default `false`) makes it, and
+  `testContractHiddenRowsBeyondTheWindowChangeNothing`, require no change at all. Its default is the definition's
+  `sensitive()`, so a sensitive group that hides rows only in PHP fails the kit. It passes once it filters in SQL, or
+  once it overrides the hook to `false` and documents that it accepts the side channel.
+
+### Deprecated
+
+- `SearchWindow::isExact()` without its second argument (the number of fetched rows) triggers a deprecation; the
+  argument is required in 2.0.
+
 ## [1.10.0] - 2026-11-19
 
 Target: **1.10.0** (minor, additive).
