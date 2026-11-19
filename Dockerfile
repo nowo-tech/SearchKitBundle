@@ -1,4 +1,4 @@
-# PHP 8.4 Alpine for development, tests, and frontend builds.
+# PHP 8.4 Alpine for development, tests, and frontend builds (pdo_mysql / pdo_pgsql: real-database tests, 1.9.0).
 FROM php:8.4-cli-alpine
 
 RUN apk add --no-cache \
@@ -7,10 +7,11 @@ RUN apk add --no-cache \
     bash \
     libzip-dev \
     icu-dev \
+    postgresql-dev \
     nodejs \
     npm \
     && docker-php-ext-configure intl \
-    && docker-php-ext-install -j$(nproc) zip intl
+    && docker-php-ext-install -j$(nproc) zip intl pdo_mysql pdo_pgsql
 
 RUN apk add --no-cache $PHPIZE_DEPS \
     && pecl install pcov \

@@ -24,6 +24,8 @@ use Nowo\SearchKitBundle\Scope\NullScopeResolver;
 use Nowo\SearchKitBundle\Search\Access\SearchAccess;
 use Nowo\SearchKitBundle\Search\Action\ActionCollector;
 use Nowo\SearchKitBundle\Search\Filter\SearchFilterParser;
+use Nowo\SearchKitBundle\Search\Group\SearchGroupSettings;
+use Nowo\SearchKitBundle\Search\Group\SensitiveGroupNotice;
 use Nowo\SearchKitBundle\Search\Page\PageRegistryProvider;
 use Nowo\SearchKitBundle\Search\Ranking\SearchRanker;
 use Nowo\SearchKitBundle\Search\Recent\RecentResolver;
@@ -111,6 +113,14 @@ return static function (ContainerConfigurator $container): void {
         ->tag(SearchReferenceResolverInterface::REFERENCE_RESOLVER_TAG, ['priority' => 100])
         ->tag('monolog.logger', ['channel' => 'nowo_search_kit']);
 
+    // 1.9.0: nowo_search_kit.groups, read by the engine and by every EntitySearchProvider (EntitySearchPass).
+    $services->set(SearchGroupSettings::class)
+        ->args([param('nowo_search_kit.groups')]);
+
+    $services->set(SensitiveGroupNotice::class)
+        ->args([service('logger')->nullOnInvalid()])
+        ->tag('monolog.logger', ['channel' => 'nowo_search_kit']);
+
     $services->set(RecentResolver::class)
         ->args([service(SearchAccess::class), tagged_iterator(SearchReferenceResolverInterface::REFERENCE_RESOLVER_TAG), service('logger')->nullOnInvalid()])
         ->tag('monolog.logger', ['channel' => 'nowo_search_kit']);
@@ -128,6 +138,7 @@ return static function (ContainerConfigurator $container): void {
             service(SearchAccess::class),
             service(SearchRanker::class),
             param('nowo_search_kit.engine_options'),
+            service(SearchGroupSettings::class),
         ])
         ->tag('monolog.logger', ['channel' => 'nowo_search_kit']);
     $services->alias(SearchEngineInterface::class, SearchEngine::class);

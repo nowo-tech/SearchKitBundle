@@ -12,6 +12,7 @@
 - [Icons](#icons)
 - [Pages group](#pages-group)
 - [Search everywhere (1.8.0)](#search-everywhere-180)
+- [Groups (1.9.0)](#groups-190)
 - [Container parameters](#container-parameters)
 - [Timeouts](#timeouts)
 - [FormKit profile](#formkit-profile)
@@ -106,6 +107,7 @@ nowo_search_kit:
         per_page: 20
         top_results: 5
         max_page: 50
+    groups: {}                      # 1.9.0, by group key: { enabled: true, priority: null }
 ```
 
 `recent.revalidate` (1.8.0, default `false`) stores references only and re-checks them on every display.
@@ -248,11 +250,34 @@ when the service is missing), `false` turns it off.
 | `menu_pages.check_access` | `false` | Ask the access checkers per menu entry too. |
 | `menu_pages.ranked` | `null` | Score the menu rows (sorted with the registry rows); null: on when `pages` or `keywords` is set. |
 
+## Groups (1.9.0)
+
+Per-group switches, by group key (a lower-case letter, then up to 63 of `a-z`, `0-9`, `_`, `-`; e.g. `tasks`, `crm_companies`, `pages`). SearchKit applies them to
+every provider — a bundle never re-implements them:
+
+```yaml
+nowo_search_kit:
+    groups:
+        tasks: { priority: 60 }          # sorted first among the configured groups
+        messages: { enabled: false }     # the provider does not run; any group with this key is dropped
+```
+
+| Key | Default | Effect |
+| --- | --- | --- |
+| `groups.<key>.enabled` | `true` | `false`: an entity provider or a `PaginatedSearchProviderInterface` of that key does not run (and the results page has no tab for it); a group with that key from any other provider is dropped; an entity provider resolves no recents of it. |
+| `groups.<key>.priority` | `null` | Once any group has one, the groups of an answer are sorted by it, highest first; a group without one counts as 0, equal priorities keep provider order, and the Actions group stays first. Without any priority the order is the provider tag order, as before. |
+
+An entity provider's position among the providers (before any `groups` priority) is the `priority` attribute of its
+definition's `nowo_search_kit.entity_definition` tag (default 0). See [Write a provider](PROVIDERS.md).
+
 ## Container parameters
 
 1.8.0 adds `nowo_search_kit.{pages,quick_actions,results_page,engine_options,features}`, one parameter per key of
 `page_registry`, `access`, `actions`, `filters`, `matching`, `synonyms` and `ranking` (e.g.
 `nowo_search_kit.filters.keys`) and `nowo_search_kit.recent.{revalidate,max}`.
+
+1.9.0 adds `nowo_search_kit.groups` (the `groups` map) and `nowo_search_kit.recent.safe` (`true` when recents are off or
+revalidated: a sensitive entity group runs only then).
 
 `nowo_search_kit.role`, `.min_length`, `.min_length_exempt_patterns`, `.max_length`, `.per_group`, `.icon_set`, `.toggle_icon_template`, `.icons` (merged with the defaults) and
 `.settings` (the browser-facing subset used by the Twig extension).

@@ -12,6 +12,7 @@ use Nowo\SearchKitBundle\Contract\SearchProviderInterface;
 use Nowo\SearchKitBundle\Contract\SearchReferenceResolverInterface;
 use Nowo\SearchKitBundle\Contract\SearchSynonymProviderInterface;
 use Nowo\SearchKitBundle\NowoSearchKitBundle;
+use Nowo\SearchKitBundle\Provider\Entity\EntitySearchDefinition;
 use Nowo\SearchKitBundle\Provider\MenuPagesProvider;
 use Nowo\SearchKitBundle\Search\Access\SearchAccess;
 use Nowo\SearchKitBundle\Search\Page\PageRegistryProvider;
@@ -34,7 +35,8 @@ use function is_array;
  * optional Pages provider.
  *
  * Container parameters: `nowo_search_kit.{role,min_length,min_length_exempt_patterns,max_length,per_group,icon_set,toggle_icon_template,icons,settings}`
- * and, 1.8.0, `nowo_search_kit.{pages,page_registry,access,actions,filters,matching,synonyms,ranking,results_page,recent}`.
+ * and, 1.8.0, `nowo_search_kit.{pages,page_registry,access,actions,filters,matching,synonyms,ranking,results_page,recent}`;
+ * 1.9.0: `nowo_search_kit.{groups,recent.safe}`.
  *
  * @author Héctor Franco Aceituno <hectorfranco@nowo.tech>
  * @copyright 2026 Nowo.tech
@@ -130,7 +132,7 @@ final class NowoSearchKitExtension extends Extension implements PrependExtension
      */
     public function load(array $configs, ContainerBuilder $container): void
     {
-        /** @var array{role: string, min_length: int, min_length_exempt_patterns: list<string>, max_length: int, per_group: int, debounce_ms: int, keyboard_shortcuts: bool, rate_limit: array{enabled: bool}, recent: array{enabled: bool, revalidate: bool, max: int, storage_key: string}, quick_actions: list<array<string, mixed>>, assets: array{stylesheet: bool, script: bool}, icon_set: string, toggle_icon_template: string|null, icons: array<string, string>, menu_pages: array{enabled: bool|null, service: string, menus: list<array{code: string, label: string|null, translation_domain: string|null}>, icon: string, priority: int, skip_when_scoped: bool, keywords: array<string, string>, keywords_translation_domain: string|null, check_access: bool, ranked: bool|null}, pages: list<array<string, mixed>>, page_registry: array{priority: int, locales: list<string>, max_candidates: int, icon: string}, access: array{filter_all_rows: bool}, actions: array{prefix: string, in_results: bool, max_candidates: int}, filters: array{keys: list<string>, max: int, values_limit: int}, matching: array{fuzzy: bool}, synonyms: array{enabled: bool, builtin_dictionary: bool, locales: list<string>, max_terms: int}, ranking: array{recency_weight: float, recency_half_life_days: float}, results_page: array<string, mixed>} $config */
+        /** @var array{role: string, min_length: int, min_length_exempt_patterns: list<string>, max_length: int, per_group: int, debounce_ms: int, keyboard_shortcuts: bool, rate_limit: array{enabled: bool}, recent: array{enabled: bool, revalidate: bool, max: int, storage_key: string}, quick_actions: list<array<string, mixed>>, assets: array{stylesheet: bool, script: bool}, icon_set: string, toggle_icon_template: string|null, icons: array<string, string>, menu_pages: array{enabled: bool|null, service: string, menus: list<array{code: string, label: string|null, translation_domain: string|null}>, icon: string, priority: int, skip_when_scoped: bool, keywords: array<string, string>, keywords_translation_domain: string|null, check_access: bool, ranked: bool|null}, pages: list<array<string, mixed>>, page_registry: array{priority: int, locales: list<string>, max_candidates: int, icon: string}, access: array{filter_all_rows: bool}, actions: array{prefix: string, in_results: bool, max_candidates: int}, filters: array{keys: list<string>, max: int, values_limit: int}, matching: array{fuzzy: bool}, synonyms: array{enabled: bool, builtin_dictionary: bool, locales: list<string>, max_terms: int}, ranking: array{recency_weight: float, recency_half_life_days: float}, results_page: array<string, mixed>, groups: array<string, array{enabled: bool, priority: int|null}>} $config */
         $config = $this->processConfiguration(new Configuration(), $configs);
 
         // A map written in one file keeps its keys and would reach the browser as an object: a list, always.
@@ -165,6 +167,9 @@ final class NowoSearchKitExtension extends Extension implements PrependExtension
         }
         $revalidate = $config['recent']['enabled'] && $config['recent']['revalidate'];
         $container->setParameter(Configuration::ALIAS . '.recent.revalidate', $revalidate);
+        // 1.9.0: recents keep no title in the browser (off, or references revalidated on every display).
+        $container->setParameter(Configuration::ALIAS . '.recent.safe', !$config['recent']['enabled'] || $config['recent']['revalidate']);
+        $container->setParameter(Configuration::ALIAS . '.groups', $config['groups']);
         $container->setParameter(Configuration::ALIAS . '.recent.max', $config['recent']['max']);
         $container->setParameter(Configuration::ALIAS . '.engine_options', [
             'fuzzy'              => $config['matching']['fuzzy'],
@@ -190,6 +195,7 @@ final class NowoSearchKitExtension extends Extension implements PrependExtension
         $container->registerForAutoconfiguration(SearchFilterValuesProviderInterface::class)->addTag(SearchFilterValuesProviderInterface::FILTER_VALUES_TAG);
         $container->registerForAutoconfiguration(SearchSynonymProviderInterface::class)->addTag(SearchSynonymProviderInterface::SYNONYM_PROVIDER_TAG);
         $container->registerForAutoconfiguration(SearchReferenceResolverInterface::class)->addTag(SearchReferenceResolverInterface::REFERENCE_RESOLVER_TAG);
+        $container->registerForAutoconfiguration(EntitySearchDefinition::class)->addTag(EntitySearchDefinition::TAG);
 
         $loader = new PhpFileLoader($container, new FileLocator(__DIR__ . '/../Resources/config'));
         $loader->load('services.php');

@@ -7,6 +7,7 @@ namespace Nowo\SearchKitBundle\DependencyInjection;
 use Nowo\SearchKitBundle\Model\SearchFilter;
 use Nowo\SearchKitBundle\Model\SearchItem;
 use Nowo\SearchKitBundle\Model\SearchPage;
+use Nowo\SearchKitBundle\Provider\Entity\EntitySearchProvider;
 use Nowo\SearchKitBundle\Search\MinLengthExemptPattern;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\ConfigurationInterface;
@@ -419,6 +420,29 @@ final class Configuration implements ConfigurationInterface
                         ->floatNode('recency_weight')->defaultValue(0.25)->min(0.0)->max(10.0)->end()
                         ->floatNode('recency_half_life_days')->defaultValue(30.0)->min(0.01)->max(3650.0)->end()
                     ->end()
+                ->end()
+                ->arrayNode('groups')
+                    ->info('1.9.0: per-group switches, by group key (a letter first, e.g. tasks, crm_companies, pages): "enabled: false" skips the provider and drops the group; "priority" sorts the groups of an answer (highest first; a group without one counts as 0).')
+                    ->useAttributeAsKey('key')
+                    ->arrayPrototype()
+                        ->children()
+                            ->booleanNode('enabled')->defaultTrue()->end()
+                            ->integerNode('priority')->defaultNull()->end()
+                        ->end()
+                    ->end()
+                    ->validate()
+                        ->ifTrue(static function (array $groups): bool {
+                            foreach (array_keys($groups) as $key) {
+                                if (preg_match(EntitySearchProvider::GROUP_PATTERN, (string) $key) !== 1) {
+                                    return true;
+                                }
+                            }
+
+                            return false;
+                        })
+                        ->thenInvalid('nowo_search_kit.groups keys must be a lower-case letter followed by up to 63 characters of a-z, 0-9, "_" or "-".')
+                    ->end()
+                    ->defaultValue([])
                 ->end()
                 ->arrayNode('results_page')
                     ->info('1.8.0 full results page (route nowo_search_kit_results, {prefix}/results).')

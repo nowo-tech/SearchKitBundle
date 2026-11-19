@@ -1,6 +1,7 @@
 {
   "exclude": [
     "demo",
+    "src/Test",
     "tests",
     "vendor",
     "var",

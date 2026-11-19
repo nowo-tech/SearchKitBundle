@@ -8,6 +8,10 @@ use Nowo\FormKitBundle\NowoFormKitBundle;
 use Nowo\SearchKitBundle\Contract\SearchContextScopeResolverInterface;
 use Nowo\SearchKitBundle\Contract\SearchScopeResolverInterface;
 use Nowo\SearchKitBundle\NowoSearchKitBundle;
+use Nowo\SearchKitBundle\Provider\Entity\EntitySearchDefinition;
+use Nowo\SearchKitBundle\Tests\Support\EntitySearch\KernelNoteDefinition;
+use Nowo\SearchKitBundle\Tests\Support\EntitySearch\NoteRouteChecker;
+use Nowo\SearchKitBundle\Tests\Support\EntitySearch\StubDefinition;
 use Nowo\SearchKitBundle\Tests\Support\Everywhere\AssigneeValues;
 use Nowo\SearchKitBundle\Tests\Support\Everywhere\HostActions;
 use Nowo\SearchKitBundle\Tests\Support\Everywhere\IssuesProvider;
@@ -74,8 +78,9 @@ final class TestKernel extends Kernel
      * @param array<string, mixed>|null $uiKitConfig Register nowo-tech/ui-kit-bundle with this `nowo_ui_kit` config (null: no UiKit)
      * @param string $scopePort Which resolver port the host wires (self::SCOPE_*)
      * @param bool $everywhere Register the 1.8.0 host services (access checkers, actions, page source, issues, values)
+     * @param bool $entitySearch Register the 1.9.0 entity search definitions (one autoconfigured, one tagged with a priority)
      */
-    public function __construct(private readonly array $searchKitConfig = [], private readonly bool $withUxIcons = true, private readonly ?array $uiKitConfig = null, private readonly string $scopePort = self::SCOPE_CONTEXT, private readonly bool $everywhere = false)
+    public function __construct(private readonly array $searchKitConfig = [], private readonly bool $withUxIcons = true, private readonly ?array $uiKitConfig = null, private readonly string $scopePort = self::SCOPE_CONTEXT, private readonly bool $everywhere = false, private readonly bool $entitySearch = false)
     {
         parent::__construct('test', false);
     }
@@ -104,7 +109,7 @@ final class TestKernel extends Kernel
 
     public function getCacheDir(): string
     {
-        return sys_get_temp_dir() . '/nowo-search-kit-bundle/' . md5(serialize([$this->searchKitConfig, $this->withUxIcons, $this->uiKitConfig, $this->scopePort, $this->everywhere])) . '/cache';
+        return sys_get_temp_dir() . '/nowo-search-kit-bundle/' . md5(serialize([$this->searchKitConfig, $this->withUxIcons, $this->uiKitConfig, $this->scopePort, $this->everywhere, $this->entitySearch])) . '/cache';
     }
 
     public function getLogDir(): string
@@ -179,6 +184,14 @@ final class TestKernel extends Kernel
             $services->set(IssuesProvider::class)->tag('nowo_search_kit.provider', ['priority' => 40]);
             $services->set(AssigneeValues::class);
         }
+        if ($this->entitySearch) {
+            $services->set(KernelNoteDefinition::class);
+            $services->set(NoteRouteChecker::class);
+            $services->set('app.stub_definition', StubDefinition::class)
+                ->autoconfigure(false)
+                ->property('group', 'kernel_stub')
+                ->tag(EntitySearchDefinition::TAG, ['priority' => 'high']);
+        }
         $services->alias(self::ASSET_PACKAGES_ALIAS, 'assets.packages')->public();
         $services->set(self::TRANSLATOR_COLLECTOR, DataCollectorTranslator::class)
             ->decorate('translator')->args([service('.inner')])->public();
@@ -196,6 +209,7 @@ final class TestKernel extends Kernel
         $routes->add('test_new_issue', '/issues/new')->controller([self::class, 'page']);
         $routes->add('test_issue', '/issues/{id}')->controller([self::class, 'page'])->requirements(['id' => '\d+']);
         $routes->add('test_project_tab', '/projects/{id}/tabs/{tab}')->controller([self::class, 'page']);
+        $routes->add('test_note', '/kernel-notes/{id}')->controller([self::class, 'page']);
         $routes->add('test_post_only', '/post-only')->controller([self::class, 'page'])->methods(['POST']);
     }
 

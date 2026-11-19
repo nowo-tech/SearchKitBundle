@@ -127,6 +127,84 @@ jobs:
           SYMFONY_DEPRECATIONS_HELPER: max[direct]=0
         run: composer test-coverage
 
+  # 1.9.0: the entity search LIKE / limit / access / query-budget path on real servers (the main suite runs it on SQLite).
+  database:
+    name: Database - ${{ matrix.database.name }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        database:
+          - name: MySQL 8.4
+            image: mysql:8.4
+            url: mysql://root:root@127.0.0.1:3306/searchkit?serverVersion=8.4.0
+            port: 3306
+            health: mysqladmin ping -h 127.0.0.1 -proot
+          - name: MariaDB 11.4
+            image: mariadb:11.4
+            url: mariadb://root:root@127.0.0.1:3306/searchkit?serverVersion=11.4.0-MariaDB
+            port: 3306
+            health: healthcheck.sh --connect --innodb_initialized
+          - name: PostgreSQL 16
+            image: postgres:16
+            url: postgresql://postgres:root@127.0.0.1:5432/searchkit?serverVersion=16
+            port: 5432
+            health: pg_isready -U postgres
+
+    services:
+      database:
+        image: ${{ matrix.database.image }}
+        # Each image reads its own variables and ignores the others.
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: searchkit
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: searchkit
+          POSTGRES_PASSWORD: root
+          POSTGRES_DB: searchkit
+        ports:
+          - ${{ matrix.database.port }}:${{ matrix.database.port }}
+        options: >-
+          --health-cmd "${{ matrix.database.health }}"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_mysql, pdo_pgsql
+          coverage: none
+          tools: composer:v2
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v6
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-php-8.4-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-php-8.4-composer-
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Run the database tests
+        env:
+          SEARCH_KIT_TEST_DATABASE_URL: ${{ matrix.database.url }}
+          SYMFONY_DEPRECATIONS_HELPER: max[direct]=0
+        run: vendor/bin/phpunit --group database --no-coverage
+
   static-analysis:
     name: Static analysis (PHPStan, Rector, Igor)
     runs-on: ubuntu-latest

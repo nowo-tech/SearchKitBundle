@@ -29,6 +29,7 @@ This bundle is **FrankenPHP worker mode friendly**. See [docs/FRANKENPHP-WORKER-
 - **Overridable Twig blocks**, **theme tokens** (`--nowo-search-*`, light / dark), **Symfony UX Icons** with a built-in SVG fallback
 - Framework-agnostic browser module (auto-mounted IIFE), an optional **Stimulus** wrapper and `nowo-search:state` / `nowo-search:navigate` events (morphing icons, Turbo)
 - **Search everywhere (1.8.0)**, permission-aware and **deny by default** through your `SearchAccessCheckerInterface`: a **page registry** with per-locale keywords (cross-locale, never shown), a **command palette** (`>` for actions), **typed filters** (`is:open`, `assignee:me`, `project:`, `type:`) with chips and visible-only suggestions, accent / case folding, optional **fuzzy** matching, **synonyms** (built-in concept groups in 7 locales), relevance + recency **ranking**, a full **results page** and **safe recents** (references only, re-checked on every display) — see [USAGE](docs/USAGE.md#search-everywhere-180), [SECURITY](docs/SECURITY.md#anti-leak-model-180) and the ports for other bundles in [CONTRACT-240](docs/CONTRACT-240.md)
+- **Entity providers (1.9.0)**: a bundle writes an `EntitySearchDefinition` (tenant, feature, fields, a DBAL or ORM query, its access check, the row) and SearchKit runs one search flow for it — escaped LIKE or full text, bounded candidates, batched access checks, a shared host visibility event (deny wins), the visible total, paging, revalidated recents and `null` on any refusal — with per-group switches (`groups.<key>`) and a contract test kit; see [Write a provider](docs/PROVIDERS.md)
 - **FrankenPHP worker mode** friendly; 7 locales (en, es, fr, de, it, pt, nl)
 
 ## Installation
@@ -127,6 +128,7 @@ and `make -C demo/symfony8 demo-screenshots` (see [docs/CONTRIBUTING.md](docs/CO
 - [Installation](docs/INSTALLATION.md)
 - [Configuration](docs/CONFIGURATION.md)
 - [Usage](docs/USAGE.md)
+  - [Write a provider (1.9.0)](docs/PROVIDERS.md)
   - [Standard Symfony host](docs/USAGE.md#standard-symfony-host)
   - [DDD / hexagonal host](docs/USAGE.md#using-it-from-a-ddd--hexagonal-application)
 - [Contributing](docs/CONTRIBUTING.md)

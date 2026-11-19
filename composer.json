@@ -43,6 +43,7 @@
         "symfony/config": "^7.4 || ^8.0",
         "symfony/dependency-injection": "^7.4 || ^8.0",
         "symfony/deprecation-contracts": "^2.5 || ^3.0",
+        "symfony/event-dispatcher-contracts": "^3.5",
         "symfony/form": "^7.4 || ^8.0",
         "symfony/framework-bundle": "^7.4 || ^8.0",
         "symfony/http-foundation": "^7.4 || ^8.0",
@@ -60,6 +61,8 @@
         "twig/twig": "^3.12"
     },
     "require-dev": {
+        "doctrine/dbal": "^4.2",
+        "doctrine/orm": "^3.3",
         "friendsofphp/php-cs-fixer": "^3.64",
         "igor-php/igor-php": "^0.9.7 || ^0.10.0",
         "nowo-tech/phpstan-frankenphp": "^1.1",
@@ -71,13 +74,17 @@
         "rector/rector": "^2.0",
         "symfony/browser-kit": "^7.4 || ^8.0",
         "symfony/css-selector": "^7.4 || ^8.0",
+        "symfony/event-dispatcher": "^7.4 || ^8.0",
         "symfony/ux-icons": "^2.25 || ^3.0",
         "symfony/yaml": "^7.4 || ^8.0",
         "vincentlanglet/twig-cs-fixer": "^3.0 || ^4.0"
     },
     "suggest": {
+        "doctrine/dbal": "^4.2 — EntitySearchDefinition / EntitySearchProvider with a DBAL query builder, and the QueryCountingMiddleware of the provider test kit",
+        "doctrine/orm": "^3.3 — EntitySearchDefinition / EntitySearchProvider with an ORM query builder",
         "nowo-tech/dashboard-menu-bundle": "Built-in Pages group: menu entries the user can see (menu_pages)",
         "nowo-tech/ui-kit-bundle": "^2.2 — optional UiKit theme integration (REQ-UI-003): host classes / attributes of the theme slots on the widget parts, --nowo-search-* tokens from --nowo-ui-*",
+        "phpunit/phpunit": "^10.5 || ^11.5 — EntitySearchProviderTestCase, the provider contract test kit (Nowo\\SearchKitBundle\\Test)",
         "symfony/ux-icons": "Kind and item icons from your icon set (icon_set: ux_icon); without it the built-in SVG is used"
     },
     "autoload": {
