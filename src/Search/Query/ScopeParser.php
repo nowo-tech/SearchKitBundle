@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Nowo\SearchKitBundle\Search\Query;
 
-use Nowo\SearchKitBundle\Model\SearchScope;
-
 use function ctype_digit;
 use function preg_match;
 use function strlen;
@@ -22,10 +20,13 @@ use function substr;
 final class ScopeParser
 {
     /** Allowed value after the prefix (no ":" in it). */
-    private const string VALUE_PATTERN = '/^[A-Za-z0-9._-]{1,128}$/';
+    private const string VALUE_PATTERN = '/^[A-Za-z0-9._-]{1,128}\z/';
+
+    /** SearchScope::ID_PATTERN, anchored at the very end (no trailing newline). */
+    private const string ID_PATTERN = '/^[A-Za-z0-9._:-]{1,128}\z/';
 
     /**
-     * Whether a scope id has the shape SearchKit allows (SearchScope::ID_PATTERN).
+     * Whether a scope id has the shape SearchKit allows (SearchScope::ID_PATTERN; a trailing newline is refused).
      *
      * @param string|null $scope Scope id, or null
      *
@@ -33,7 +34,7 @@ final class ScopeParser
      */
     public static function isValid(?string $scope): bool
     {
-        return $scope !== null && preg_match(SearchScope::ID_PATTERN, $scope) === 1;
+        return $scope !== null && preg_match(self::ID_PATTERN, $scope) === 1;
     }
 
     /**

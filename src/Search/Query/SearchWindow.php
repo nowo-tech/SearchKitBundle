@@ -13,10 +13,11 @@ use function min;
  * The bounded window of one search (1.9.0): how many candidate rows are read, which visible rows make the requested
  * page, and the visible total.
  *
- * The provider reads at most `candidates + 1` rows (the extra one only tells whether more exist), checks access on
- * the candidates, then cuts the page out of the **visible** rows. The total is the number of visible candidates; it
- * is exact only when the candidates were not cut (otherwise SearchKit caps it to the rows shown). A row the viewer may
- * not see is never counted. Immutable.
+ * The provider reads at most `candidates` rows, checks access on them, then cuts the page out of the **visible** rows.
+ * The total is the number of visible rows in the window, and whether it is exact depends on the visible rows only:
+ * it is a lower bound ("N+", SearchKit then caps it to the rows shown) when the visible rows fill the whole window.
+ * A row the viewer may not see is never counted and never changes the total or its exactness, so hidden matches
+ * cannot be detected through it. Immutable.
  *
  * @author Héctor Franco Aceituno <hectorfranco@nowo.tech>
  * @copyright 2026 Nowo.tech
@@ -62,25 +63,26 @@ final readonly class SearchWindow
     }
 
     /**
-     * Rows to read: the candidates plus one, which only tells whether more exist.
+     * Rows to read: the candidates.
      */
     public function fetchLimit(): int
     {
-        return $this->candidates + 1;
+        return $this->candidates;
     }
 
     /**
-     * Whether a fetch returned more rows than the candidates (the total is then a lower bound).
+     * Whether the visible total is exact: false when the visible rows fill the window (more may follow). Derived from
+     * the visible rows only, never from the rows the viewer may not see.
      *
-     * @param int $fetched Rows the query returned
+     * @param list<mixed> $visible Visible candidates
      */
-    public function isCut(int $fetched): bool
+    public function isExact(array $visible): bool
     {
-        return $fetched > $this->candidates;
+        return count($visible) < $this->candidates;
     }
 
     /**
-     * The candidates of a fetch (the extra row dropped).
+     * The candidates of a fetch (at most `candidates` rows).
      *
      * @template T
      *

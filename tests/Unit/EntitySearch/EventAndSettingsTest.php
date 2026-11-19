@@ -20,7 +20,7 @@ final class EventAndSettingsTest extends TestCase
     {
         self::assertSame('task#7', (new SearchSubject('task', '7'))->key());
 
-        foreach ([['Task', '1'], ['task', ''], ['task', str_repeat('x', 256)]] as [$type, $id]) {
+        foreach ([['Task', '1'], ["task\n", '1'], ['task', ''], ['task', str_repeat('x', 256)]] as [$type, $id]) {
             try {
                 new SearchSubject($type, $id);
                 self::fail('Subject ' . $type . '#' . $id . ' must be refused.');
@@ -49,6 +49,9 @@ final class EventAndSettingsTest extends TestCase
         self::assertSame([false, true, null, null], [$event->decision($one), $event->decision($two), $event->decision($three), $event->decision($alien)]);
         self::assertTrue($event->isDenied($one));
         self::assertFalse($event->isDenied($three));
+
+        $event->stopPropagation();
+        self::assertFalse($event->isPropagationStopped(), 'The event is not stoppable.');
 
         $event->denyAll();
         self::assertTrue($event->isDenied($two));

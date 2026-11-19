@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\SearchKitBundle\Tests\Integration\EntitySearch;
 
+use Nowo\SearchKitBundle\Model\SearchReference;
 use Nowo\SearchKitBundle\Provider\Entity\EntitySearchDefinition;
 use Nowo\SearchKitBundle\Test\EntitySearchProviderTestCase;
 use Nowo\SearchKitBundle\Test\QueryCounter;
@@ -41,9 +42,19 @@ final class DbalNoteContractTest extends EntitySearchProviderTestCase
         return ['tenant-a', 'tenant-b'];
     }
 
-    protected function seed(int|string $tenant, string $text): void
+    protected function seed(int|string $tenant, string $text): int
     {
-        NoteDatabase::get()->insert((string) $tenant, $text);
+        return NoteDatabase::get()->insert((string) $tenant, $text);
+    }
+
+    protected function seedHidden(int|string $tenant, string $text): int
+    {
+        return NoteDatabase::get()->insert((string) $tenant, $text, false, true);
+    }
+
+    protected function seedArchived(int|string $tenant, string $text): int
+    {
+        return NoteDatabase::get()->insert((string) $tenant, $text, true);
     }
 
     protected function actAs(int|string|null $tenant, string $userIdentifier): void
@@ -61,5 +72,10 @@ final class DbalNoteContractTest extends EntitySearchProviderTestCase
     protected function queryBudget(): int
     {
         return 1;
+    }
+
+    protected function reference(int|string $id): SearchReference
+    {
+        return new SearchReference('/notes/' . $id, 'notes', 'note_show', ['id' => (string) $id]);
     }
 }

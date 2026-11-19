@@ -16,12 +16,14 @@ use Nowo\SearchKitBundle\Model\SearchQuery;
 use Nowo\SearchKitBundle\Model\SearchReference;
 use Nowo\SearchKitBundle\Provider\Entity\EntitySearchProvider;
 use Nowo\SearchKitBundle\Search\Group\SearchGroupSettings;
+use Nowo\SearchKitBundle\Search\Group\SensitiveGroupNotice;
 use Nowo\SearchKitBundle\Tests\Support\EntitySearch\DbalNoteDefinition;
 use Nowo\SearchKitBundle\Tests\Support\EntitySearch\Note;
 use Nowo\SearchKitBundle\Tests\Support\EntitySearch\NoteDatabase;
 use Nowo\SearchKitBundle\Tests\Support\EntitySearch\OrmNoteDefinition;
 use Nowo\SearchKitBundle\Tests\Support\EntitySearch\StubDefinition;
 use Nowo\SearchKitBundle\Tests\Support\EntitySearch\Viewer;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\AbstractLogger;
@@ -174,19 +176,35 @@ final class EntitySearchProviderTest extends TestCase
             }
         };
 
-        self::assertNull((new EntitySearchProvider($definition, null, null, new SearchGroupSettings(), false, $logger))->search($this->query($this->marker)));
-        self::assertCount(1, $logger->messages);
+        $notice = new SensitiveGroupNotice($logger);
+        self::assertNull((new EntitySearchProvider($definition, null, null, new SearchGroupSettings(), false, $notice))->search($this->query($this->marker)));
+        self::assertNull((new EntitySearchProvider($definition, null, null, new SearchGroupSettings(), false, $notice))->search($this->query($this->marker)));
+        $definition->group = 'stub_two';
+        self::assertNull((new EntitySearchProvider($definition, null, null, new SearchGroupSettings(), false, $notice))->search($this->query($this->marker)));
+        self::assertCount(2, $logger->messages, 'Once per group and container.');
+        (new SensitiveGroupNotice())->report('silent');
         self::assertStringNotContainsString($this->marker, $logger->messages[0]);
         self::assertNull((new EntitySearchProvider($definition, null, null, new SearchGroupSettings(), false))->search($this->query($this->marker)));
         self::assertInstanceOf(SearchGroup::class, (new EntitySearchProvider($definition))->search($this->query($this->marker)), 'Recents revalidated or off.');
     }
 
-    public function testInvalidGroupKeyThrows(): void
+    /**
+     * @return iterable<string, array{0: string}>
+     */
+    public static function invalidGroups(): iterable
+    {
+        yield 'upper case and space' => ['Not Valid'];
+        yield 'digit first' => ['1tasks'];
+        yield 'trailing newline' => ["tasks\n"];
+    }
+
+    #[DataProvider('invalidGroups')]
+    public function testInvalidGroupKeyThrows(string $key): void
     {
         $definition        = new StubDefinition();
-        $definition->group = 'Not Valid';
+        $definition->group = $key;
         $provider          = new EntitySearchProvider($definition);
-        self::assertSame('Not Valid', $provider->groupKey());
+        self::assertSame($key, $provider->groupKey());
 
         $this->expectException(InvalidArgumentException::class);
         $provider->search($this->query('anything'));
@@ -220,6 +238,28 @@ final class EntitySearchProviderTest extends TestCase
 
         $this->expectException(LogicException::class);
         (new EntitySearchProvider($definition))->search($this->query($this->marker));
+    }
+
+    public function testReservedParametersAreRefusedForDbalAndOrm(): void
+    {
+        $definition        = new StubDefinition();
+        $definition->query = fn (int|string $tenant): DbalQueryBuilder => $this->db->connection->createQueryBuilder()
+            ->select('n.id', 'n.title')->from(NoteDatabase::TABLE, 'n')->where('n.owner = :nowo_search_w0')->setParameter('nowo_search_w0', 'alice');
+        try {
+            (new EntitySearchProvider($definition))->search($this->query('anything'));
+            self::fail('DBAL: a reserved parameter must be refused.');
+        } catch (LogicException) {
+            $this->addToAssertionCount(1);
+        }
+
+        $definition->query = fn (int|string $tenant): OrmQueryBuilder => $this->db->entityManager()->createQueryBuilder()
+            ->select('n')->from(Note::class, 'n')->where('n.owner = :nowo_search_id')->setParameter('nowo_search_id', 'alice');
+        $definition->useIdField     = true;
+        $definition->idField        = 'n.id';
+        $definition->useReferenceId = true;
+
+        $this->expectException(LogicException::class);
+        (new EntitySearchProvider($definition))->resolve(new SearchReference('/stub/1', 'stub', 'stub_show', ['id' => '1']), 'alice', null);
     }
 
     public function testHostEventGetsOneBatchAndDenyWins(): void

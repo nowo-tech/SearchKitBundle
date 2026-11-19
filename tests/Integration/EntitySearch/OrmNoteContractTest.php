@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\SearchKitBundle\Tests\Integration\EntitySearch;
 
+use Nowo\SearchKitBundle\Model\SearchReference;
 use Nowo\SearchKitBundle\Provider\Entity\EntitySearchDefinition;
 use Nowo\SearchKitBundle\Test\EntitySearchProviderTestCase;
 use Nowo\SearchKitBundle\Test\QueryCounter;
@@ -41,9 +42,19 @@ final class OrmNoteContractTest extends EntitySearchProviderTestCase
         return [41, 42];
     }
 
-    protected function seed(int|string $tenant, string $text): void
+    protected function seed(int|string $tenant, string $text): int
     {
-        NoteDatabase::get()->insert((string) $tenant, 'Note', false, false, 'alice', $text);
+        return NoteDatabase::get()->insert((string) $tenant, 'Note', false, false, 'alice', $text);
+    }
+
+    protected function seedHidden(int|string $tenant, string $text): int
+    {
+        return NoteDatabase::get()->insert((string) $tenant, 'Note', false, true, 'alice', $text);
+    }
+
+    protected function seedArchived(int|string $tenant, string $text): int
+    {
+        return NoteDatabase::get()->insert((string) $tenant, 'Note', true, false, 'alice', $text);
     }
 
     protected function actAs(int|string|null $tenant, string $userIdentifier): void
@@ -56,5 +67,15 @@ final class OrmNoteContractTest extends EntitySearchProviderTestCase
     protected function disableFeature(): void
     {
         $this->viewer->feature = false;
+    }
+
+    protected function reference(int|string $id): SearchReference
+    {
+        return new SearchReference('/orm-notes/' . $id, 'orm_notes', 'orm_note_show', ['id' => (string) $id]);
+    }
+
+    protected function supportsRecents(): bool
+    {
+        return false;
     }
 }

@@ -11,6 +11,7 @@ use Nowo\SearchKitBundle\Search\SearchRequest;
 use Nowo\SearchKitBundle\Tests\Support\EntitySearch\KernelNoteDefinition;
 use Nowo\SearchKitBundle\Tests\Support\EntitySearch\NoteDatabase;
 use Nowo\SearchKitBundle\Tests\Support\TestKernel;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
@@ -115,9 +116,19 @@ final class EntitySearchKernelTest extends TestCase
         }
     }
 
-    public function testGroupKeysAreValidated(): void
+    /**
+     * @return iterable<string, array{0: string}>
+     */
+    public static function invalidGroupKeys(): iterable
     {
-        $kernel = new TestKernel(['groups' => ['Bad Key' => ['enabled' => false]]]);
+        yield 'space' => ['Bad Key'];
+        yield 'digit first' => ['1tasks'];
+    }
+
+    #[DataProvider('invalidGroupKeys')]
+    public function testGroupKeysAreValidated(string $key): void
+    {
+        $kernel = new TestKernel(['groups' => [$key => ['enabled' => false]]]);
 
         $this->expectException(InvalidConfigurationException::class);
         $kernel->boot();

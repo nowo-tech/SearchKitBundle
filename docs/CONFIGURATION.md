@@ -252,7 +252,7 @@ when the service is missing), `false` turns it off.
 
 ## Groups (1.9.0)
 
-Per-group switches, by group key (`[a-z0-9_-]{1,64}`, e.g. `tasks`, `crm_companies`, `pages`). SearchKit applies them to
+Per-group switches, by group key (a lower-case letter, then up to 63 of `a-z`, `0-9`, `_`, `-`; e.g. `tasks`, `crm_companies`, `pages`). SearchKit applies them to
 every provider — a bundle never re-implements them:
 
 ```yaml

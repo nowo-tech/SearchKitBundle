@@ -47,7 +47,7 @@ abstract class EntitySearchDefinition
     public const int DEFAULT_MAX_CANDIDATES = 100;
 
     /**
-     * Group key (`[a-z0-9_-]`, 1 to 64 characters, e.g. `tasks`): the palette section, the `type:` filter value, the
+     * Group key (EntitySearchProvider::GROUP_PATTERN: a lower-case letter, then up to 63 of `a-z`, `0-9`, `_`, `-`; e.g. `tasks`): the palette section, the `type:` filter value, the
      * `nowo_search_kit.groups.<key>` settings and the default row kind.
      */
     abstract public function group(): string;
@@ -215,7 +215,7 @@ abstract class EntitySearchDefinition
 
     /**
      * Candidates read and checked per search (1 to SearchWindow::MAX_CANDIDATES): bounds the access checks, the
-     * visible total and the deepest results page.
+     * visible total (a lower bound once the visible rows fill the window) and the deepest results page.
      */
     public function maxCandidates(): int
     {
@@ -242,8 +242,9 @@ abstract class EntitySearchDefinition
 
     /**
      * The record id of a stored recent (from its route parameters), or null when the reference is not one of this
-     * group's rows. The row is then read again through baseQuery() and every check, and kept only when toItem() gives
-     * the same URL.
+     * group's rows. The reference is client input: check the route and the **shape** of the id (e.g. `ctype_digit()`
+     * for an integer key, a UUID pattern) and return null for anything else. The row is then read again through
+     * baseQuery() and every check, and kept only when toItem() gives the same URL and kind.
      *
      * @param SearchReference $reference The stored reference (client input)
      */

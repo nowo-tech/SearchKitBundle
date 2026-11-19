@@ -22,6 +22,9 @@ use function array_values;
  * A host applies its cross-cutting rules (a disabled project feature, a legal hold, a guest viewer) in one listener
  * for every bundle. The event carries no query text. One instance per dispatch; never reused.
  *
+ * **Not stoppable**: every listener runs, whatever an earlier one does — stopPropagation() is a no-op, so a listener
+ * that allows and stops can never skip a later deny.
+ *
  * @author Héctor Franco Aceituno <hectorfranco@nowo.tech>
  * @copyright 2026 Nowo.tech
  */
@@ -52,6 +55,21 @@ final class SearchItemVisibilityEvent extends Event
         foreach ($subjects as $subject) {
             $this->subjects[$subject->key()] = $subject;
         }
+    }
+
+    /**
+     * Always false: every listener gets the event, so no listener can skip a later deny.
+     */
+    public function isPropagationStopped(): bool
+    {
+        return false;
+    }
+
+    /**
+     * No effect (the event is not stoppable).
+     */
+    public function stopPropagation(): void
+    {
     }
 
     /**

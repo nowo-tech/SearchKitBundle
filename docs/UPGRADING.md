@@ -49,14 +49,17 @@ New, optional:
      and remove the old provider's `nowo_search_kit.provider` tag;
   4. keep the old group key, so `type:` filters, recents and host configuration still match;
   5. run the contract kit (`EntitySearchProviderTestCase`) on MySQL, MariaDB and PostgreSQL.
-  An entity group's total is now the **visible** total of the bounded candidates (`maxCandidates()`, default 100) and is
-  exact only when the candidates were not cut.
+  An entity group's total is now the **visible** total within the bounded candidates (`maxCandidates()`, default 100):
+  exact unless the visible rows fill the window, and never influenced by rows the viewer may not see.
 - **Host visibility event** — `SearchKitEvents::ITEM_VISIBILITY` (`SearchItemVisibilityEvent`): one listener in the
   host can deny rows of every entity provider.
 - **`nowo_search_kit.groups`** — `groups.<key>.enabled` / `priority` for any provider ([CONFIGURATION](CONFIGURATION.md#groups-190)).
 - **Dependencies** — `symfony/event-dispatcher-contracts` ^3.5 is now required (already installed with
   `symfony/framework-bundle`). `doctrine/dbal` ^4.2 and/or `doctrine/orm` ^3.3 are needed only by entity providers.
 - A sensitive entity group (`sensitive(): true`) is off while recents are on without `recent.revalidate`.
+- Entity providers do **not** run in `SearchEngineInterface::searchFor()` (search by user identifier, without a Symfony
+  user): they are not `IdentifierAwareSearchProviderInterface`. A host that calls `searchFor()` gets no entity groups.
+- Group keys in `nowo_search_kit.groups` and of entity definitions start with a lower-case letter.
 
 ## To 1.8.1
 

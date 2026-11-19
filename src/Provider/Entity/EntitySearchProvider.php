@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\SearchKitBundle\Provider\Entity;
 
 use Doctrine\DBAL\Query\QueryBuilder as DbalQueryBuilder;
+use Doctrine\ORM\Query\Parameter;
 use Doctrine\ORM\QueryBuilder as OrmQueryBuilder;
 use InvalidArgumentException;
 use LogicException;
@@ -19,22 +20,24 @@ use Nowo\SearchKitBundle\Model\SearchReference;
 use Nowo\SearchKitBundle\Model\SearchSubject;
 use Nowo\SearchKitBundle\NowoSearchKitBundle;
 use Nowo\SearchKitBundle\Search\Group\SearchGroupSettings;
+use Nowo\SearchKitBundle\Search\Group\SensitiveGroupNotice;
 use Nowo\SearchKitBundle\Search\Query\LikePattern;
 use Nowo\SearchKitBundle\Search\Query\ScopeParser;
 use Nowo\SearchKitBundle\Search\Query\SearchWindow;
 use Nowo\SearchKitBundle\Search\Query\SearchWords;
-use Psr\Log\LoggerInterface;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 use function array_filter;
 use function array_is_list;
+use function array_keys;
 use function array_map;
 use function array_values;
 use function count;
 use function is_array;
 use function mb_strlen;
 use function preg_match;
+use function str_starts_with;
 use function trim;
 
 /**
@@ -49,8 +52,8 @@ use function trim;
  * 6. at most `maxCandidates() + 1` rows in one query;
  * 7. the bundle's access check on the candidates (batched: filterVisible), then **one** SearchKitEvents::ITEM_VISIBILITY
  *    event for the page, where a host deny wins;
- * 8. the page cut out of the visible rows, the visible total (exact only when the window was not cut), the rows, the
- *    "see all" link.
+ * 8. the page cut out of the visible rows, the visible total within the window (exact unless the visible rows fill
+ *    the whole window — never derived from rows the viewer may not see), the rows, the "see all" link.
  *
  * Any refusal is `null`: no group, no count, no hint, so a forbidden or hidden row looks exactly like a missing one.
  * An exception from a hook reaches SearchKit, which logs the class names and drops the group (null as well).
@@ -65,8 +68,8 @@ use function trim;
  */
 final readonly class EntitySearchProvider implements PaginatedSearchProviderInterface, SearchReferenceResolverInterface
 {
-    /** Allowed group keys. */
-    public const string GROUP_PATTERN = '/^[a-z0-9_-]{1,64}$/';
+    /** Allowed group keys: a letter first, so a key is always a valid SearchSubject type too. */
+    public const string GROUP_PATTERN = '/^[a-z][a-z0-9_-]{0,63}\z/';
 
     /** Prefix of the parameters SearchKit binds on the definition's query. */
     public const string PARAMETER_PREFIX = 'nowo_search_';
@@ -77,7 +80,7 @@ final readonly class EntitySearchProvider implements PaginatedSearchProviderInte
      * @param TranslatorInterface|null $translator Translates the "see all" label (null: English)
      * @param SearchGroupSettings $groups `nowo_search_kit.groups`
      * @param bool $recentsSafe False while recents are kept in the browser without revalidation
-     * @param LoggerInterface|null $logger Says why a sensitive group is off (no query text)
+     * @param SensitiveGroupNotice|null $notice Says once per container why a sensitive group is off (null: silent)
      */
     public function __construct(
         private EntitySearchDefinition $definition,
@@ -85,7 +88,7 @@ final readonly class EntitySearchProvider implements PaginatedSearchProviderInte
         private ?TranslatorInterface $translator = null,
         private SearchGroupSettings $groups = new SearchGroupSettings(),
         private bool $recentsSafe = true,
-        private ?LoggerInterface $logger = null,
+        private ?SensitiveGroupNotice $notice = null,
     ) {
     }
 
@@ -106,7 +109,7 @@ final readonly class EntitySearchProvider implements PaginatedSearchProviderInte
     {
         $key = $this->definition->group();
         if (preg_match(self::GROUP_PATTERN, $key) !== 1) {
-            throw new InvalidArgumentException('An entity search group key must be 1 to 64 characters of a-z, 0-9, "_" or "-".');
+            throw new InvalidArgumentException('An entity search group key must be a lower-case letter followed by up to 63 characters of a-z, 0-9, "_" or "-".');
         }
 
         return $key;
@@ -138,15 +141,14 @@ final readonly class EntitySearchProvider implements PaginatedSearchProviderInte
         if ($tenant === null || !$this->definition->featureEnabled($tenant, $query)) {
             return null;
         }
-        $queryBuilder = $this->definition->baseQuery($tenant, $query);
+        $queryBuilder = $this->baseQuery($tenant, $query);
         if ($query->scope !== null
             && (!ScopeParser::isValid($query->scope) || !$this->definition->applyScope($queryBuilder, $query->scope, $tenant, $query))) {
             return null;
         }
         $this->match($queryBuilder, $text, $query);
 
-        $rows    = $this->fetch($queryBuilder, $window->fetchLimit());
-        $visible = $this->visible($window->candidatesOf($rows), $tenant, $query, $group);
+        $visible = $this->visible($window->candidatesOf($this->fetch($queryBuilder, $window->fetchLimit())), $tenant, $query, $group);
         $shown   = $window->slice($visible);
         if ($shown === []) {
             return null;
@@ -160,7 +162,7 @@ final readonly class EntitySearchProvider implements PaginatedSearchProviderInte
             $total,
             $this->definition->seeAllUrl($query),
             $this->seeAllLabel($query, $total),
-            !$window->isCut(count($rows)),
+            $window->isExact($visible),
         );
     }
 
@@ -184,7 +186,7 @@ final readonly class EntitySearchProvider implements PaginatedSearchProviderInte
         if ($tenant === null || !$this->definition->featureEnabled($tenant, $query)) {
             return null;
         }
-        $queryBuilder = $this->definition->baseQuery($tenant, $query);
+        $queryBuilder = $this->baseQuery($tenant, $query);
         $queryBuilder->andWhere($field . ' = :' . self::PARAMETER_PREFIX . 'id');
         $queryBuilder->setParameter(self::PARAMETER_PREFIX . 'id', $id);
         $visible = $this->visible($this->fetch($queryBuilder, 1), $tenant, $query, $group);
@@ -197,6 +199,26 @@ final readonly class EntitySearchProvider implements PaginatedSearchProviderInte
     }
 
     /**
+     * The definition's query, refused when it already binds a parameter SearchKit reserves.
+     *
+     * @throws LogicException When a parameter name starts with PARAMETER_PREFIX (SearchKit would overwrite it)
+     */
+    private function baseQuery(int|string $tenant, SearchQuery $query): DbalQueryBuilder|OrmQueryBuilder
+    {
+        $queryBuilder = $this->definition->baseQuery($tenant, $query);
+        $names        = $queryBuilder instanceof DbalQueryBuilder
+            ? array_keys($queryBuilder->getParameters())
+            : array_map(static fn (Parameter $parameter): string => $parameter->getName(), $queryBuilder->getParameters()->toArray());
+        foreach ($names as $name) {
+            if (str_starts_with((string) $name, self::PARAMETER_PREFIX)) {
+                throw new LogicException('EntitySearchDefinition::baseQuery() must not bind parameters named "' . self::PARAMETER_PREFIX . '*": SearchKit binds them.');
+            }
+        }
+
+        return $queryBuilder;
+    }
+
+    /**
      * Whether the group may run: on in the settings, and not a sensitive group while recents keep titles.
      */
     private function runs(string $group): bool
@@ -205,7 +227,7 @@ final readonly class EntitySearchProvider implements PaginatedSearchProviderInte
             return false;
         }
         if (!$this->recentsSafe && $this->definition->sensitive()) {
-            $this->logger?->notice('Search group {group} is off: its rows are sensitive and SearchKit recents are kept without revalidation (set nowo_search_kit.recent.revalidate: true, or recent.enabled: false).', ['group' => $group]);
+            $this->notice?->report($group);
 
             return false;
         }

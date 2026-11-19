@@ -96,11 +96,14 @@ Per call, always in this order:
 4. the scope (client input): shape-checked, then `applyScope()` restricts the query in SQL — or the search is refused;
 5. `applyFullText()`, or an escaped `LOWER(field) LIKE :p ESCAPE '!'` of every query word over `searchableFields()`
    (each word must occur in one of the fields);
-6. one query of at most `maxCandidates() + 1` rows;
+6. one query of at most `maxCandidates()` rows (a `baseQuery()` that binds a parameter named `nowo_search_*` is refused
+   with a `LogicException`: SearchKit binds those);
 7. `filterVisible()` on the candidates (batched; SearchKit keeps only rows that were candidates), then **one**
    `SearchKitEvents::ITEM_VISIBILITY` event for the page, where a host deny wins;
-8. the page cut out of the visible rows, the visible total (exact only when the candidates were not cut), `toItem()`
-   on the shown rows only, `seeAllUrl()`.
+8. the page cut out of the visible rows, the visible total within the window, `toItem()` on the shown rows only,
+   `seeAllUrl()`. The total is exact unless the **visible** rows fill the whole window (then it is a lower bound and
+   SearchKit shows the rows it lists). Rows the viewer may not see change neither the total nor its exactness, so
+   they cannot be detected through it.
 
 **Any refusal is `null`**: no group, no count, no hint, so a forbidden or hidden row looks exactly like a missing one.
 An exception thrown by a hook reaches SearchKit, which logs the class names (never the query text) and drops the group.
@@ -114,7 +117,7 @@ The provider is a `PaginatedSearchProviderInterface`: the results page pages the
 
 | Hook | Returns |
 |------|---------|
-| `group()` | Group key, `[a-z0-9_-]{1,64}`: the palette section, the `type:` filter value, the `groups.<key>` settings, the default row kind. |
+| `group()` | Group key, a lower-case letter then up to 63 of `a-z`, `0-9`, `_`, `-` (`EntitySearchProvider::GROUP_PATTERN`): the palette section, the `type:` filter value, the `groups.<key>` settings, the default row kind. |
 | `label(SearchQuery $query)` | The translated group label (use `$query->locale`). |
 | `tenant(SearchQuery $query)` | The viewer's tenant (`int\|string`), resolved on each call; `null`: no results. `$query->userIdentifier` is the viewer. |
 | `featureEnabled(int\|string $tenant, SearchQuery $query)` | Whether the feature (and, per tenant, `view`) is on. |
@@ -141,7 +144,7 @@ And one of:
 | `applyFullText($queryBuilder, array $terms, SearchQuery $query)` | `false` (LIKE) | See [Full text](#full-text). |
 | `minLength()` | `0` | Shortest text this group searches (SearchKit's `min_length` applies first). |
 | `maxCandidates()` | `100` | Rows read and checked per search (1–1000): bounds the checks, the total and the deepest page. |
-| `sensitive()` | `false` | `true` when titles are sensitive (message excerpts, private names): the group is off while recents keep titles in the browser. |
+| `sensitive()` | `false` | `true` when titles are sensitive (message excerpts, private names): the group is off while recents keep titles in the browser (SearchKit logs why once per container). |
 | `idField()` / `referenceId(SearchReference $reference)` | `null` | See [Recents](#recents). |
 
 ## ORM definitions
@@ -196,13 +199,26 @@ every display. The generated provider resolves the references of its group when 
 
 - `idField()`: the id field of `baseQuery()` (`t.id`);
 - `referenceId(SearchReference $reference)`: the record id from the stored route parameters, or `null` when the
-  reference is not one of the group's rows (check `$reference->route`).
+  reference is not one of the group's rows. The reference is **client input**: check the route and the shape of the
+  id, and return `null` for anything else:
+
+```php
+public function idField(): ?string { return 't.id'; }
+
+public function referenceId(SearchReference $reference): ?string
+{
+    $id = $reference->routeParameters['id'] ?? null;
+
+    return $reference->route === 'acme_task_show' && is_string($id) && ctype_digit($id) ? $id : null; // a UUID key: match its pattern
+}
+```
 
 The row is then read through `baseQuery()` and every check above, and kept only when `toItem()` gives the same URL and
 kind. A definition without these hooks has its recents dropped under revalidation.
 
 A `sensitive()` group is off while SearchKit keeps recents in the browser without revalidation
-(`recent.enabled: true`, `recent.revalidate: false`); SearchKit logs why (no query text).
+(`recent.enabled: true`, `recent.revalidate: false`); SearchKit logs why once per group and container (no query
+text).
 
 ## The host visibility event
 
@@ -240,6 +256,10 @@ final class SearchVisibilityListener
 
 Subjects a listener names that are not candidates are ignored. Without an event dispatcher no event is dispatched.
 
+The event is **not stoppable**: `stopPropagation()` is a no-op and `isPropagationStopped()` is always `false`, so every
+listener runs and a listener that allows (even at a higher priority) can never skip a later deny. A listener that
+throws drops the group (SearchKit logs the class names), never fails open.
+
 ## Group switches
 
 `nowo_search_kit.groups.<key>` applies to every provider whose group key SearchKit knows, not only to entity
@@ -268,9 +288,20 @@ All stateless, in `Nowo\SearchKitBundle\Search\Query`:
 ## Testing a provider: the contract kit
 
 `Nowo\SearchKitBundle\Test\EntitySearchProviderTestCase` (PHPUnit) asserts the contract against your real definition
-and database: refusals give `null` (no tenant, feature off, malformed and unknown scopes, a host deny), no other-tenant
-row, literal wildcards (`%`, `_`, `!`, `\`), the limit and the visible total, a query budget, and worker safety (one
-provider instance, two viewers alternately). Run it on MySQL, MariaDB and PostgreSQL in CI.
+and database:
+
+- refusals give `null` (no tenant, feature off, malformed and unknown scopes, a host deny — also after a listener that
+  allows and stops propagation);
+- no other-tenant row, no row your access check hides and no archived row is ever shown or counted, and hidden rows
+  filling the candidate window change neither the total nor its exactness;
+- literal wildcards (`%`, `_`, `!`, `\`), the limit and the visible total, bounded results pages;
+- recents: a visible row resolves; a hidden, archived or other-tenant row, another URL or kind, no tenant and the
+  feature off give `null`;
+- `sensitive()` matches what the test declares, and a sensitive group is off while recents keep titles;
+- a query budget, and worker safety (one provider instance, two viewers alternately).
+
+A definition that skips its per-row check or its tenant condition fails the kit. Run it on MySQL, MariaDB and
+PostgreSQL in CI.
 
 ```php
 use Doctrine\DBAL\{Configuration, DriverManager};
@@ -297,7 +328,10 @@ final class TaskSearchContractTest extends EntitySearchProviderTestCase
     protected function definition(): EntitySearchDefinition { return new TaskSearchDefinition($this->db, $this->tenants, $this->access, $this->urls(), $this->translator()); }
     protected function queryCounter(): QueryCounter { return $this->counter; }
     protected function tenants(): array { return [1, 2]; }
-    protected function seed(int|string $tenant, string $text): void { $this->db->insert('task', ['tenant_id' => $tenant, 'title' => $text]); }
+    protected function seed(int|string $tenant, string $text): int { return $this->insert($tenant, $text); }
+    protected function seedHidden(int|string $tenant, string $text): int { return $this->insert($tenant, $text, private: true); } // the access check hides it
+    protected function seedArchived(int|string $tenant, string $text): int { return $this->insert($tenant, $text, archived: true); }
+    protected function reference(int|string $id): SearchReference { return new SearchReference('/tasks/' . $id, 'tasks', 'acme_task_show', ['id' => (string) $id]); }
     protected function actAs(int|string|null $tenant, string $userIdentifier): void { $this->tenants->set($tenant, $userIdentifier); $this->access->enable(); }
     protected function disableFeature(): void { $this->access->disable(); }
     protected function queryBudget(): int { return 2; } // the search query + one batched access check
@@ -309,7 +343,12 @@ final class TaskSearchContractTest extends EntitySearchProviderTestCase
 | `definition()` | The definition, wired to the test database. |
 | `queryCounter()` | The counter of the test connection's `QueryCountingMiddleware` (also usable on an EntityManager's connection). |
 | `tenants()` | Two different tenants. |
-| `seed($tenant, $text)` | One row of the tenant, visible to its viewers, whose searchable text contains `$text` (it may contain `%`, `_`, `!`, `\`). |
+| `seed($tenant, $text): int\|string` | One row of the tenant, visible to its viewers, whose searchable text contains `$text` (it may contain `%`, `_`, `!`, `\`); returns its id. |
+| `seedHidden($tenant, $text): int\|string` | One row of the tenant that your **per-row access check** hides from the viewers of `actAs()` (and the SQL does not filter). |
+| `seedArchived($tenant, $text): int\|string` | One archived or soft-deleted row of the tenant (filtered in SQL). |
+| `reference($id): SearchReference` | The recent the browser stores for a row (URL, kind, route and parameters). |
+| `supportsRecents()` | Default `true`; `false` when the definition has no `idField()` / `referenceId()` (every reference must then give `null`). |
+| `sensitiveTitles()` | Default `false`; must equal the definition's `sensitive()`. |
 | `actAs($tenant, $userIdentifier)` | Makes the definition resolve this viewer and tenant (null: none), feature on. |
 | `disableFeature()` | Turns the feature (or `view`) off for the current viewer. |
 | `queryBudget()` | Most statements per search (default 2). |

@@ -27,10 +27,10 @@ final class LikePattern
     public const string ESCAPE = '!';
 
     /** A searchable field: `column` or `alias.column` (letters, digits and `_`). */
-    public const string FIELD_PATTERN = '/^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$/';
+    public const string FIELD_PATTERN = '/^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?\z/';
 
     /** A parameter name (letters, digits and `_`). */
-    private const string PARAMETER_PATTERN = '/^[A-Za-z_][A-Za-z0-9_]*$/';
+    private const string PARAMETER_PATTERN = '/^[A-Za-z_][A-Za-z0-9_]*\z/';
 
     /**
      * Escapes the LIKE wildcards of a text (`!` → `!!`, `%` → `!%`, `_` → `!_`).

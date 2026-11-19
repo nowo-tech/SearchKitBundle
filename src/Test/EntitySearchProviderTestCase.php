@@ -9,8 +9,10 @@ use Nowo\SearchKitBundle\Event\SearchKitEvents;
 use Nowo\SearchKitBundle\Model\SearchGroup;
 use Nowo\SearchKitBundle\Model\SearchItem;
 use Nowo\SearchKitBundle\Model\SearchQuery;
+use Nowo\SearchKitBundle\Model\SearchReference;
 use Nowo\SearchKitBundle\Provider\Entity\EntitySearchDefinition;
 use Nowo\SearchKitBundle\Provider\Entity\EntitySearchProvider;
+use Nowo\SearchKitBundle\Search\Group\SearchGroupSettings;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 
@@ -27,7 +29,10 @@ use function random_bytes;
  * hooks: the kit then asserts, against your real definition and query, that.
  *
  * - every refusal (no tenant, feature off, a malformed or unknown scope, a host deny) gives `null`;
- * - no row of another tenant is ever shown or counted;
+ * - no row of another tenant, no row the access check hides and no archived row is ever shown or counted, and hidden
+ *   rows filling the candidate window change neither the total nor its exactness;
+ * - recents resolve only visible rows of the viewer's tenant with the same URL and kind;
+ * - a sensitive group is off while recents keep titles in the browser;
  * - LIKE wildcards (`%`, `_`, `!`, `\`) in the query are matched literally;
  * - the limit holds, the total is the visible total, and the results page is bounded;
  * - one search stays within the query budget (no N+1);
@@ -69,8 +74,40 @@ abstract class EntitySearchProviderTestCase extends TestCase
      *
      * @param int|string $tenant The tenant
      * @param string $text Text to put in a searchable field (may contain `%`, `_`, `!` and `\`)
+     *
+     * @return int|string The row id (what subjectId() and referenceId() give)
      */
-    abstract protected function seed(int|string $tenant, string $text): void;
+    abstract protected function seed(int|string $tenant, string $text): int|string;
+
+    /**
+     * Inserts one row of the tenant that the **per-row access check** (canView() / filterVisible()) hides from the
+     * viewers of actAs() — e.g. a private record of another user, a board they are not a member of — and that the SQL
+     * of baseQuery() does not filter out.
+     *
+     * @param int|string $tenant The tenant
+     * @param string $text Text to put in a searchable field
+     *
+     * @return int|string The row id
+     */
+    abstract protected function seedHidden(int|string $tenant, string $text): int|string;
+
+    /**
+     * Inserts one archived (or soft-deleted) row of the tenant, which baseQuery() filters out in SQL.
+     *
+     * @param int|string $tenant The tenant
+     * @param string $text Text to put in a searchable field
+     *
+     * @return int|string The row id
+     */
+    abstract protected function seedArchived(int|string $tenant, string $text): int|string;
+
+    /**
+     * The recent reference the browser would store for a row (its URL, the kind — usually the group key — and the
+     * route with its parameters), as RecentResolver builds it.
+     *
+     * @param int|string $id A row id returned by a seed hook
+     */
+    abstract protected function reference(int|string $id): SearchReference;
 
     /**
      * Makes the definition resolve this viewer and tenant from now on (null tenant: the viewer has none), with the
@@ -87,6 +124,23 @@ abstract class EntitySearchProviderTestCase extends TestCase
     abstract protected function disableFeature(): void;
 
     /**
+     * Whether the definition revalidates recents (idField() and referenceId()); false: every reference must be
+     * dropped (null), even a visible row's.
+     */
+    protected function supportsRecents(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Whether the group's titles are sensitive: must equal the definition's sensitive().
+     */
+    protected function sensitiveTitles(): bool
+    {
+        return false;
+    }
+
+    /**
      * Most SQL statements of one search (default 2: the search query and one batched access check).
      */
     protected function queryBudget(): int
@@ -98,10 +152,11 @@ abstract class EntitySearchProviderTestCase extends TestCase
      * The provider under test (SearchKit's generic provider around definition()).
      *
      * @param EventDispatcher|null $dispatcher The dispatcher of the host event (null: a new empty one)
+     * @param bool $recentsSafe False: SearchKit keeps recents in the browser without revalidation
      */
-    protected function provider(?EventDispatcher $dispatcher = null): EntitySearchProvider
+    protected function provider(?EventDispatcher $dispatcher = null, bool $recentsSafe = true): EntitySearchProvider
     {
-        return new EntitySearchProvider($this->definition(), $dispatcher ?? new EventDispatcher());
+        return new EntitySearchProvider($this->definition(), $dispatcher ?? new EventDispatcher(), null, new SearchGroupSettings(), $recentsSafe);
     }
 
     /**
@@ -170,7 +225,8 @@ abstract class EntitySearchProviderTestCase extends TestCase
     }
 
     /**
-     * One batched host event; a deny wins over a later allow, and a denied row is neither shown nor counted.
+     * One batched host event; a deny wins over a later allow and over an earlier listener that allows and stops
+     * propagation, and a denied row is neither shown nor counted.
      */
     public function testContractHostDenyWinsAndGivesNull(): void
     {
@@ -197,12 +253,122 @@ abstract class EntitySearchProviderTestCase extends TestCase
 
         $dispatcher = new EventDispatcher();
         $dispatcher->addListener(SearchKitEvents::ITEM_VISIBILITY, static function (SearchItemVisibilityEvent $event): void {
+            foreach ($event->subjects() as $subject) {
+                $event->allow($subject);
+            }
+            $event->stopPropagation();
+        }, 10);
+        $dispatcher->addListener(SearchKitEvents::ITEM_VISIBILITY, static function (SearchItemVisibilityEvent $event): void {
             $event->deny($event->subjects()[0]);
         });
         $group = $this->provider($dispatcher)->search($this->query($marker));
         self::assertInstanceOf(SearchGroup::class, $group);
         self::assertCount(1, $group->items);
         self::assertSame(1, $group->total, 'A denied row must not be counted.');
+    }
+
+    /**
+     * Rows the access check hides and archived rows are never shown or counted.
+     */
+    public function testContractNeverShowsHiddenOrArchivedRows(): void
+    {
+        [$tenant] = $this->tenants();
+        $marker   = $this->marker();
+        $this->seed($tenant, $marker . 'v');
+        $this->seedHidden($tenant, $marker . 'h');
+        $this->seedArchived($tenant, $marker . 'a');
+        $this->actAs($tenant, self::VIEWER_A);
+
+        $group = $this->provider()->search($this->query($marker));
+        self::assertInstanceOf(SearchGroup::class, $group);
+        self::assertCount(1, $group->items, 'Hidden and archived rows must not be shown.');
+        self::assertSame(1, $group->total, 'Hidden and archived rows must not be counted.');
+        self::assertNull($this->provider()->search($this->query($marker . 'h')), 'A hidden row alone must give null.');
+        self::assertNull($this->provider()->search($this->query($marker . 'a')), 'An archived row alone must give null.');
+    }
+
+    /**
+     * Hidden rows that fill the candidate window change neither the total nor whether it is exact (no count oracle).
+     */
+    public function testContractHiddenRowsBeyondTheWindowChangeNothing(): void
+    {
+        $candidates = $this->definition()->maxCandidates();
+        if ($candidates < 2 || $candidates > 500) {
+            self::markTestSkipped('maxCandidates() must be 2 to 500 for this check.');
+        }
+        [$tenant] = $this->tenants();
+        $this->actAs($tenant, self::VIEWER_A);
+        $plain = $this->marker();
+        $this->seed($tenant, $plain . 'v');
+        $reference = $this->provider()->search($this->query($plain));
+        self::assertInstanceOf(SearchGroup::class, $reference);
+
+        $marker = $this->marker();
+        $this->seed($tenant, $marker . 'first');
+        for ($row = 0; $row < $candidates; ++$row) {
+            $this->seedHidden($tenant, $marker . 'h' . $row);
+        }
+        $this->seed($tenant, $marker . 'last');
+        $group = $this->provider()->search($this->query($marker));
+
+        self::assertInstanceOf(SearchGroup::class, $group, 'A visible row must still be found.');
+        self::assertSame(count($group->items), $group->total, 'Only visible rows are counted.');
+        self::assertLessThanOrEqual(2, $group->total);
+        self::assertSame($reference->exactTotal, $group->exactTotal, 'Hidden rows must not change whether the total is exact.');
+    }
+
+    /**
+     * Recents: a visible row resolves (when the definition revalidates them); a hidden, archived or other-tenant row,
+     * another URL or kind, no tenant and the feature off give null.
+     */
+    public function testContractRecentsResolveOnlyVisibleRows(): void
+    {
+        [$tenant, $other] = $this->tenants();
+        $marker           = $this->marker();
+        $visible          = $this->reference($this->seed($tenant, $marker . 'v'));
+        $hidden           = $this->reference($this->seedHidden($tenant, $marker . 'h'));
+        $archived         = $this->reference($this->seedArchived($tenant, $marker . 'a'));
+        $foreign          = $this->reference($this->seed($other, $marker . 'o'));
+        $this->actAs($tenant, self::VIEWER_A);
+        $provider = $this->provider();
+
+        $item = $provider->resolve($visible, self::VIEWER_A, null);
+        if ($this->supportsRecents()) {
+            self::assertInstanceOf(SearchItem::class, $item, 'A visible row must resolve.');
+            self::assertSame($visible->url, $item->url);
+        } else {
+            self::assertNull($item, 'Without recents support every reference is dropped.');
+        }
+        self::assertNull($provider->resolve($hidden, self::VIEWER_A, null), 'Hidden row.');
+        self::assertNull($provider->resolve($archived, self::VIEWER_A, null), 'Archived row.');
+        self::assertNull($provider->resolve($foreign, self::VIEWER_A, null), 'Row of another tenant.');
+        self::assertNull($provider->resolve(new SearchReference($visible->url . 'x', $visible->kind, $visible->route, $visible->routeParameters), self::VIEWER_A, null), 'Another URL.');
+        self::assertNull($provider->resolve(new SearchReference($visible->url, $visible->kind . 'x', $visible->route, $visible->routeParameters), self::VIEWER_A, null), 'Another kind.');
+        $this->actAs(null, self::VIEWER_A);
+        self::assertNull($provider->resolve($visible, self::VIEWER_A, null), 'No tenant.');
+        $this->actAs($tenant, self::VIEWER_A);
+        $this->disableFeature();
+        self::assertNull($provider->resolve($visible, self::VIEWER_A, null), 'Feature off.');
+    }
+
+    /**
+     * sensitive() matches the test's declaration, and a sensitive group is off while recents keep titles.
+     */
+    public function testContractSensitiveGroupsFollowTheRecentsMode(): void
+    {
+        self::assertSame($this->sensitiveTitles(), $this->definition()->sensitive(), 'sensitive() must match sensitiveTitles().');
+        [$tenant] = $this->tenants();
+        $marker   = $this->marker();
+        $this->seed($tenant, $marker);
+        $this->actAs($tenant, self::VIEWER_A);
+
+        self::assertInstanceOf(SearchGroup::class, $this->provider(null, true)->search($this->query($marker)));
+        $unsafe = $this->provider(null, false)->search($this->query($marker));
+        if ($this->sensitiveTitles()) {
+            self::assertNull($unsafe, 'A sensitive group must be off while recents are not revalidated.');
+        } else {
+            self::assertInstanceOf(SearchGroup::class, $unsafe);
+        }
     }
 
     /**

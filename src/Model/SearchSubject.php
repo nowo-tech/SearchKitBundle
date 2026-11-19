@@ -19,7 +19,7 @@ use function strlen;
 final readonly class SearchSubject
 {
     /** Allowed type characters. */
-    public const string TYPE_PATTERN = '/^[a-z][a-z0-9_.-]{0,63}$/';
+    public const string TYPE_PATTERN = '/^[a-z][a-z0-9_.-]{0,63}\z/';
 
     /** Longest id. */
     public const int MAX_ID_LENGTH = 255;

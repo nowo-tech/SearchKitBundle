@@ -16,8 +16,10 @@ use Nowo\SearchKitBundle\Search\Query\ScopeParser;
 
 use function array_filter;
 use function array_values;
+use function ctype_digit;
 use function is_array;
 use function is_scalar;
+use function is_string;
 use function rawurlencode;
 
 /**
@@ -112,6 +114,6 @@ final class DbalNoteDefinition extends EntitySearchDefinition
     {
         $id = $reference->routeParameters['id'] ?? null;
 
-        return $reference->route === 'note_show' && is_scalar($id) ? (string) $id : null;
+        return $reference->route === 'note_show' && is_string($id) && ctype_digit($id) ? $id : null;
     }
 }

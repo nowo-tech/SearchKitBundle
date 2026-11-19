@@ -27,6 +27,7 @@ final class HelpersTest extends TestCase
         self::assertSame("(LOWER(a) LIKE :p ESCAPE '!' OR LOWER(t.b) LIKE :p ESCAPE '!')", LikePattern::anyField(['a', 't.b'], 'p'));
         self::assertTrue(LikePattern::isField('t.title_2'));
         self::assertFalse(LikePattern::isField('t.title)'));
+        self::assertFalse(LikePattern::isField("t.title\n"));
     }
 
     /**
@@ -37,6 +38,7 @@ final class HelpersTest extends TestCase
         yield 'field' => [['title; --'], 'p'];
         yield 'nested field' => [['a.b.c'], 'p'];
         yield 'parameter' => [['title'], 'p-1'];
+        yield 'parameter with newline' => [['title'], "p\n"];
         yield 'no field' => [[], 'p'];
     }
 
@@ -69,6 +71,8 @@ final class HelpersTest extends TestCase
         self::assertTrue(ScopeParser::isValid('project:42'));
         self::assertFalse(ScopeParser::isValid(null));
         self::assertFalse(ScopeParser::isValid('a b'));
+        self::assertFalse(ScopeParser::isValid("project:1\n"));
+        self::assertNull(ScopeParser::value("project:1\n", 'project'));
         self::assertSame('ab-1', ScopeParser::value('project:ab-1', 'project'));
         self::assertNull(ScopeParser::value('board:1', 'project'));
         self::assertNull(ScopeParser::value('project:', 'project'));
@@ -87,9 +91,9 @@ final class HelpersTest extends TestCase
     {
         $window = SearchWindow::of(2, 3, 10);
         self::assertInstanceOf(SearchWindow::class, $window);
-        self::assertSame(11, $window->fetchLimit());
-        self::assertFalse($window->isCut(10));
-        self::assertTrue($window->isCut(11));
+        self::assertSame(10, $window->fetchLimit());
+        self::assertTrue($window->isExact([1, 2, 3, 4, 5, 6, 7, 8, 9]));
+        self::assertFalse($window->isExact([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]));
         self::assertSame([1, 2], $window->candidatesOf([1, 2]));
         self::assertSame([4, 5, 6], $window->slice([1, 2, 3, 4, 5, 6, 7]));
         self::assertSame(7, $window->total([1, 2, 3, 4, 5, 6, 7]));

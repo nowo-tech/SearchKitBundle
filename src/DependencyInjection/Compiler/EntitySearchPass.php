@@ -9,6 +9,7 @@ use Nowo\SearchKitBundle\Contract\SearchReferenceResolverInterface;
 use Nowo\SearchKitBundle\Provider\Entity\EntitySearchDefinition;
 use Nowo\SearchKitBundle\Provider\Entity\EntitySearchProvider;
 use Nowo\SearchKitBundle\Search\Group\SearchGroupSettings;
+use Nowo\SearchKitBundle\Search\Group\SensitiveGroupNotice;
 use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -47,11 +48,10 @@ final class EntitySearchPass implements CompilerPassInterface
                     new Reference('translator', ContainerInterface::NULL_ON_INVALID_REFERENCE),
                     new Reference(SearchGroupSettings::class),
                     '%nowo_search_kit.recent.safe%',
-                    new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE),
+                    new Reference(SensitiveGroupNotice::class),
                 ])
                 ->addTag(SearchProviderInterface::TAG, ['priority' => $priority])
-                ->addTag(SearchReferenceResolverInterface::REFERENCE_RESOLVER_TAG, ['priority' => $priority])
-                ->addTag('monolog.logger', ['channel' => 'nowo_search_kit']);
+                ->addTag(SearchReferenceResolverInterface::REFERENCE_RESOLVER_TAG, ['priority' => $priority]);
         }
     }
 }

@@ -70,25 +70,31 @@ Target: **1.9.0** (minor, additive).
   `Provider\Entity\EntitySearchProvider` per definition (tag `nowo_search_kit.entity_definition`, autoconfigured,
   attribute `priority`), which runs one fixed flow: group switch → text and min length → tenant (`null`: no results)
   → feature gate → scope (client input: shape-checked, then applied in SQL by the definition, or refused) → full-text
-  hook or escaped `LOWER(field) LIKE :p ESCAPE '!'` of every query word → one query of at most `maxCandidates() + 1`
-  rows → batched bundle access check → the shared host event → the page out of the visible rows, the visible total
-  (exact only when the candidates were not cut) and the "see all" link. Any refusal is `null` (no count, no hint). It
-  is a `PaginatedSearchProviderInterface` (results page) and a `SearchReferenceResolverInterface` (revalidated
-  recents read again through the same checks). A `sensitive()` group is off while recents keep titles in the browser.
-  Stateless (FrankenPHP worker mode, kernel reset off).
+  hook or escaped `LOWER(field) LIKE :p ESCAPE '!'` of every query word → one query of at most `maxCandidates()` rows
+  → batched bundle access check → the shared host event → the page out of the visible rows, the visible total within
+  the window (exact unless the visible rows fill it; hidden rows never change the total or its exactness) and the "see
+  all" link. Any refusal is `null` (no count, no hint). A `baseQuery()` binding a `nowo_search_*` parameter is refused
+  (`LogicException`). It is a `PaginatedSearchProviderInterface` (results page) and a
+  `SearchReferenceResolverInterface` (revalidated recents read again through the same checks). A `sensitive()` group
+  is off while recents keep titles in the browser (`Search\Group\SensitiveGroupNotice` logs it once per group and
+  container). Group keys start with a lower-case letter. Stateless (FrankenPHP worker mode, kernel reset off). Entity
+  providers do not run in `searchFor()`.
 - **Shared host access event** `Event\SearchKitEvents::ITEM_VISIBILITY` (`nowo_search_kit.item_visibility`):
   `Event\SearchItemVisibilityEvent`, dispatched once per search page with every candidate the bundle's check kept
   (`Model\SearchSubject`: type and id), the group, the viewer, the tenant, the scope and the locale (never the query
-  text). Listeners `allow()`, `deny()` or `denyAll()`; **deny wins**; a denied row is neither shown nor counted.
+  text). Listeners `allow()`, `deny()` or `denyAll()`; **deny wins**; a denied row is neither shown nor counted. The
+  event is not stoppable (`stopPropagation()` is a no-op), so no listener can skip a later deny.
 - **`nowo_search_kit.groups.<key>.enabled` / `priority`** (`Search\Group\SearchGroupSettings`), applied by the engine
   to every provider: a switched-off paginated or entity provider does not run and any group with that key is dropped;
   configured priorities sort the groups of an answer (unset counts as 0, the Actions group stays first).
 - Helpers in `Search\Query`: `LikePattern` (escape, contains, checked `LOWER(field) LIKE … ESCAPE '!'` conditions),
   `SearchWords` (bounded words; letters-and-digits full-text terms), `ScopeParser` (`prefix:value` scopes as client
   input), `SearchWindow` (bounded candidates, page slice, visible total) and `SeeAllLink`.
-- **Provider contract test kit** in `Test`: `EntitySearchProviderTestCase` (refusals give `null`, no other-tenant
-  rows, literal `%` `_` `!` `\`, the limit and the visible total, a query budget, two viewers alternately on one
-  provider instance), `QueryCounter` and the DBAL `QueryCountingMiddleware`.
+- **Provider contract test kit** in `Test`: `EntitySearchProviderTestCase` (refusals give `null`; no other-tenant,
+  access-hidden or archived rows, and hidden rows filling the window change nothing; literal `%` `_` `!` `\`; the
+  limit and the visible total; recents resolve only visible rows; the `sensitive()` gate; a query budget; two viewers
+  alternately on one provider instance), `QueryCounter` and the DBAL `QueryCountingMiddleware`. A definition that skips
+  its per-row access check or its tenant condition fails the kit.
 - Translation `search.see_all` (7 locales). Container parameters `nowo_search_kit.groups` and
   `nowo_search_kit.recent.safe`.
 - `SearchEngine` takes an optional 12th argument, `?SearchGroupSettings $groups` (null: no group settings, as before).

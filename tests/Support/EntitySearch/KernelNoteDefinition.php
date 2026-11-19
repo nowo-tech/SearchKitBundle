@@ -13,7 +13,9 @@ use Nowo\SearchKitBundle\Search\Query\SeeAllLink;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
+use function ctype_digit;
 use function is_scalar;
+use function is_string;
 
 /**
  * The definition a bundle would register (autoconfigured service): alice searches tenant "kernel", bob has none.
@@ -90,6 +92,6 @@ final class KernelNoteDefinition extends EntitySearchDefinition
     {
         $id = $reference->routeParameters['id'] ?? null;
 
-        return $reference->route === 'test_note' && is_scalar($id) ? (string) $id : null;
+        return $reference->route === 'test_note' && is_string($id) && ctype_digit($id) ? $id : null;
     }
 }
