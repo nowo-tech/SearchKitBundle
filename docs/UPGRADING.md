@@ -33,6 +33,10 @@ This guide lists the changes integrators must apply when upgrading between versi
 
 ## Unreleased
 
+Target: **1.11.1** (patch). Nothing to change. The contract kit's `testContractHiddenRowsBeyondTheWindowChangeNothing`
+now seeds one hidden row fewer, so it no longer fails by chance when the definition's order does not follow insertion
+(equal timestamps with a random id tiebreak). No runtime change.
+
 ## To 1.11.0
 
 From **1.10.1**:
