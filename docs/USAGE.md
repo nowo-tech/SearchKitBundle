@@ -4,6 +4,7 @@
 
 - [How it fits together](#how-it-fits-together)
 - [Providers](#providers)
+  - [Entity providers (1.9.0)](#entity-providers-190)
   - [Security contract](#security-contract)
   - [`SearchQuery`](#searchquery)
   - [`SearchGroup`, `SearchItem`, `SearchBadge`](#searchgroup-searchitem-searchbadge)
@@ -111,6 +112,18 @@ final readonly class IssueSearchProvider implements SearchProviderInterface
 With autoconfiguration (default in `config/services.yaml`) nothing else is needed: the interface is tagged
 `nowo_search_kit.provider`.
 
+### Entity providers (1.9.0)
+
+A bundle that searches its own records does not implement `SearchProviderInterface` itself: it extends
+`Nowo\SearchKitBundle\Provider\Entity\EntitySearchDefinition` (tenant, feature gate, searchable fields, a DBAL or ORM
+base query, the access check, the row and the "see all" link) and SearchKit's `EntitySearchProvider` runs the one
+search flow for it — scope validation, escaped LIKE or a full-text hook, bounded candidates, batched access checks, the
+shared host event `SearchKitEvents::ITEM_VISIBILITY` (deny wins), the visible total, results-page paging, revalidated
+recents and `null` on any refusal. A contract test kit (`Nowo\SearchKitBundle\Test\EntitySearchProviderTestCase`)
+checks a definition against a real database.
+
+The full guide, with a 30-line example, the hooks, the event and the test kit: **[Write a provider](PROVIDERS.md)**.
+
 ### Security contract
 
 - Return **only rows the current user may open** (same rule as the page the row links to). Never return counts, titles or
@@ -149,6 +162,10 @@ With autoconfiguration (default in `config/services.yaml`) nothing else is neede
 Tag priority, highest first: `#[AsTaggedItem(priority: 50)]` on the class, or
 `tags: [{ name: nowo_search_kit.provider, priority: 50 }]` in YAML. The built-in Pages group defaults to `100`.
 
+1.9.0: `nowo_search_kit.groups.<key>.priority` sorts the groups of an answer by key, whatever provider made them (a
+group without one counts as 0; the Actions group stays first), and `groups.<key>.enabled: false` switches a group off —
+see [CONFIGURATION](CONFIGURATION.md#groups-190).
+
 ### Scoped searches
 
 Decide per provider: hide the group (`return null` when `$query->isScoped()`), or narrow it to the scope. The Pages
@@ -158,7 +175,8 @@ group is hidden while scoped (`menu_pages.skip_when_scoped`).
 
 The kit does not query your database. Use whatever your providers need — `LIKE` with escaped wildcards, MySQL
 `MATCH … AGAINST` (see AuditKitBundle's `SqlFulltext` helper), PostgreSQL `tsvector`, Meilisearch… Keep each provider to
-one bounded query (`LIMIT $query->limit` plus a capped `COUNT`).
+one bounded query (`LIMIT $query->limit` plus a capped `COUNT`). An [entity provider](PROVIDERS.md#full-text) gets the
+escaped LIKE for free and a full-text hook that only ever receives letters and digits.
 
 ## Scope resolver
 

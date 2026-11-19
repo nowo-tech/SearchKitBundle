@@ -29,6 +29,35 @@ This guide lists the changes integrators must apply when upgrading between versi
 
 ## Unreleased
 
+Target: **1.9.0** (minor, additive). From **1.8.x**:
+
+```bash
+composer update nowo-tech/search-kit-bundle
+```
+
+Nothing to change: every new key has a default that keeps 1.8 behaviour, and existing `SearchProviderInterface`
+services work as before.
+
+New, optional:
+
+- **Entity providers** — a bundle that searches its own records can drop its hand-written provider and extend
+  `EntitySearchDefinition` instead ([Write a provider](PROVIDERS.md)). To migrate one:
+  1. move the tenant, feature, access and row code into the hooks (`tenant()`, `featureEnabled()`, `baseQuery()`,
+     `filterVisible()` or `canView()`, `toItem()`, `seeAllUrl()`);
+  2. delete the provider's own LIKE escaping, limit, total, scope checks and "see all" code;
+  3. register the definition (autoconfigured, or tag `nowo_search_kit.entity_definition` with the old `priority`)
+     and remove the old provider's `nowo_search_kit.provider` tag;
+  4. keep the old group key, so `type:` filters, recents and host configuration still match;
+  5. run the contract kit (`EntitySearchProviderTestCase`) on MySQL, MariaDB and PostgreSQL.
+  An entity group's total is now the **visible** total of the bounded candidates (`maxCandidates()`, default 100) and is
+  exact only when the candidates were not cut.
+- **Host visibility event** — `SearchKitEvents::ITEM_VISIBILITY` (`SearchItemVisibilityEvent`): one listener in the
+  host can deny rows of every entity provider.
+- **`nowo_search_kit.groups`** — `groups.<key>.enabled` / `priority` for any provider ([CONFIGURATION](CONFIGURATION.md#groups-190)).
+- **Dependencies** — `symfony/event-dispatcher-contracts` ^3.5 is now required (already installed with
+  `symfony/framework-bundle`). `doctrine/dbal` ^4.2 and/or `doctrine/orm` ^3.3 are needed only by entity providers.
+- A sensitive entity group (`sensitive(): true`) is off while recents are on without `recent.revalidate`.
+
 ## To 1.8.1
 
 From **1.8.0**:

@@ -13,6 +13,7 @@ search:
     scope_remove: "Search everywhere"
     clear_recent: "Clear"
     see_all_results: "See all results"
+    see_all: "See all"
     actions_only: "Actions only"
     filter:
         remove: "Remove filter"

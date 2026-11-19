@@ -6,53 +6,103 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## Table of contents
 
+
 - [[Unreleased]](#unreleased)
+  - [Added](#added)
+  - [Changed](#changed)
+  - [Docs](#docs)
 - [[1.8.1] - 2026-11-17](#181---2026-11-17)
   - [Fixed](#fixed)
 - [[1.8.0] - 2026-11-17](#180---2026-11-17)
-  - [Added](#added)
-  - [Changed](#changed)
+  - [Added](#added-1)
+  - [Changed](#changed-1)
   - [Security](#security)
   - [Demo](#demo)
-  - [Docs](#docs)
+  - [Docs](#docs-1)
   - [Tests](#tests)
 - [[1.7.0] - 2026-11-11](#170---2026-11-11)
-  - [Added](#added-1)
-  - [Deprecated](#deprecated)
-  - [Changed](#changed-1)
-- [[1.6.0] - 2026-11-07](#160---2026-11-07)
   - [Added](#added-2)
-- [[1.5.0] - 2026-11-07](#150---2026-11-07)
+  - [Deprecated](#deprecated)
   - [Changed](#changed-2)
-- [[1.4.0] - 2026-11-06](#140---2026-11-06)
+- [[1.6.0] - 2026-11-07](#160---2026-11-07)
   - [Added](#added-3)
-- [[1.3.1] - 2026-10-31](#131---2026-10-31)
+- [[1.5.0] - 2026-11-07](#150---2026-11-07)
   - [Changed](#changed-3)
-- [[1.3.0] - 2026-10-30](#130---2026-10-30)
+- [[1.4.0] - 2026-11-06](#140---2026-11-06)
+  - [Added](#added-4)
+- [[1.3.1] - 2026-10-31](#131---2026-10-31)
   - [Changed](#changed-4)
-- [[1.2.1] - 2026-10-30](#121---2026-10-30)
+- [[1.3.0] - 2026-10-30](#130---2026-10-30)
   - [Changed](#changed-5)
+- [[1.2.1] - 2026-10-30](#121---2026-10-30)
+  - [Changed](#changed-6)
   - [Fixed](#fixed-1)
 - [[1.2.0] - 2026-10-23](#120---2026-10-23)
-  - [Added](#added-4)
+  - [Added](#added-5)
 - [[1.1.1] - 2026-10-22](#111---2026-10-22)
-  - [Changed](#changed-6)
+  - [Changed](#changed-7)
   - [Fixed](#fixed-2)
 - [[1.1.0] - 2026-10-18](#110---2026-10-18)
-  - [Added](#added-5)
-  - [Changed](#changed-7)
+  - [Added](#added-6)
+  - [Changed](#changed-8)
 - [[1.0.3] - 2026-10-18](#103---2026-10-18)
   - [Fixed](#fixed-3)
 - [[1.0.2] - 2026-10-16](#102---2026-10-16)
-  - [Added](#added-6)
+  - [Added](#added-7)
   - [Fixed](#fixed-4)
 - [[1.0.1] - 2026-10-16](#101---2026-10-16)
   - [Security](#security-1)
   - [Fixed](#fixed-5)
 - [[1.0.0] - 2026-10-16](#100---2026-10-16)
-  - [Added](#added-7)
+  - [Added](#added-8)
 
 ## [Unreleased]
+
+Target: **1.9.0** (minor, additive).
+
+### Added
+
+- **Entity providers**: the structure of a search provider is now SearchKit's. A bundle extends
+  `Provider\Entity\EntitySearchDefinition` and fills only its hooks — `group()`, `label()`, `icon()`, `tenant()`,
+  `featureEnabled()`, `searchableFields()`, `baseQuery()` (Doctrine DBAL **or** ORM query builder), `canView()` /
+  `filterVisible()`, `toItem()`, `seeAllUrl()`, plus optional `applyScope()`, `applyFullText()`, `minLength()`,
+  `maxCandidates()`, `sensitive()`, `idField()` / `referenceId()`. The new `EntitySearchPass` registers one
+  `Provider\Entity\EntitySearchProvider` per definition (tag `nowo_search_kit.entity_definition`, autoconfigured,
+  attribute `priority`), which runs one fixed flow: group switch → text and min length → tenant (`null`: no results)
+  → feature gate → scope (client input: shape-checked, then applied in SQL by the definition, or refused) → full-text
+  hook or escaped `LOWER(field) LIKE :p ESCAPE '!'` of every query word → one query of at most `maxCandidates() + 1`
+  rows → batched bundle access check → the shared host event → the page out of the visible rows, the visible total
+  (exact only when the candidates were not cut) and the "see all" link. Any refusal is `null` (no count, no hint). It
+  is a `PaginatedSearchProviderInterface` (results page) and a `SearchReferenceResolverInterface` (revalidated
+  recents read again through the same checks). A `sensitive()` group is off while recents keep titles in the browser.
+  Stateless (FrankenPHP worker mode, kernel reset off).
+- **Shared host access event** `Event\SearchKitEvents::ITEM_VISIBILITY` (`nowo_search_kit.item_visibility`):
+  `Event\SearchItemVisibilityEvent`, dispatched once per search page with every candidate the bundle's check kept
+  (`Model\SearchSubject`: type and id), the group, the viewer, the tenant, the scope and the locale (never the query
+  text). Listeners `allow()`, `deny()` or `denyAll()`; **deny wins**; a denied row is neither shown nor counted.
+- **`nowo_search_kit.groups.<key>.enabled` / `priority`** (`Search\Group\SearchGroupSettings`), applied by the engine
+  to every provider: a switched-off paginated or entity provider does not run and any group with that key is dropped;
+  configured priorities sort the groups of an answer (unset counts as 0, the Actions group stays first).
+- Helpers in `Search\Query`: `LikePattern` (escape, contains, checked `LOWER(field) LIKE … ESCAPE '!'` conditions),
+  `SearchWords` (bounded words; letters-and-digits full-text terms), `ScopeParser` (`prefix:value` scopes as client
+  input), `SearchWindow` (bounded candidates, page slice, visible total) and `SeeAllLink`.
+- **Provider contract test kit** in `Test`: `EntitySearchProviderTestCase` (refusals give `null`, no other-tenant
+  rows, literal `%` `_` `!` `\`, the limit and the visible total, a query budget, two viewers alternately on one
+  provider instance), `QueryCounter` and the DBAL `QueryCountingMiddleware`.
+- Translation `search.see_all` (7 locales). Container parameters `nowo_search_kit.groups` and
+  `nowo_search_kit.recent.safe`.
+- `SearchEngine` takes an optional 12th argument, `?SearchGroupSettings $groups` (null: no group settings, as before).
+
+### Changed
+
+- `symfony/event-dispatcher-contracts` ^3.5 is a direct requirement (it already came with `symfony/framework-bundle`).
+  `doctrine/dbal` ^4.2 and `doctrine/orm` ^3.3 are suggested (entity providers) and in `require-dev`.
+- The development image has `pdo_mysql` and `pdo_pgsql`; CI runs the entity search tests on MySQL 8.4, MariaDB 11.4 and
+  PostgreSQL 16 (job `database`), the main suite on SQLite.
+
+### Docs
+
+- New [Write a provider](PROVIDERS.md) guide; USAGE, CONFIGURATION (`groups`) and UPGRADING updated.
 
 ## [1.8.1] - 2026-11-17
 

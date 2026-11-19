@@ -13,6 +13,7 @@ search:
     scope_remove: "Overal zoeken"
     clear_recent: "Wissen"
     see_all_results: "Alle resultaten bekijken"
+    see_all: "Alles bekijken"
     actions_only: "Alleen acties"
     filter:
         remove: "Filter verwijderen"

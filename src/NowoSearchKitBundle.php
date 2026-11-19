@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\SearchKitBundle;
 
+use Nowo\SearchKitBundle\DependencyInjection\Compiler\EntitySearchPass;
 use Nowo\SearchKitBundle\DependencyInjection\Compiler\TwigPathsPass;
 use Nowo\SearchKitBundle\DependencyInjection\NowoSearchKitExtension;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -26,7 +27,7 @@ final class NowoSearchKitBundle extends Bundle
     public const string TRANSLATION_DOMAIN = 'NowoSearchKitBundle';
 
     /**
-     * Registers the Twig template paths compiler pass.
+     * Registers the Twig template paths and the entity search (1.9.0) compiler passes.
      *
      * @param ContainerBuilder $container The container being compiled
      */
@@ -34,6 +35,7 @@ final class NowoSearchKitBundle extends Bundle
     {
         parent::build($container);
         $container->addCompilerPass(new TwigPathsPass());
+        $container->addCompilerPass(new EntitySearchPass());
     }
 
     /**

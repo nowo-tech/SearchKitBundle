@@ -21,6 +21,7 @@ use Nowo\SearchKitBundle\Model\SearchQuery;
 use Nowo\SearchKitBundle\Search\Access\SearchAccess;
 use Nowo\SearchKitBundle\Search\Action\ActionCollector;
 use Nowo\SearchKitBundle\Search\Filter\SearchFilterParser;
+use Nowo\SearchKitBundle\Search\Group\SearchGroupSettings;
 use Nowo\SearchKitBundle\Search\Ranking\SearchRanker;
 use Nowo\SearchKitBundle\Search\Synonym\SynonymExpander;
 use Psr\Log\LoggerInterface;
@@ -70,6 +71,7 @@ final readonly class SearchEngine implements SearchEngineInterface
      * @param SearchAccess|null $access Access checkers, used with `access.filter_all_rows` (1.8.0)
      * @param SearchRanker|null $ranker Relevance + recency sort (1.8.0), or null: provider order
      * @param array{fuzzy?: bool, filter_all_rows?: bool, action_prefix?: string, actions_in_results?: bool} $options 1.8.0 switches
+     * @param SearchGroupSettings|null $groups `nowo_search_kit.groups` (1.9.0): groups switched off, group priorities; null: none
      *
      * @throws InvalidArgumentException When a pattern is invalid (container compilation reports it first)
      */
@@ -85,6 +87,7 @@ final readonly class SearchEngine implements SearchEngineInterface
         private ?SearchAccess $access = null,
         private ?SearchRanker $ranker = null,
         private array $options = [],
+        private ?SearchGroupSettings $groups = null,
     ) {
         foreach ($minLengthExemptPatterns as $pattern) {
             $problem = MinLengthExemptPattern::problem($pattern);
@@ -153,7 +156,7 @@ final readonly class SearchEngine implements SearchEngineInterface
         }
         if (!$actionsOnly) {
             foreach ($this->providers as $provider) {
-                if (!$this->runs($provider, $query, $request)) {
+                if (!$this->switchedOn($provider) || !$this->runs($provider, $query, $request)) {
                     continue;
                 }
                 $group = $this->call($provider, static fn (): ?SearchGroup => $provider->search($query));
@@ -185,7 +188,7 @@ final readonly class SearchEngine implements SearchEngineInterface
         }
         $query = $prepared[0];
         foreach ($this->providers as $provider) {
-            if (!$provider instanceof PaginatedSearchProviderInterface || $provider->groupKey() !== $groupKey || !$this->runs($provider, $query, $request)) {
+            if (!$provider instanceof PaginatedSearchProviderInterface || $provider->groupKey() !== $groupKey || !$this->switchedOn($provider) || !$this->runs($provider, $query, $request)) {
                 continue;
             }
             $group = $this->call($provider, static fn (): ?SearchGroup => $provider->searchPage($query, max(1, $page), $perPage));
@@ -206,7 +209,7 @@ final readonly class SearchEngine implements SearchEngineInterface
     public function isPaginated(string $groupKey): bool
     {
         foreach ($this->providers as $provider) {
-            if ($provider instanceof PaginatedSearchProviderInterface && $provider->groupKey() === $groupKey) {
+            if ($provider instanceof PaginatedSearchProviderInterface && $provider->groupKey() === $groupKey && $this->switchedOn($provider)) {
                 return true;
             }
         }
@@ -278,6 +281,16 @@ final readonly class SearchEngine implements SearchEngineInterface
     }
 
     /**
+     * Whether a provider whose group key is known is switched on (`nowo_search_kit.groups.<key>.enabled`, 1.9.0).
+     */
+    private function switchedOn(SearchProviderInterface $provider): bool
+    {
+        return !$this->groups instanceof SearchGroupSettings
+            || !$provider instanceof PaginatedSearchProviderInterface
+            || $this->groups->isEnabled($provider->groupKey());
+    }
+
+    /**
      * Calls a provider; an exception drops its group (logged with the class names only).
      *
      * @param callable(): ?SearchGroup $call
@@ -332,7 +345,7 @@ final readonly class SearchEngine implements SearchEngineInterface
         $merged = [];
         foreach ($groups as $group) {
             $group = $this->visible($group, $query, $group === $action);
-            if ($group->items === []) {
+            if ($group->items === [] || ($this->groups instanceof SearchGroupSettings && !$this->groups->isEnabled($group->key))) {
                 continue;
             }
             $key          = $group->key;
@@ -348,7 +361,7 @@ final readonly class SearchEngine implements SearchEngineInterface
             $result[] = $group->limit($query->limit);
         }
 
-        return $result;
+        return $this->groups instanceof SearchGroupSettings ? $this->groups->sort($result, ActionCollector::KEY) : $result;
     }
 
     /**
