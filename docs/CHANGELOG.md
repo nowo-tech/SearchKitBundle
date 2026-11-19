@@ -73,8 +73,8 @@ Target: **1.9.0** (minor, additive).
   hook or escaped `LOWER(field) LIKE :p ESCAPE '!'` of every query word → one query of at most `maxCandidates()` rows
   → batched bundle access check → the shared host event → the page out of the visible rows, the visible total within
   the window (exact unless the visible rows fill it; hidden rows never change the total or its exactness) and the "see
-  all" link. Any refusal is `null` (no count, no hint). A `baseQuery()` binding a `nowo_search_*` parameter is refused
-  (`LogicException`). It is a `PaginatedSearchProviderInterface` (results page) and a
+  all" link. Any refusal is `null` (no count, no hint). A `nowo_search_*` parameter bound by `baseQuery()`, `applyScope()` or
+  `applyFullText()` is refused (`LogicException`). It is a `PaginatedSearchProviderInterface` (results page) and a
   `SearchReferenceResolverInterface` (revalidated recents read again through the same checks). A `sensitive()` group
   is off while recents keep titles in the browser (`Search\Group\SensitiveGroupNotice` logs it once per group and
   container). Group keys start with a lower-case letter. Stateless (FrankenPHP worker mode, kernel reset off). Entity

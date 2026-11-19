@@ -114,7 +114,8 @@ abstract class EntitySearchDefinition
     /**
      * Applies a scope (client input whose shape SearchKit already checked: ScopeParser helps reading it). Restrict
      * the query to the scoped object **in SQL**, checking it belongs to the tenant, and return true; return false for
-     * a scope you do not handle — the search then returns null, like a scope with no match. Default: no scopes.
+     * a scope you do not handle — the search then returns null, like a scope with no match. Bind no parameter named
+     * `nowo_search_*` (refused with a LogicException). Default: no scopes.
      *
      * @param DbalQueryBuilder|OrmQueryBuilder $queryBuilder The query of baseQuery()
      * @param string $scope The scope id
@@ -128,7 +129,8 @@ abstract class EntitySearchDefinition
 
     /**
      * Full-text hook: add your own match condition from the terms (letters and digits only, never operators) and
-     * return true; return false to use the escaped LIKE over searchableFields() (default, and for an empty list).
+     * return true; return false to use the escaped LIKE over searchableFields() (default, and for an empty list). Bind
+     * no parameter named `nowo_search_*` (refused with a LogicException).
      *
      * @param DbalQueryBuilder|OrmQueryBuilder $queryBuilder The query of baseQuery()
      * @param list<string> $terms SearchWords::fullTextTerms() of the query text

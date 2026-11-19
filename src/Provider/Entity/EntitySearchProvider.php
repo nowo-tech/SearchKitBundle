@@ -49,7 +49,7 @@ use function trim;
  * 3. the viewer's tenant (null: no results), then the feature gate;
  * 4. the scope, client input: shape-checked (ScopeParser), then applied by the definition in SQL — or refused;
  * 5. the definition's full-text hook, or an escaped LIKE (`ESCAPE '!'`) of every query word over the declared fields;
- * 6. at most `maxCandidates() + 1` rows in one query;
+ * 6. at most `maxCandidates()` rows in one query;
  * 7. the bundle's access check on the candidates (batched: filterVisible), then **one** SearchKitEvents::ITEM_VISIBILITY
  *    event for the page, where a host deny wins;
  * 8. the page cut out of the visible rows, the visible total within the window (exact unless the visible rows fill
@@ -141,7 +141,7 @@ final readonly class EntitySearchProvider implements PaginatedSearchProviderInte
         if ($tenant === null || !$this->definition->featureEnabled($tenant, $query)) {
             return null;
         }
-        $queryBuilder = $this->baseQuery($tenant, $query);
+        $queryBuilder = $this->definition->baseQuery($tenant, $query);
         if ($query->scope !== null
             && (!ScopeParser::isValid($query->scope) || !$this->definition->applyScope($queryBuilder, $query->scope, $tenant, $query))) {
             return null;
@@ -186,7 +186,8 @@ final readonly class EntitySearchProvider implements PaginatedSearchProviderInte
         if ($tenant === null || !$this->definition->featureEnabled($tenant, $query)) {
             return null;
         }
-        $queryBuilder = $this->baseQuery($tenant, $query);
+        $queryBuilder = $this->definition->baseQuery($tenant, $query);
+        $this->assertNoReservedParameter($queryBuilder);
         $queryBuilder->andWhere($field . ' = :' . self::PARAMETER_PREFIX . 'id');
         $queryBuilder->setParameter(self::PARAMETER_PREFIX . 'id', $id);
         $visible = $this->visible($this->fetch($queryBuilder, 1), $tenant, $query, $group);
@@ -199,23 +200,21 @@ final readonly class EntitySearchProvider implements PaginatedSearchProviderInte
     }
 
     /**
-     * The definition's query, refused when it already binds a parameter SearchKit reserves.
+     * Refuses a query on which the definition (baseQuery(), applyScope() or applyFullText()) already bound a parameter
+     * SearchKit reserves. Checked right before SearchKit binds its own parameters, so none can be overwritten.
      *
-     * @throws LogicException When a parameter name starts with PARAMETER_PREFIX (SearchKit would overwrite it)
+     * @throws LogicException When a parameter name starts with PARAMETER_PREFIX
      */
-    private function baseQuery(int|string $tenant, SearchQuery $query): DbalQueryBuilder|OrmQueryBuilder
+    private function assertNoReservedParameter(DbalQueryBuilder|OrmQueryBuilder $queryBuilder): void
     {
-        $queryBuilder = $this->definition->baseQuery($tenant, $query);
-        $names        = $queryBuilder instanceof DbalQueryBuilder
+        $names = $queryBuilder instanceof DbalQueryBuilder
             ? array_keys($queryBuilder->getParameters())
             : array_map(static fn (Parameter $parameter): string => $parameter->getName(), $queryBuilder->getParameters()->toArray());
         foreach ($names as $name) {
             if (str_starts_with((string) $name, self::PARAMETER_PREFIX)) {
-                throw new LogicException('EntitySearchDefinition::baseQuery() must not bind parameters named "' . self::PARAMETER_PREFIX . '*": SearchKit binds them.');
+                throw new LogicException('An EntitySearchDefinition (baseQuery(), applyScope(), applyFullText()) must not bind parameters named "' . self::PARAMETER_PREFIX . '*": SearchKit binds them.');
             }
         }
-
-        return $queryBuilder;
     }
 
     /**
@@ -243,6 +242,7 @@ final readonly class EntitySearchProvider implements PaginatedSearchProviderInte
         if ($this->definition->applyFullText($queryBuilder, SearchWords::fullTextTerms($text), $query)) {
             return;
         }
+        $this->assertNoReservedParameter($queryBuilder);
         $fields = $this->definition->searchableFields();
         foreach (SearchWords::words($text) as $index => $word) {
             $parameter = self::PARAMETER_PREFIX . 'w' . $index;

@@ -16,8 +16,10 @@ use function min;
  * The provider reads at most `candidates` rows, checks access on them, then cuts the page out of the **visible** rows.
  * The total is the number of visible rows in the window, and whether it is exact depends on the visible rows only:
  * it is a lower bound ("N+", SearchKit then caps it to the rows shown) when the visible rows fill the whole window.
- * A row the viewer may not see is never counted and never changes the total or its exactness, so hidden matches
- * cannot be detected through it. Immutable.
+ * A row the viewer may not see is never counted, and the exactness never depends on it. But hidden rows **inside**
+ * the window take places a visible row could have had: once the matches exceed the candidates, hidden rows can lower
+ * the visible count (and the rows reachable by paging). Filter per-row visibility in SQL (baseQuery()) wherever
+ * possible, so the window holds only rows the viewer may see. Immutable.
  *
  * @author Héctor Franco Aceituno <hectorfranco@nowo.tech>
  * @copyright 2026 Nowo.tech

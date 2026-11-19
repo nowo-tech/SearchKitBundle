@@ -262,6 +262,64 @@ final class EntitySearchProviderTest extends TestCase
         (new EntitySearchProvider($definition))->resolve(new SearchReference('/stub/1', 'stub', 'stub_show', ['id' => '1']), 'alice', null);
     }
 
+    /**
+     * @return iterable<string, array{0: bool, 1: string}>
+     */
+    public static function reservedInHooks(): iterable
+    {
+        yield 'DBAL applyScope' => [false, 'scope'];
+        yield 'ORM applyScope' => [true, 'scope'];
+        yield 'DBAL applyFullText returning false' => [false, 'fullText'];
+        yield 'ORM applyFullText returning false' => [true, 'fullText'];
+    }
+
+    /**
+     * VF2-1: a reserved parameter bound by applyScope() or applyFullText() is refused, never overwritten.
+     */
+    #[DataProvider('reservedInHooks')]
+    public function testReservedParametersBoundByHooksAreRefused(bool $orm, string $hook): void
+    {
+        $this->db->insert('tenant-a', $this->marker, false, false, 'bob');
+        $definition = new StubDefinition();
+        if ($orm) {
+            $definition->query = fn (int|string $tenant): OrmQueryBuilder => $this->db->entityManager()->createQueryBuilder()
+                ->select('n')->from(Note::class, 'n')->where('n.tenant = :tenant')->setParameter('tenant', $tenant);
+        }
+        $bind = static function (DbalQueryBuilder|OrmQueryBuilder $queryBuilder): void {
+            $queryBuilder->andWhere('n.owner <> :nowo_search_w0');
+            $queryBuilder->setParameter('nowo_search_w0', 'bob');
+        };
+        if ($hook === 'scope') {
+            $definition->scope = static function (DbalQueryBuilder|OrmQueryBuilder $queryBuilder, string $scope) use ($bind): bool {
+                $bind($queryBuilder);
+
+                return true;
+            };
+        } else {
+            $definition->fullText = static function (DbalQueryBuilder|OrmQueryBuilder $queryBuilder, array $terms) use ($bind): bool {
+                $bind($queryBuilder);
+
+                return false;
+            };
+        }
+
+        $this->expectException(LogicException::class);
+        (new EntitySearchProvider($definition))->search($this->query($this->marker, $hook === 'scope' ? 'owner:x' : null));
+    }
+
+    public function testReservedParameterOfBaseQueryIsRefusedInDbalResolve(): void
+    {
+        $definition        = new StubDefinition();
+        $definition->query = fn (int|string $tenant): DbalQueryBuilder => $this->db->connection->createQueryBuilder()
+            ->select('n.id', 'n.title')->from(NoteDatabase::TABLE, 'n')->where('n.owner = :nowo_search_id')->setParameter('nowo_search_id', 'alice');
+        $definition->useIdField     = true;
+        $definition->idField        = 'n.id';
+        $definition->useReferenceId = true;
+
+        $this->expectException(LogicException::class);
+        (new EntitySearchProvider($definition))->resolve(new SearchReference('/stub/1', 'stub', 'stub_show', ['id' => '1']), 'alice', null);
+    }
+
     public function testHostEventGetsOneBatchAndDenyWins(): void
     {
         $this->db->insert('tenant-a', $this->marker . ' one');

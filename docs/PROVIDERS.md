@@ -96,14 +96,16 @@ Per call, always in this order:
 4. the scope (client input): shape-checked, then `applyScope()` restricts the query in SQL — or the search is refused;
 5. `applyFullText()`, or an escaped `LOWER(field) LIKE :p ESCAPE '!'` of every query word over `searchableFields()`
    (each word must occur in one of the fields);
-6. one query of at most `maxCandidates()` rows (a `baseQuery()` that binds a parameter named `nowo_search_*` is refused
-   with a `LogicException`: SearchKit binds those);
+6. one query of at most `maxCandidates()` rows (a parameter named `nowo_search_*` bound by `baseQuery()`,
+   `applyScope()` or `applyFullText()` is refused with a `LogicException`: SearchKit binds those);
 7. `filterVisible()` on the candidates (batched; SearchKit keeps only rows that were candidates), then **one**
    `SearchKitEvents::ITEM_VISIBILITY` event for the page, where a host deny wins;
 8. the page cut out of the visible rows, the visible total within the window, `toItem()` on the shown rows only,
    `seeAllUrl()`. The total is exact unless the **visible** rows fill the whole window (then it is a lower bound and
-   SearchKit shows the rows it lists). Rows the viewer may not see change neither the total nor its exactness, so
-   they cannot be detected through it.
+   SearchKit shows the rows it lists). Rows the viewer may not see are never counted and never decide the exactness;
+   but hidden rows **inside** the window take places, so once the matches exceed `maxCandidates()` they can lower the
+   visible count (and the rows reachable by paging). **Filter per-row visibility in SQL** (`baseQuery()`) wherever
+   possible, and keep `filterVisible()` for what SQL cannot express.
 
 **Any refusal is `null`**: no group, no count, no hint, so a forbidden or hidden row looks exactly like a missing one.
 An exception thrown by a hook reaches SearchKit, which logs the class names (never the query text) and drops the group.
@@ -300,7 +302,8 @@ and database:
 - `sensitive()` matches what the test declares, and a sensitive group is off while recents keep titles;
 - a query budget, and worker safety (one provider instance, two viewers alternately).
 
-A definition that skips its per-row check or its tenant condition fails the kit. Run it on MySQL, MariaDB and
+A definition that skips its per-row check or its tenant condition fails the kit. `sensitiveTitles()` and
+`supportsRecents()` are self-declared by your test, so the kit only checks that the definition is consistent with them. Run it on MySQL, MariaDB and
 PostgreSQL in CI.
 
 ```php
