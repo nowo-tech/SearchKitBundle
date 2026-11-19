@@ -29,6 +29,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+Target: **1.11.0** (minor, additive).
+
+### Added
+
+- **Entity providers: a definition can mark its candidates partial.** A definition that bounds its own scan (for
+  example it reads at most N boards of the tenant to build the query) used to report an exact total when the bound
+  was hit. Two optional hooks now receive a per-search `SearchCandidateContext`:
+  `candidateQuery($tenant, $query, $context)` (default `baseQuery()`) and
+  `filterCandidates($rows, $tenant, $query, $context)` (default `filterVisible()`). SearchKit calls them instead of
+  `baseQuery()` / `filterVisible()`. When the definition calls `$context->markPartial()`, the group's `exactTotal` is
+  false, on the palette and the results page, and SearchKit shows the capped "N+" count. The context is new for each
+  search page and each resolved recent and is never kept, so the flag cannot reach another search in FrankenPHP
+  worker mode. 1.9 and 1.10 definitions are unchanged: by default nothing is partial. Any decorator of another
+  definition (host or test code) must forward the two new hooks, or the inner definition's bound is skipped and the
+  total is wrongly exact (UPGRADING). Recents are resolved through `candidateQuery()` with an empty query text.
+- **Contract kit**: `testContractBoundedCandidatesGiveAnInexactTotal` and the optional hook `seedBeyondTheBound()`
+  (default `false`, the test is then skipped). With the hook, the kit asserts an inexact total for a search that hits
+  the definition's bound, no other tenant's row, and an exact total for the next search on the same provider
+  instance. The kit's `RenderRecorder` forwards the two new hooks.
+- CI: the `database` job also runs on DBAL 3 (MySQL 8.4 and PostgreSQL 16, plus SQLite).
+
+### Fixed
+
+- **Contract kit on DBAL 3**: `QueryCountingMiddleware` caused a PHP fatal error on DBAL 3 ("Declaration of
+  CountingConnection::exec(string $sql): string|int must be compatible"), because its connection declared the DBAL 4
+  return type of `exec()`. It now declares `int`, which DBAL 3 and DBAL 4 both accept. The entity provider runtime
+  already worked on DBAL 3. `doctrine/dbal` is now suggested as `^3.8 || ^4.2` (it was `^4.2`).
+
 ## [1.10.1] - 2026-11-19
 
 Target: **1.10.1** (patch).

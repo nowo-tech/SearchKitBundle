@@ -10,6 +10,7 @@ use Nowo\SearchKitBundle\Model\SearchItem;
 use Nowo\SearchKitBundle\Model\SearchQuery;
 use Nowo\SearchKitBundle\Model\SearchReference;
 use Nowo\SearchKitBundle\Provider\Entity\EntitySearchDefinition;
+use Nowo\SearchKitBundle\Provider\Entity\SearchCandidateContext;
 use Nowo\SearchKitBundle\Provider\Entity\SearchItemContext;
 use Nowo\SearchKitBundle\Test\QueryCounter;
 
@@ -83,6 +84,11 @@ final class RenderRecorder extends EntitySearchDefinition
         return $this->inner->baseQuery($tenant, $query);
     }
 
+    public function candidateQuery(int|string $tenant, SearchQuery $query, SearchCandidateContext $context): DbalQueryBuilder|OrmQueryBuilder
+    {
+        return $this->inner->candidateQuery($tenant, $query, $context);
+    }
+
     public function applyScope(DbalQueryBuilder|OrmQueryBuilder $queryBuilder, string $scope, int|string $tenant, SearchQuery $query): bool
     {
         return $this->inner->applyScope($queryBuilder, $scope, $tenant, $query);
@@ -101,6 +107,11 @@ final class RenderRecorder extends EntitySearchDefinition
     public function filterVisible(array $rows, int|string $tenant, SearchQuery $query): array
     {
         return $this->inner->filterVisible($rows, $tenant, $query);
+    }
+
+    public function filterCandidates(array $rows, int|string $tenant, SearchQuery $query, SearchCandidateContext $context): array
+    {
+        return $this->inner->filterCandidates($rows, $tenant, $query, $context);
     }
 
     public function subjectId(array|object $row): int|string

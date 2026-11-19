@@ -46,15 +46,17 @@ use function trim;
  * 1. the group is on (`nowo_search_kit.groups.<key>.enabled`), and a sensitive group only runs while recents are
  *    revalidated or off;
  * 2. a non-empty text of at least the definition's minLength(), a page inside the candidate window;
- * 3. the viewer's tenant (null: no results), then the feature gate;
+ * 3. the viewer's tenant (null: no results), then the feature gate; then the definition's candidateQuery() with a new
+ *    SearchCandidateContext (1.11.0; default baseQuery()), which filterCandidates() gets too;
  * 4. the scope, client input: shape-checked (ScopeParser), then applied by the definition in SQL — or refused;
  * 5. the definition's full-text hook, or an escaped LIKE (`ESCAPE '!'`) of every query word over the declared fields;
  * 6. at most `maxCandidates()` rows in one query;
- * 7. the bundle's access check on the candidates (batched: filterVisible), then **one** SearchKitEvents::ITEM_VISIBILITY
+ * 7. the bundle's access check on the candidates (batched: filterCandidates(), default filterVisible()), then **one** SearchKitEvents::ITEM_VISIBILITY
  *    event for the page, where a host deny wins;
  * 8. the page cut out of the visible rows, the visible total within the window (never counting rows the viewer may
  *    not see; exact only when the SQL fetch did not fill the window, whoever the rows were visible to — rows hidden
- *    only in PHP can still push visible ones out of the window), the "see all" link;
+ *    only in PHP can still push visible ones out of the window — and the definition did not mark its candidates
+ *    partial, 1.11.0), the "see all" link;
  * 9. the shown rows rendered: **one** prepareItems() call with exactly those rows and a new SearchItemContext, then
  *    toPreparedItem() per row (no call when no row is shown).
  *
@@ -144,7 +146,8 @@ final readonly class EntitySearchProvider implements PaginatedSearchProviderInte
         if ($tenant === null || !$this->definition->featureEnabled($tenant, $query)) {
             return null;
         }
-        $queryBuilder = $this->definition->baseQuery($tenant, $query);
+        $context      = new SearchCandidateContext();
+        $queryBuilder = $this->definition->candidateQuery($tenant, $query, $context);
         if ($query->scope !== null
             && (!ScopeParser::isValid($query->scope) || !$this->definition->applyScope($queryBuilder, $query->scope, $tenant, $query))) {
             return null;
@@ -152,7 +155,7 @@ final readonly class EntitySearchProvider implements PaginatedSearchProviderInte
         $this->match($queryBuilder, $text, $query);
 
         $candidates = $window->candidatesOf($this->fetch($queryBuilder, $window->fetchLimit()));
-        $visible    = $this->visible($candidates, $tenant, $query, $group);
+        $visible    = $this->visible($candidates, $tenant, $query, $group, $context);
         $shown      = $window->slice($visible);
         if ($shown === []) {
             return null;
@@ -166,7 +169,7 @@ final readonly class EntitySearchProvider implements PaginatedSearchProviderInte
             $total,
             $this->definition->seeAllUrl($query),
             $this->seeAllLabel($query, $total),
-            $window->isExact($visible, count($candidates)),
+            !$context->isPartial() && $window->isExact($visible, count($candidates)),
         );
     }
 
@@ -190,11 +193,12 @@ final readonly class EntitySearchProvider implements PaginatedSearchProviderInte
         if ($tenant === null || !$this->definition->featureEnabled($tenant, $query)) {
             return null;
         }
-        $queryBuilder = $this->definition->baseQuery($tenant, $query);
+        $context      = new SearchCandidateContext();
+        $queryBuilder = $this->definition->candidateQuery($tenant, $query, $context);
         $this->assertNoReservedParameter($queryBuilder);
         $queryBuilder->andWhere($field . ' = :' . self::PARAMETER_PREFIX . 'id');
         $queryBuilder->setParameter(self::PARAMETER_PREFIX . 'id', $id);
-        $visible = $this->visible($this->fetch($queryBuilder, 1), $tenant, $query, $group);
+        $visible = $this->visible($this->fetch($queryBuilder, 1), $tenant, $query, $group, $context);
         if ($visible === []) {
             return null;
         }
@@ -288,14 +292,14 @@ final readonly class EntitySearchProvider implements PaginatedSearchProviderInte
      *
      * @return list<array<string, mixed>|object>
      */
-    private function visible(array $rows, int|string $tenant, SearchQuery $query, string $group): array
+    private function visible(array $rows, int|string $tenant, SearchQuery $query, string $group, SearchCandidateContext $context): array
     {
         if ($rows === []) {
             return [];
         }
         $type = $this->definition->subjectType();
         $kept = [];
-        foreach ($this->definition->filterVisible($rows, $tenant, $query) as $row) {
+        foreach ($this->definition->filterCandidates($rows, $tenant, $query, $context) as $row) {
             $kept[$this->subject($type, $row)->key()] = true;
         }
         $candidates = [];

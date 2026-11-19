@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\SearchKitBundle\Tests\Integration\EntitySearch;
 
+use ArrayObject;
 use Doctrine\DBAL\Query\QueryBuilder as DbalQueryBuilder;
 use Doctrine\ORM\QueryBuilder as OrmQueryBuilder;
 use InvalidArgumentException;
@@ -15,6 +16,7 @@ use Nowo\SearchKitBundle\Model\SearchItem;
 use Nowo\SearchKitBundle\Model\SearchQuery;
 use Nowo\SearchKitBundle\Model\SearchReference;
 use Nowo\SearchKitBundle\Provider\Entity\EntitySearchProvider;
+use Nowo\SearchKitBundle\Provider\Entity\SearchCandidateContext;
 use Nowo\SearchKitBundle\Search\Group\SearchGroupSettings;
 use Nowo\SearchKitBundle\Search\Group\SensitiveGroupNotice;
 use Nowo\SearchKitBundle\Tests\Support\EntitySearch\DbalNoteDefinition;
@@ -31,8 +33,10 @@ use Stringable;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\Translation\IdentityTranslator;
 
+use function array_column;
 use function array_map;
 use function bin2hex;
+use function is_array;
 use function random_bytes;
 
 /**
@@ -105,6 +109,80 @@ final class EntitySearchProviderTest extends TestCase
         self::assertCount(2, $group->items);
         self::assertSame(3, $group->total);
         self::assertFalse($group->exactTotal);
+    }
+
+    /**
+     * 1.11.0: a definition that marks its candidates partial (in candidateQuery() or filterCandidates()) gets an
+     * inexact total with the same rows; the flag is per search, so the next search on the same instance is exact.
+     */
+    public function testPartialCandidatesGiveAnInexactTotalForThatSearchOnly(): void
+    {
+        for ($row = 0; $row < 2; ++$row) {
+            $this->db->insert('tenant-a', $this->marker . ' ' . $row);
+        }
+        $log                    = new ArrayObject();
+        $definition             = new StubDefinition();
+        $definition->candidates = static function (SearchCandidateContext $context, string $hook) use ($log): void {
+            $log->append([$hook, $context]);
+            if ($log->offsetExists('mark') && $log->offsetGet('mark') === $hook) {
+                $context->markPartial();
+            }
+        };
+        $provider = new EntitySearchProvider($definition);
+        $calls    = static function (ArrayObject $log): array {
+            $calls = [];
+            foreach ($log as $key => $call) {
+                if ($key !== 'mark' && is_array($call)) {
+                    $calls[] = $call;
+                }
+            }
+
+            return $calls;
+        };
+
+        foreach (['candidateQuery', 'filterCandidates'] as $hook) {
+            $log->exchangeArray(['mark' => $hook]);
+            $group = $provider->search($this->query($this->marker));
+            self::assertInstanceOf(SearchGroup::class, $group);
+            self::assertCount(2, $group->items);
+            self::assertSame(2, $group->total);
+            self::assertFalse($group->exactTotal, $hook . ' marked the candidates partial.');
+            $first = $calls($log);
+            self::assertSame(['candidateQuery', 'filterCandidates'], array_column($first, 0));
+            self::assertSame($first[0][1] ?? null, $first[1][1] ?? false, 'Both hooks get the context of the same search.');
+
+            $log->exchangeArray([]);
+            $next = $provider->search($this->query($this->marker));
+            self::assertInstanceOf(SearchGroup::class, $next);
+            self::assertTrue($next->exactTotal, 'The partial flag must not outlive its search.');
+            $context = $calls($log)[0][1] ?? null;
+            self::assertInstanceOf(SearchCandidateContext::class, $context);
+            self::assertNotSame($first[0][1] ?? null, $context, 'Every search gets a new context.');
+            self::assertFalse($context->isPartial());
+        }
+    }
+
+    /**
+     * 1.11.0: a recent is read through candidateQuery() and filterCandidates() too, with a context of its own; a
+     * partial flag changes nothing for one row.
+     */
+    public function testRecentsAreResolvedThroughTheCandidateHooks(): void
+    {
+        $id                         = $this->db->insert('tenant-a', $this->marker);
+        $hooks                      = [];
+        $definition                 = new StubDefinition();
+        $definition->useIdField     = true;
+        $definition->idField        = 'n.id';
+        $definition->useReferenceId = true;
+        $definition->candidates     = static function (SearchCandidateContext $context, string $hook) use (&$hooks): void {
+            $hooks[] = $hook;
+            $context->markPartial();
+        };
+
+        $item = (new EntitySearchProvider($definition))->resolve(new SearchReference('/stub/' . $id, 'stub', 'stub_show', ['id' => (string) $id]), 'alice', null);
+
+        self::assertInstanceOf(SearchItem::class, $item);
+        self::assertSame(['candidateQuery', 'filterCandidates'], $hooks);
     }
 
     public function testRefusals(): void

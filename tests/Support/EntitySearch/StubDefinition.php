@@ -11,6 +11,7 @@ use Nowo\SearchKitBundle\Model\SearchItem;
 use Nowo\SearchKitBundle\Model\SearchQuery;
 use Nowo\SearchKitBundle\Model\SearchReference;
 use Nowo\SearchKitBundle\Provider\Entity\EntitySearchDefinition;
+use Nowo\SearchKitBundle\Provider\Entity\SearchCandidateContext;
 
 use function is_array;
 use function is_scalar;
@@ -45,6 +46,9 @@ final class StubDefinition extends EntitySearchDefinition
 
     /** @var (Closure(array<string, mixed>|object): SearchItem)|null */
     public ?Closure $item = null;
+
+    /** @var (Closure(SearchCandidateContext, string): void)|null Called by candidateQuery() / filterCandidates() with the hook name */
+    public ?Closure $candidates = null;
 
     public ?int $min = null;
 
@@ -112,6 +116,15 @@ final class StubDefinition extends EntitySearchDefinition
             ->orderBy('n.id', 'ASC');
     }
 
+    public function candidateQuery(int|string $tenant, SearchQuery $query, SearchCandidateContext $context): DbalQueryBuilder|OrmQueryBuilder
+    {
+        if ($this->candidates instanceof Closure) {
+            ($this->candidates)($context, 'candidateQuery');
+        }
+
+        return parent::candidateQuery($tenant, $query, $context);
+    }
+
     public function applyScope(DbalQueryBuilder|OrmQueryBuilder $queryBuilder, string $scope, int|string $tenant, SearchQuery $query): bool
     {
         return $this->scope instanceof Closure ? ($this->scope)($queryBuilder, $scope) : parent::applyScope($queryBuilder, $scope, $tenant, $query);
@@ -130,6 +143,15 @@ final class StubDefinition extends EntitySearchDefinition
     public function filterVisible(array $rows, int|string $tenant, SearchQuery $query): array
     {
         return $this->visible instanceof Closure ? ($this->visible)($rows) : parent::filterVisible($rows, $tenant, $query);
+    }
+
+    public function filterCandidates(array $rows, int|string $tenant, SearchQuery $query, SearchCandidateContext $context): array
+    {
+        if ($this->candidates instanceof Closure) {
+            ($this->candidates)($context, 'filterCandidates');
+        }
+
+        return parent::filterCandidates($rows, $tenant, $query, $context);
     }
 
     public function toItem(array|object $row, SearchQuery $query): SearchItem
