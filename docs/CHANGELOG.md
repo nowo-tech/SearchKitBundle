@@ -28,6 +28,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+Target: **1.10.1** (patch).
+
+### Fixed
+
+- **Entity providers: the exact flag of a window full of hidden rows.** The total was marked exact whenever the
+  *visible* rows did not fill the candidate window, so rows hidden only in PHP (`filterVisible()` or a host deny) that
+  came before the visible ones could shrink a total still marked exact (7 hidden rows ahead of 6 visible ones in a
+  10-row window: total 3, exact). A viewer who controls their own rows could count, and confirm by substring, rows they
+  cannot see. Now `exactTotal` is false whenever the SQL fetch returned `maxCandidates()` rows, whoever may see them,
+  in the palette, on the results page and in the "see all" count; the total stays a lower bound, which SearchKit caps
+  to the rows it lists. `SearchWindow::isExact()` takes the number of fetched rows as an optional second argument.
+
+### Added
+
+- **Contract kit**: `testContractHiddenRowsAroundVisibleOnesNeverShrinkAnExactTotal` places hidden rows before and
+  after the visible ones in a window of at most 10 rows and requires either no change or an inexact total. The new
+  optional hook `hiddenRowsFilteredInSql()` (default `false`) makes it, and
+  `testContractHiddenRowsBeyondTheWindowChangeNothing`, require no change at all; sensitive groups should filter in SQL
+  and return `true`.
+
 ## [1.10.0] - 2026-11-19
 
 Target: **1.10.0** (minor, additive).

@@ -52,7 +52,8 @@ final class AuditRegressionTest extends TestCase
     }
 
     /**
-     * VF-2: hidden rows that fill the window change neither the total nor its exactness.
+     * VF-2, revised by VJ (1.10.1): hidden rows are never counted; a window the fetch filled — with hidden rows too —
+     * gives an inexact total, and rows hidden in SQL change nothing.
      */
     public function testHiddenRowsDoNotChangeTheTotalOrItsExactness(): void
     {
@@ -64,14 +65,14 @@ final class AuditRegressionTest extends TestCase
         $db->insert('tenant-a', $mixed . 'x', false, true);
         $db->insert('tenant-a', $mixed . 'y', false, true);
         $provider = $this->provider(new AuditNoteDefinition($db->connection, $this->viewer(), true, true, 2));
+        $inSql    = $this->provider(new AuditNoteDefinition($db->connection, $this->viewer(), true, true, 2, false, false, true));
 
         $a = $provider->search($this->query($plain));
         $b = $provider->search($this->query($mixed));
 
-        self::assertInstanceOf(SearchGroup::class, $a);
-        self::assertInstanceOf(SearchGroup::class, $b);
-        self::assertSame([1, true], [$a->total, $a->exactTotal]);
-        self::assertSame([$a->total, $a->exactTotal], [$b->total, $b->exactTotal]);
+        self::assertSame([1, true], [$a?->total, $a?->exactTotal]);
+        self::assertSame([1, false], [$b?->total, $b?->exactTotal], 'Hidden rows filled the window: a lower bound.');
+        self::assertSame([1, true], [$inSql->search($this->query($mixed))?->total, $inSql->search($this->query($mixed))?->exactTotal], 'Rows hidden in SQL change nothing.');
 
         $full = $this->marker();
         $db->insert('tenant-a', $full . 'a');
@@ -79,6 +80,34 @@ final class AuditRegressionTest extends TestCase
         $db->insert('tenant-a', $full . 'c');
         $c = $provider->search($this->query($full));
         self::assertSame([2, false], [$c?->total, $c?->exactTotal], 'Visible rows filling the window: a lower bound.');
+    }
+
+    /**
+     * VJ (1.10.1): 7 hidden rows ahead of 6 visible ones in a 10-row window shrink the visible count to 3, which must
+     * not be marked exact (it would let a viewer count rows they cannot see).
+     */
+    public function testHiddenRowsAheadOfVisibleOnesGiveAnInexactTotal(): void
+    {
+        $db     = NoteDatabase::get();
+        $marker = $this->marker();
+        for ($row = 0; $row < 7; ++$row) {
+            $db->insert('tenant-a', $marker . 'h' . $row, false, true);
+        }
+        for ($row = 0; $row < 6; ++$row) {
+            $db->insert('tenant-a', $marker . 'v' . $row);
+        }
+
+        $group = $this->provider(new AuditNoteDefinition($db->connection, $this->viewer(), true, true, 10))->search($this->query($marker));
+        self::assertInstanceOf(SearchGroup::class, $group);
+        self::assertSame([3, 3, false], [count($group->items), $group->total, $group->exactTotal]);
+
+        $page = $this->provider(new AuditNoteDefinition($db->connection, $this->viewer(), true, true, 10))->searchPage($this->query($marker), 2, 2);
+        self::assertInstanceOf(SearchGroup::class, $page);
+        self::assertSame([1, 3, false], [count($page->items), $page->total, $page->exactTotal], 'The results page too.');
+
+        $inSql = $this->provider(new AuditNoteDefinition($db->connection, $this->viewer(), true, true, 10, false, false, true))->search($this->query($marker));
+        self::assertInstanceOf(SearchGroup::class, $inSql);
+        self::assertSame([6, 6, true], [count($inSql->items), $inSql->total, $inSql->exactTotal], 'Filtered in SQL: exact and complete.');
     }
 
     /**
@@ -147,6 +176,8 @@ final class AuditRegressionTest extends TestCase
         yield 'no per-row access check, window' => [['checkHidden' => false], 'testContractHiddenRowsBeyondTheWindowChangeNothing'];
         yield 'no tenant condition' => [['tenantInSql' => false], 'testContractNeverShowsAnotherTenantsRows'];
         yield 'sensitive titles not declared' => [['sensitiveDefinition' => true], 'testContractSensitiveGroupsFollowTheRecentsMode'];
+        yield 'hidden rows declared filtered in SQL, filtered in PHP' => [['declareHiddenInSql' => true], 'testContractHiddenRowsAroundVisibleOnesNeverShrinkAnExactTotal'];
+        yield 'hidden rows declared filtered in SQL, filtered in PHP, full window' => [['declareHiddenInSql' => true], 'testContractHiddenRowsBeyondTheWindowChangeNothing'];
     }
 
     /**
@@ -173,6 +204,10 @@ final class AuditRegressionTest extends TestCase
             $this->contract($method)->{$method}();
         }
         $this->contract('testContractSensitiveGroupsFollowTheRecentsMode', ['sensitiveDefinition' => true, 'sensitive' => true])->testContractSensitiveGroupsFollowTheRecentsMode();
+        foreach ([[], ['hiddenInSql' => true, 'declareHiddenInSql' => true], ['hiddenInSql' => true]] as $switches) {
+            $this->contract('testContractHiddenRowsAroundVisibleOnesNeverShrinkAnExactTotal', $switches)->testContractHiddenRowsAroundVisibleOnesNeverShrinkAnExactTotal();
+            $this->contract('testContractHiddenRowsBeyondTheWindowChangeNothing', $switches)->testContractHiddenRowsBeyondTheWindowChangeNothing();
+        }
 
         $this->expectException(SkippedWithMessageException::class);
         $this->contract('testContractHiddenRowsBeyondTheWindowChangeNothing', ['candidates' => 1])->testContractHiddenRowsBeyondTheWindowChangeNothing();

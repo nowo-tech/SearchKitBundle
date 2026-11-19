@@ -94,6 +94,8 @@ final class HelpersTest extends TestCase
         self::assertSame(10, $window->fetchLimit());
         self::assertTrue($window->isExact([1, 2, 3, 4, 5, 6, 7, 8, 9]));
         self::assertFalse($window->isExact([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]));
+        self::assertTrue($window->isExact([1, 2, 3], 9), '1.10.1: the fetch did not fill the window.');
+        self::assertFalse($window->isExact([1, 2, 3], 10), '1.10.1: hidden rows filled the window.');
         self::assertSame([1, 2], $window->candidatesOf([1, 2]));
         self::assertSame([4, 5, 6], $window->slice([1, 2, 3, 4, 5, 6, 7]));
         self::assertSame(7, $window->total([1, 2, 3, 4, 5, 6, 7]));
