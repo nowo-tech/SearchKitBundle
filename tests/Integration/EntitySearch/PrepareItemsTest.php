@@ -177,6 +177,9 @@ final class PrepareItemsTest extends TestCase
         self::assertTrue($recorder->canView(['id' => $id], 'tenant-a', $query));
         self::assertSame('/stub/' . $id, $recorder->toItem(['id' => $id, 'title' => 't'], $query)->url);
         self::assertFalse($recorder->sensitive());
+        // 1.11.0: SearchKit calls candidateQuery() / filterCandidates(); the 1.9 hooks are still forwarded as they are.
+        self::assertInstanceOf(DbalQueryBuilder::class, $recorder->baseQuery('tenant-a', $query));
+        self::assertSame([['id' => $id]], $recorder->filterVisible([['id' => $id]], 'tenant-a', $query));
         $recorder->prepareItems([['id' => $id]], $query, new SearchItemContext());
         $recorder->reset();
         self::assertSame([], $recorder->prepared);
@@ -240,6 +243,23 @@ final class PrepareItemsTest extends TestCase
         $this->expectException(SkippedWithMessageException::class);
         $this->expectExceptionMessage('No archived notes. (seedArchived() skipped: if the records have no archived or deleted state, return false from hasArchivedState()');
         $case->testContractNeverShowsArchivedRows();
+    }
+
+    public function testTheKitSkipsTheBoundedCheckWithoutABound(): void
+    {
+        $this->expectException(SkippedWithMessageException::class);
+        $this->expectExceptionMessage('seedBeyondTheBound() returns false');
+        (new AuditContract('testContractBoundedCandidatesGiveAnInexactTotal'))->testContractBoundedCandidatesGiveAnInexactTotal();
+    }
+
+    public function testTheKitFailsABoundedDefinitionThatClaimsAnExactTotal(): void
+    {
+        $case               = new BoundedNoteContractTest('testContractBoundedCandidatesGiveAnInexactTotal');
+        $case->marksPartial = false;
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage('must call $context->markPartial()');
+        $case->testContractBoundedCandidatesGiveAnInexactTotal();
     }
 
     private function recorder(EntitySearchDefinition $definition): RenderRecorder

@@ -113,6 +113,24 @@ abstract class EntitySearchDefinition
     abstract public function baseQuery(int|string $tenant, SearchQuery $query): DbalQueryBuilder|OrmQueryBuilder;
 
     /**
+     * The query SearchKit runs (1.11.0): the same contract as baseQuery(), with the SearchCandidateContext of this
+     * search. Default: baseQuery(). Override it when the definition bounds its own candidates — e.g. it reads at most
+     * N boards (projects, folders) of the tenant to build the query and more exist — and call `$context->markPartial()`
+     * when the bound is hit: the total is then reported as inexact ("N+") instead of claiming an exact count of a
+     * partial scan. SearchKit calls it once per search page and once per resolved recent (with a new context each
+     * time), and never baseQuery() directly, so keep baseQuery() consistent with it (e.g. both build on one private
+     * method). Keep the flag in `$context`, never in a property: the definition is a shared service.
+     *
+     * @param int|string $tenant The tenant
+     * @param SearchQuery $query The search
+     * @param SearchCandidateContext $context The candidates of this search (markPartial())
+     */
+    public function candidateQuery(int|string $tenant, SearchQuery $query, SearchCandidateContext $context): DbalQueryBuilder|OrmQueryBuilder
+    {
+        return $this->baseQuery($tenant, $query);
+    }
+
+    /**
      * Applies a scope (client input whose shape SearchKit already checked: ScopeParser helps reading it). Restrict
      * the query to the scoped object **in SQL**, checking it belongs to the tenant, and return true; return false for
      * a scope you do not handle — the search then returns null, like a scope with no match. Bind no parameter named
@@ -168,6 +186,24 @@ abstract class EntitySearchDefinition
     public function filterVisible(array $rows, int|string $tenant, SearchQuery $query): array
     {
         return array_values(array_filter($rows, fn (array|object $row): bool => $this->canView($row, $tenant, $query)));
+    }
+
+    /**
+     * The batch access check SearchKit runs (1.11.0): the same contract as filterVisible(), with the
+     * SearchCandidateContext of this search — the one candidateQuery() got. Default: filterVisible(). Override it when
+     * the check itself is bounded (e.g. it resolves at most N memberships) and call `$context->markPartial()` when the
+     * bound is hit. Only rows that were candidates are kept, whatever this returns.
+     *
+     * @param list<array<string, mixed>|object> $rows The candidates
+     * @param int|string $tenant The tenant
+     * @param SearchQuery $query The search
+     * @param SearchCandidateContext $context The candidates of this search (markPartial())
+     *
+     * @return list<array<string, mixed>|object>
+     */
+    public function filterCandidates(array $rows, int|string $tenant, SearchQuery $query, SearchCandidateContext $context): array
+    {
+        return $this->filterVisible($rows, $tenant, $query);
     }
 
     /**

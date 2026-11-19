@@ -32,6 +32,28 @@ This guide lists the changes integrators must apply when upgrading between versi
 
 ## Unreleased
 
+Target: **1.11.0** (minor). From **1.10.x**:
+
+```bash
+composer update nowo-tech/search-kit-bundle
+```
+
+Nothing to change in definitions. What is new:
+
+- **Partial candidates.** If your definition bounds its own scan (it reads at most N boards, projects or memberships)
+  and the bound can be hit, override `candidateQuery($tenant, $query, SearchCandidateContext $context)` (or
+  `filterCandidates()` for a bounded access check) and call `$context->markPartial()` when it is hit. The total is then
+  reported as inexact ("N+") instead of exact. SearchKit now calls these two hooks instead of `baseQuery()` and
+  `filterVisible()`; their defaults call those, so a definition that overrides neither behaves exactly as before.
+  Keep the flag in the context, never in a property (see
+  [Bounded candidates](PROVIDERS.md#bounded-candidates-a-partial-total)).
+- **Contract kit**: a new test, `testContractBoundedCandidatesGiveAnInexactTotal`, skipped unless you implement the
+  optional hook `seedBeyondTheBound()`. A test class that wraps the definition in its own decorator should forward
+  `candidateQuery()` and `filterCandidates()` too.
+- **DBAL 3**: the kit's `QueryCountingMiddleware` now works on DBAL 3.8+ as well as DBAL 4, so a DBAL 3 host can run
+  the contract kit (it was a PHP fatal error in 1.9.0–1.10.1). If you worked around it with your own counting
+  middleware, you can switch back. The `doctrine/dbal` suggestion is `^3.8 || ^4.2`.
+
 ## To 1.10.1
 
 From **1.10.0**:

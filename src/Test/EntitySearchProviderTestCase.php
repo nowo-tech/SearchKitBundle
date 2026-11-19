@@ -40,6 +40,7 @@ use function random_bytes;
  * - a sensitive group is off while recents keep titles in the browser;
  * - LIKE wildcards (`%`, `_`, `!`, `\`) in the query are matched literally;
  * - the limit holds, the total is the visible total, and the results page is bounded;
+ * - a definition that bounds its own candidates reports an inexact total, for that search only (1.11.0, optional);
  * - one search stays within the query budget (no N+1);
  * - prepareItems() runs once per render with exactly the shown rows, before they are rendered (1.10.0);
  * - one provider instance serves two viewers alternately with no state kept, and one definition instance renders
@@ -124,6 +125,28 @@ abstract class EntitySearchProviderTestCase extends TestCase
      * @return bool Whether the text was changed
      */
     protected function changeSeededText(int|string $id, string $text): bool
+    {
+        return false;
+    }
+
+    /**
+     * Inserts rows of the tenant so that a search for `$text` hits the definition's own bound on its candidates (1.11.0,
+     * optional): the definition calls SearchCandidateContext::markPartial() in candidateQuery() or filterCandidates()
+     * for that search — e.g. more boards whose tasks contain `$text` than the boards it scans — and still shows at
+     * least one row containing `$text`. The kit then asserts that the total is inexact, that the bound shows no other
+     * tenant's row, and that the flag does not leak into the next search on the same provider instance.
+     *
+     * The kit only calls it with the first tenant of tenants(); a search for a fresh row in the second tenant must not
+     * hit the bound. Make the bound reachable only by what this hook seeds (e.g. count only the boards that match the
+     * text), or reset the database between tests, so that the other contract tests still see exact totals. Return
+     * false (default) when the definition has no bound: the check is skipped.
+     *
+     * @param int|string $tenant The first tenant
+     * @param string $text Text to put in a searchable field of the rows
+     *
+     * @return bool Whether the rows were seeded
+     */
+    protected function seedBeyondTheBound(int|string $tenant, string $text): bool
     {
         return false;
     }
@@ -585,6 +608,39 @@ abstract class EntitySearchProviderTestCase extends TestCase
         self::assertSame([], array_intersect($this->urls($group), $this->urls($second)), 'Pages must not overlap.');
         self::assertNull($provider->searchPage($this->query($marker, 3), 3, 3));
         self::assertNull($provider->searchPage($this->query($marker, 3), 0, 3));
+    }
+
+    /**
+     * 1.11.0: a definition that bounds its own candidates (SearchCandidateContext::markPartial()) reports an inexact
+     * total, in the palette and on the results page, still shows no other tenant's row, and the flag belongs to that
+     * one search: the next search on the same provider instance is exact again. Skipped unless seedBeyondTheBound()
+     * seeds the rows.
+     */
+    public function testContractBoundedCandidatesGiveAnInexactTotal(): void
+    {
+        [$tenant, $other] = $this->tenants();
+        $marker           = $this->marker();
+        if (!$this->seedBeyondTheBound($tenant, $marker)) {
+            self::markTestSkipped('The definition does not bound its candidates (seedBeyondTheBound() returns false).');
+        }
+        $foreign = $this->reference($this->seed($other, $marker . 'other'))->url;
+        $this->actAs($tenant, self::VIEWER_A);
+        $provider = $this->provider();
+
+        $group = $provider->search($this->query($marker));
+        self::assertInstanceOf(SearchGroup::class, $group, 'seedBeyondTheBound() must still leave a visible row containing the text.');
+        self::assertFalse($group->exactTotal, 'The definition hit its bound (seedBeyondTheBound()): candidateQuery() or filterCandidates() must call $context->markPartial(), so the total is not claimed exact.');
+        self::assertNotContains($foreign, $this->urls($group), 'A bounded definition showed another tenant\'s row.');
+        $page = $provider->searchPage($this->query($marker), 1, 10);
+        self::assertInstanceOf(SearchGroup::class, $page);
+        self::assertFalse($page->exactTotal, 'The results page of a bounded search must not claim an exact total.');
+
+        $fresh = $this->marker();
+        $this->seed($other, $fresh);
+        $this->actAs($other, self::VIEWER_B);
+        $next = $provider->search($this->query($fresh, 10, null, self::VIEWER_B));
+        self::assertInstanceOf(SearchGroup::class, $next);
+        self::assertTrue($next->exactTotal, 'The partial flag leaked into the next search: keep it in the SearchCandidateContext of that search, never in a property of the definition.');
     }
 
     /**

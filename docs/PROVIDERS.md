@@ -19,6 +19,7 @@ scope, escaped LIKE, bounded limit, access checks, the shared host event, the vi
 - [Recents](#recents)
 - [Display data for the shown rows: prepareItems()](#display-data-for-the-shown-rows-prepareitems)
 - [Rows hidden only in PHP still use the candidate window](#rows-hidden-only-in-php-still-use-the-candidate-window)
+- [Bounded candidates: a partial total](#bounded-candidates-a-partial-total)
 - [The host visibility event](#the-host-visibility-event)
 - [Group switches](#group-switches)
 - [Helpers](#helpers)
@@ -94,19 +95,22 @@ Per call, always in this order:
 1. the group is on (`nowo_search_kit.groups.<key>.enabled`); a [sensitive](#optional) group only runs while recents are
    revalidated or off;
 2. a non-empty text of at least `minLength()` characters, a results page inside the candidate window;
-3. `tenant()` — `null` means no results — then `featureEnabled()`;
+3. `tenant()` — `null` means no results — then `featureEnabled()`; then `candidateQuery()` (1.11.0; default
+   `baseQuery()`) with a new `SearchCandidateContext` for this search;
 4. the scope (client input): shape-checked, then `applyScope()` restricts the query in SQL — or the search is refused;
 5. `applyFullText()`, or an escaped `LOWER(field) LIKE :p ESCAPE '!'` of every query word over `searchableFields()`
    (each word must occur in one of the fields);
 6. one query of at most `maxCandidates()` rows (a parameter named `nowo_search_*` bound by `baseQuery()`,
    `applyScope()` or `applyFullText()` is refused with a `LogicException`: SearchKit binds those);
-7. `filterVisible()` on the candidates (batched; SearchKit keeps only rows that were candidates), then **one**
+7. `filterCandidates()` (1.11.0; default `filterVisible()`) on the candidates, with the same context (batched;
+   SearchKit keeps only rows that were candidates), then **one**
    `SearchKitEvents::ITEM_VISIBILITY` event for the page, where a host deny wins;
 8. the page cut out of the visible rows, the visible total within the window, `seeAllUrl()`, then the shown rows
    rendered: **one** `prepareItems()` call with exactly those rows (1.10.0), and `toPreparedItem()` — by default
    `toItem()` — per shown row only. Rows the viewer may not see are never counted. The total is exact only when the
    SQL fetch did **not** fill the window (1.10.1): once `maxCandidates()` rows came back, visible or not, it is a lower
-   bound and SearchKit shows the rows it lists. Hidden rows **inside** the window still take places, so they can lower
+   bound and SearchKit shows the rows it lists. It is not exact either when the definition marked its candidates
+   partial for this search (1.11.0, [Bounded candidates](#bounded-candidates-a-partial-total)). Hidden rows **inside** the window still take places, so they can lower
    the visible count and the rows reachable by paging — see
    [Rows hidden only in PHP](#rows-hidden-only-in-php-still-use-the-candidate-window). **Filter per-row visibility in
    SQL** (`baseQuery()`) wherever possible, and keep `filterVisible()` for what SQL cannot express.
@@ -154,6 +158,8 @@ And one of:
 | `idField()` / `referenceId(SearchReference $reference)` | `null` | See [Recents](#recents). |
 | `prepareItems(array $shownRows, SearchQuery $query, SearchItemContext $context)` | nothing | 1.10.0. Batch-load display data for the shown rows only. See [prepareItems()](#display-data-for-the-shown-rows-prepareitems). |
 | `toPreparedItem(array\|object $row, SearchQuery $query, SearchItemContext $context)` | `toItem()` | 1.10.0. The row, with what `prepareItems()` stored. |
+| `candidateQuery(int\|string $tenant, SearchQuery $query, SearchCandidateContext $context)` | `baseQuery()` | 1.11.0. The query SearchKit runs; call `$context->markPartial()` when your own bound is hit. See [Bounded candidates](#bounded-candidates-a-partial-total). |
+| `filterCandidates(array $rows, int\|string $tenant, SearchQuery $query, SearchCandidateContext $context)` | `filterVisible()` | 1.11.0. The batch check SearchKit runs, with the same context. |
 
 ## ORM definitions
 
@@ -305,6 +311,44 @@ So:
 - A host deny (`ITEM_VISIBILITY`) is a PHP filter too. Use it for rules that span bundles, not as the main access
   check of a large record set.
 
+## Bounded candidates: a partial total
+
+Some definitions bound their own scan before SearchKit's window applies: they read at most N boards (projects,
+folders) of the tenant to build the query, or resolve at most N memberships in the access check. When that bound is
+hit, the rows SearchKit sees are not all the matches, and a total SearchKit computed from them must not be claimed
+exact.
+
+Since 1.11.0 SearchKit runs `candidateQuery()` and `filterCandidates()` instead of calling `baseQuery()` and
+`filterVisible()` directly. By default they call those, so a 1.9 or 1.10 definition is unchanged. Both hooks get the
+same `SearchCandidateContext`, which is new for every search page and every resolved recent. Call
+`$context->markPartial()` when your bound is hit. The group's `exactTotal` is then false, on the palette and the
+results page, and SearchKit caps the count to the rows it lists ("N+"). Which rows are shown does not change.
+
+```php
+public function baseQuery(int|string $tenant, SearchQuery $query): QueryBuilder
+{
+    return $this->tasksOf($this->boards->visibleIds($tenant, $query->userIdentifier, self::MAX_BOARDS));
+}
+
+public function candidateQuery(int|string $tenant, SearchQuery $query, SearchCandidateContext $context): QueryBuilder
+{
+    $boards = $this->boards->visibleIds($tenant, $query->userIdentifier, self::MAX_BOARDS + 1);
+    if (count($boards) > self::MAX_BOARDS) {
+        $context->markPartial();               // more boards than scanned: the total is a lower bound
+    }
+
+    return $this->tasksOf(array_slice($boards, 0, self::MAX_BOARDS));
+}
+```
+
+- **Per search only.** Keep the flag in the context, never in a property of the definition (FrankenPHP worker mode,
+  kernel reset off); SearchKit drops the context when the call returns.
+- **Keep `baseQuery()` consistent.** It stays abstract, and SearchKit no longer calls it directly once you override
+  `candidateQuery()`; build both on one private method.
+- **Same rules as `baseQuery()`**: a new builder each call, no limit, no parameter named `nowo_search_*`.
+- **Contract kit**: implement `seedBeyondTheBound()` (see below) so the kit checks the inexact total, that no other
+  tenant's row shows up, and that the flag does not leak into the next search.
+
 ## The host visibility event
 
 After the bundle's own check, every provider dispatches **one** `SearchItemVisibilityEvent`
@@ -390,11 +434,13 @@ and database:
   — exactly like a fresh instance, so display data memoised on the instance fails the kit;
 - `prepareItems()` (1.10.0): called once per page with exactly the shown rows — never a hidden, host-denied or
   off-page row — before `toPreparedItem()` renders them with the same context; once for a resolved recent; never when
-  nothing is shown; at most `prepareItemsBudget()` statements (none for the default no-op).
+  nothing is shown; at most `prepareItemsBudget()` statements (none for the default no-op);
+- bounded candidates (1.11.0, with `seedBeyondTheBound()`): an inexact total for that search only.
 
 A definition that skips its per-row check or its tenant condition fails the kit. `sensitiveTitles()` and
 `supportsRecents()` are self-declared by your test, so the kit only checks that the definition is consistent with them. Run it on MySQL, MariaDB and
-PostgreSQL in CI.
+PostgreSQL in CI. The kit's `QueryCountingMiddleware` works with DBAL 3.8+ and DBAL 4 (1.11.0; before, it was a
+fatal error on DBAL 3).
 
 ```php
 use Doctrine\DBAL\{Configuration, DriverManager};
@@ -448,6 +494,7 @@ final class TaskSearchContractTest extends EntitySearchProviderTestCase
 | `queryBudget()` | Most statements per search (default 2), `prepareItems()` included. |
 | `prepareItemsBudget()` | 1.10.0. Most statements of one `prepareItems()` call (default 1). |
 | `hiddenRowsFilteredInSql()` | 1.10.1. Default: the definition's `sensitive()`. Return `true` when `baseQuery()` itself filters out every row `seedHidden()` creates; the kit then asserts that hidden rows change nothing at all (rows, total, exactness). A sensitive group must filter in SQL; it may override the hook to `false` only when PHP or a host event alone can decide the visibility, and then documents that it accepts the side channel. |
+| `seedBeyondTheBound($tenant, $text): bool` | 1.11.0, optional. Seeds rows of the first tenant so that a search for `$text` hits your definition's own bound (it calls `markPartial()`) and still shows at least one row; returns `true`. The kit then asserts an inexact total on the palette and the results page, no other tenant's row, and an exact total for the next search, in the second tenant, on the same provider instance. Make the bound reachable only by what the hook seeds (e.g. count only the boards that match the text), or reset the database between tests, so the other contract tests still see exact totals. Default `false`: the check is skipped. |
 | `changeSeededText($id, $text): bool` | 1.10.0, optional. Changes a seeded row's searchable text (the new text contains the old one) and returns `true`; the worker-safety check then also renders a changed row on the reused definition. Default `false`: that step is skipped, since the kit cannot change a row on its own. |
 
 Each test seeds rows under a fresh random marker, so the tests need no cleanup and never see each other's rows. Add
