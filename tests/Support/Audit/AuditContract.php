@@ -36,8 +36,8 @@ final class AuditContract extends EntitySearchProviderTestCase
     /** The definition filters hidden rows in SQL. */
     public bool $hiddenInSql = false;
 
-    /** What the test declares (hiddenRowsFilteredInSql()). */
-    public bool $declareHiddenInSql = false;
+    /** What the test declares (hiddenRowsFilteredInSql()); null: the kit's default (the definition's sensitive()). */
+    public ?bool $declareHiddenInSql = null;
 
     private ?Viewer $viewer = null;
 
@@ -87,7 +87,7 @@ final class AuditContract extends EntitySearchProviderTestCase
 
     protected function hiddenRowsFilteredInSql(): bool
     {
-        return $this->declareHiddenInSql;
+        return $this->declareHiddenInSql ?? parent::hiddenRowsFilteredInSql();
     }
 
     protected function sensitiveTitles(): bool

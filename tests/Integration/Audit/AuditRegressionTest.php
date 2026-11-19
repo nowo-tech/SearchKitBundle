@@ -111,6 +111,18 @@ final class AuditRegressionTest extends TestCase
     }
 
     /**
+     * VK2-3: a sensitive group that hides rows only in PHP fails the kit by default, with a message naming both ways out.
+     */
+    public function testTheKitTellsASensitiveGroupToFilterInSql(): void
+    {
+        $case = $this->contract('testContractHiddenRowsAroundVisibleOnesNeverShrinkAnExactTotal', ['sensitiveDefinition' => true]);
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage('Either filter them in baseQuery(), or');
+        $case->testContractHiddenRowsAroundVisibleOnesNeverShrinkAnExactTotal();
+    }
+
+    /**
      * A listener exception reaches the caller (SearchKit's engine drops the group): never fail open.
      */
     public function testListenerExceptionPropagates(): void
@@ -178,6 +190,8 @@ final class AuditRegressionTest extends TestCase
         yield 'sensitive titles not declared' => [['sensitiveDefinition' => true], 'testContractSensitiveGroupsFollowTheRecentsMode'];
         yield 'hidden rows declared filtered in SQL, filtered in PHP' => [['declareHiddenInSql' => true], 'testContractHiddenRowsAroundVisibleOnesNeverShrinkAnExactTotal'];
         yield 'hidden rows declared filtered in SQL, filtered in PHP, full window' => [['declareHiddenInSql' => true], 'testContractHiddenRowsBeyondTheWindowChangeNothing'];
+        yield 'sensitive group filtering in PHP' => [['sensitiveDefinition' => true, 'sensitive' => true], 'testContractHiddenRowsAroundVisibleOnesNeverShrinkAnExactTotal'];
+        yield 'sensitive group filtering in PHP, full window' => [['sensitiveDefinition' => true, 'sensitive' => true], 'testContractHiddenRowsBeyondTheWindowChangeNothing'];
     }
 
     /**
@@ -204,7 +218,7 @@ final class AuditRegressionTest extends TestCase
             $this->contract($method)->{$method}();
         }
         $this->contract('testContractSensitiveGroupsFollowTheRecentsMode', ['sensitiveDefinition' => true, 'sensitive' => true])->testContractSensitiveGroupsFollowTheRecentsMode();
-        foreach ([[], ['hiddenInSql' => true, 'declareHiddenInSql' => true], ['hiddenInSql' => true]] as $switches) {
+        foreach ([[], ['hiddenInSql' => true, 'declareHiddenInSql' => true], ['hiddenInSql' => true], ['sensitiveDefinition' => true, 'hiddenInSql' => true], ['sensitiveDefinition' => true, 'declareHiddenInSql' => false]] as $switches) {
             $this->contract('testContractHiddenRowsAroundVisibleOnesNeverShrinkAnExactTotal', $switches)->testContractHiddenRowsAroundVisibleOnesNeverShrinkAnExactTotal();
             $this->contract('testContractHiddenRowsBeyondTheWindowChangeNothing', $switches)->testContractHiddenRowsBeyondTheWindowChangeNothing();
         }

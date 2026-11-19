@@ -287,16 +287,21 @@ visible rows remain: 7 hidden rows ahead of 6 visible ones in a 10-row window le
 That is a side channel. A viewer who can create rows of their own and search for a substring can watch the number of
 their own rows that show up shrink, and so learn that rows they cannot see exist and contain that substring. Since
 1.10.1 SearchKit never marks such a total exact: a window the fetch filled always gives a lower bound
-(`exactTotal` false), which SearchKit caps to the rows it lists. The rows that are pushed out of the window remain
-missing, though, and that cannot be fixed after the fetch.
+(`exactTotal` false), which SearchKit caps to the rows it lists. That fixes only the exact claim. The rows that are
+pushed out of the window remain missing (3 instead of 6 above), and that cannot be fixed after the fetch.
+
+One binary signal also remains. When the visible rows exceed the page size, the inexact flag tells the viewer whether
+the visible and hidden matches together reach `maxCandidates()`. Again, only filtering hidden rows in `baseQuery()`
+removes it.
 
 So:
 
 - **Push access rules into `baseQuery()`** wherever SQL can express them (membership joins, owner or visibility
   columns, an `EXISTS` on the grants table). Keep `filterVisible()` for what SQL cannot express.
 - **Sensitive groups must** filter in SQL every row the viewer may not see, so that hidden rows never take places in
-  the window. In the contract kit, declare it with `hiddenRowsFilteredInSql()` returning `true`. The kit then asserts
-  that hidden rows change nothing at all.
+  the window. In the contract kit, `hiddenRowsFilteredInSql()` defaults to `sensitive()`, so for a sensitive group the
+  kit asserts that hidden rows change nothing at all. If only PHP or a host event can decide the visibility, override
+  the hook to return `false`, and document in your bundle that the group accepts this side channel.
 - A host deny (`ITEM_VISIBILITY`) is a PHP filter too. Use it for rules that span bundles, not as the main access
   check of a large record set.
 
@@ -442,7 +447,7 @@ final class TaskSearchContractTest extends EntitySearchProviderTestCase
 | `disableFeature()` | Turns the feature (or `view`) off for the current viewer. |
 | `queryBudget()` | Most statements per search (default 2), `prepareItems()` included. |
 | `prepareItemsBudget()` | 1.10.0. Most statements of one `prepareItems()` call (default 1). |
-| `hiddenRowsFilteredInSql()` | 1.10.1. Default `false`; return `true` when `baseQuery()` itself filters out every row `seedHidden()` creates. The kit then asserts that hidden rows change nothing at all (rows, total, exactness). Sensitive groups should filter in SQL and return `true`. |
+| `hiddenRowsFilteredInSql()` | 1.10.1. Default: the definition's `sensitive()`. Return `true` when `baseQuery()` itself filters out every row `seedHidden()` creates; the kit then asserts that hidden rows change nothing at all (rows, total, exactness). A sensitive group must filter in SQL; it may override the hook to `false` only when PHP or a host event alone can decide the visibility, and then documents that it accepts the side channel. |
 | `changeSeededText($id, $text): bool` | 1.10.0, optional. Changes a seeded row's searchable text (the new text contains the old one) and returns `true`; the worker-safety check then also renders a changed row on the reused definition. Default `false`: that step is skipped, since the kit cannot change a row on its own. |
 
 Each test seeds rows under a fresh random marker, so the tests need no cleanup and never see each other's rows. Add

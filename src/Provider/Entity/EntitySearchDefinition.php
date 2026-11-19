@@ -262,7 +262,9 @@ abstract class EntitySearchDefinition
 
     /**
      * Candidates read and checked per search (1 to SearchWindow::MAX_CANDIDATES): bounds the access checks, the
-     * visible total (a lower bound once the visible rows fill the window) and the deepest results page.
+     * visible total (a lower bound once the SQL fetch fills the window, 1.10.1) and the deepest results page. Rows
+     * hidden only in PHP (filterVisible(), a host deny) still take places in the window and can push visible rows out
+     * of it: filter them in baseQuery() wherever possible (sensitive groups must).
      */
     public function maxCandidates(): int
     {

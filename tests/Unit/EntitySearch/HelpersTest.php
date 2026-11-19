@@ -12,6 +12,7 @@ use Nowo\SearchKitBundle\Search\Query\SearchWindow;
 use Nowo\SearchKitBundle\Search\Query\SearchWords;
 use Nowo\SearchKitBundle\Search\Query\SeeAllLink;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\IgnoreDeprecations;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
@@ -87,13 +88,27 @@ final class HelpersTest extends TestCase
         self::assertNull(ScopeParser::positiveInt('board:4', 'project'));
     }
 
+    /**
+     * 1.10.1: isExact() without the fetched count keeps the 1.9 rule and is deprecated (required in 2.0).
+     */
+    #[IgnoreDeprecations]
+    public function testIsExactWithoutTheFetchedCountIsDeprecated(): void
+    {
+        $window = SearchWindow::of(1, 3, 10);
+        self::assertInstanceOf(SearchWindow::class, $window);
+
+        $this->expectUserDeprecationMessage('Since nowo-tech/search-kit-bundle 1.10.1: Calling "' . SearchWindow::class . '::isExact()" without the number of fetched rows is deprecated; it is required in 2.0.');
+        self::assertTrue($window->isExact([1, 2, 3]));
+        self::assertFalse($window->isExact([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]));
+    }
+
     public function testWindowIsBounded(): void
     {
         $window = SearchWindow::of(2, 3, 10);
         self::assertInstanceOf(SearchWindow::class, $window);
         self::assertSame(10, $window->fetchLimit());
-        self::assertTrue($window->isExact([1, 2, 3, 4, 5, 6, 7, 8, 9]));
-        self::assertFalse($window->isExact([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]));
+        self::assertTrue($window->isExact([1, 2, 3, 4, 5, 6, 7, 8, 9], 9));
+        self::assertFalse($window->isExact([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 10));
         self::assertTrue($window->isExact([1, 2, 3], 9), '1.10.1: the fetch did not fill the window.');
         self::assertFalse($window->isExact([1, 2, 3], 10), '1.10.1: hidden rows filled the window.');
         self::assertSame([1, 2], $window->candidatesOf([1, 2]));

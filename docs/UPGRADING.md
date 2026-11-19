@@ -41,16 +41,26 @@ Nothing to change in definitions. What changes:
 
 - **`exactTotal` is false whenever the candidate window is full**, including when it is full of rows the viewer may
   not see. Before, only visible rows filling the window made it inexact. A group whose definition hides rows only in
-  PHP may now show a capped total ("N+") where it used to show an exact one. To keep exact totals, filter those rows in
-  `baseQuery()` (see [Rows hidden only in PHP](PROVIDERS.md#rows-hidden-only-in-php-still-use-the-candidate-window)).
-  Sensitive groups must.
-- **`SearchWindow::isExact(array $visible, ?int $fetched = null)`**: pass the number of fetched rows. Without it the
-  1.9 rule applies.
+  PHP may now show a capped total ("N+") where it used to show an exact one. This only fixes the exact claim: visible
+  rows that hidden rows push out of the window are still missing, and that shrink remains a count side channel. Only
+  filtering those rows in `baseQuery()` removes it, which also keeps exact totals (see
+  [Rows hidden only in PHP](PROVIDERS.md#rows-hidden-only-in-php-still-use-the-candidate-window)). Sensitive groups
+  must.
+- **`SearchWindow::isExact(array $visible, ?int $fetched = null)`**: pass the number of fetched rows. Calling it without
+  that number keeps the 1.9 rule but is **deprecated**, and the argument becomes required in 2.0.
 - **Contract kit**: a new test, `testContractHiddenRowsAroundVisibleOnesNeverShrinkAnExactTotal`, and a new optional
-  hook, `hiddenRowsFilteredInSql()` (default `false`). A definition that filters hidden rows in PHP passes, because
-  its total is now inexact. If yours filters them in SQL, return `true` so the kit asserts that hidden rows change
+  hook, `hiddenRowsFilteredInSql()`. A non-sensitive definition that filters hidden rows in PHP passes, because its
+  total is now inexact. If yours filters them in SQL, return `true` so the kit asserts that hidden rows change
   nothing. `testContractHiddenRowsBeyondTheWindowChangeNothing` no longer requires the exactness to stay the same
-  unless you return `true`.
+  unless the hook returns `true`.
+- **Kit tightening for sensitive groups.** `hiddenRowsFilteredInSql()` defaults to the definition's `sensitive()`, so
+  the kit now requires a sensitive group's hidden rows to change nothing. A sensitive definition that hides rows only
+  in PHP fails both window tests until you choose one of two fixes:
+  - move the rule into `baseQuery()`;
+  - when only PHP or a host event can decide the visibility, override `hiddenRowsFilteredInSql()` to return `false`
+    and document in the bundle that the group accepts the candidate-window side channel.
+
+  No released provider runs the kit with `sensitive()` true yet.
 
 ## To 1.10.0
 
