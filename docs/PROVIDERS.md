@@ -17,6 +17,7 @@ scope, escaped LIKE, bounded limit, access checks, the shared host event, the vi
 - [Scopes](#scopes)
 - [Full text](#full-text)
 - [Recents](#recents)
+- [Display data for the shown rows: prepareItems()](#display-data-for-the-shown-rows-prepareitems)
 - [The host visibility event](#the-host-visibility-event)
 - [Group switches](#group-switches)
 - [Helpers](#helpers)
@@ -100,8 +101,9 @@ Per call, always in this order:
    `applyScope()` or `applyFullText()` is refused with a `LogicException`: SearchKit binds those);
 7. `filterVisible()` on the candidates (batched; SearchKit keeps only rows that were candidates), then **one**
    `SearchKitEvents::ITEM_VISIBILITY` event for the page, where a host deny wins;
-8. the page cut out of the visible rows, the visible total within the window, `toItem()` on the shown rows only,
-   `seeAllUrl()`. The total is exact unless the **visible** rows fill the whole window (then it is a lower bound and
+8. the page cut out of the visible rows, the visible total within the window, `seeAllUrl()`, then the shown rows
+   rendered: **one** `prepareItems()` call with exactly those rows (1.10.0), and `toPreparedItem()` — by default
+   `toItem()` — per shown row only. The total is exact unless the **visible** rows fill the whole window (then it is a lower bound and
    SearchKit shows the rows it lists). Rows the viewer may not see are never counted and never decide the exactness;
    but hidden rows **inside** the window take places, so once the matches exceed `maxCandidates()` they can lower the
    visible count (and the rows reachable by paging). **Filter per-row visibility in SQL** (`baseQuery()`) wherever
@@ -125,7 +127,7 @@ The provider is a `PaginatedSearchProviderInterface`: the results page pages the
 | `featureEnabled(int\|string $tenant, SearchQuery $query)` | Whether the feature (and, per tenant, `view`) is on. |
 | `searchableFields()` | `column` or `alias.column` names searched with LIKE. Never secret values, notes or bodies of sensitive records. |
 | `baseQuery(int\|string $tenant, SearchQuery $query)` | A **new** DBAL or ORM query builder: select, from, the tenant condition and the SQL filters of visibility, archived and deleted rows, ordered deterministically. Set no limit; bind no parameter named `nowo_search_*`. |
-| `toItem(array\|object $row, SearchQuery $query)` | The `SearchItem` of a visible row (router-generated URL; SearchKit escapes what it shows). |
+| `toItem(array\|object $row, SearchQuery $query)` | The `SearchItem` of a visible row (router-generated URL; SearchKit escapes what it shows). Since 1.10.0 you may override `toPreparedItem()` instead (see [prepareItems()](#display-data-for-the-shown-rows-prepareitems)). |
 | `seeAllUrl(SearchQuery $query)` | The bundle's list page with the query (`SeeAllLink::build()`), or `null`. |
 
 And one of:
@@ -148,6 +150,8 @@ And one of:
 | `maxCandidates()` | `100` | Rows read and checked per search (1–1000): bounds the checks, the total and the deepest page. |
 | `sensitive()` | `false` | `true` when titles are sensitive (message excerpts, private names): the group is off while recents keep titles in the browser (SearchKit logs why once per container). |
 | `idField()` / `referenceId(SearchReference $reference)` | `null` | See [Recents](#recents). |
+| `prepareItems(array $shownRows, SearchQuery $query, SearchItemContext $context)` | nothing | 1.10.0. Batch-load display data for the shown rows only. See [prepareItems()](#display-data-for-the-shown-rows-prepareitems). |
+| `toPreparedItem(array\|object $row, SearchQuery $query, SearchItemContext $context)` | `toItem()` | 1.10.0. The row, with what `prepareItems()` stored. |
 
 ## ORM definitions
 
@@ -221,6 +225,52 @@ kind. A definition without these hooks has its recents dropped under revalidatio
 A `sensitive()` group is off while SearchKit keeps recents in the browser without revalidation
 (`recent.enabled: true`, `recent.revalidate: false`); SearchKit logs why once per group and container (no query
 text).
+
+## Display data for the shown rows: prepareItems()
+
+Since **1.10.0**. Some display data is not in the search query: a title that a host resolver gives, a name from another
+table. Loading it in `toItem()` costs one query per row (N+1), and loading it in `filterVisible()` loads it for rows the
+host event may still deny. `prepareItems()` runs at the right moment:
+
+- **once** per search page, with exactly the rows that will be shown — after `filterVisible()`, after the host's
+  `ITEM_VISIBILITY` event and after the page cut — right before they are rendered;
+- once per resolved recent (revalidation), with that one row;
+- **never** when no row is shown (the search is `null`).
+
+So nothing is ever loaded for a row the viewer may not see, and one batched query serves the page. Store what you load
+in the `SearchItemContext` SearchKit passes, and read it back in `toPreparedItem()`:
+
+```php
+use Nowo\SearchKitBundle\Provider\Entity\SearchItemContext;
+
+public function prepareItems(array $shownRows, SearchQuery $query, SearchItemContext $context): void
+{
+    $ids = array_map(static fn (array $row): int => (int) $row['id'], $shownRows);
+    $context->set('titles', $this->titles->forIds($ids, $query->locale)); // one query: id => title
+}
+
+public function toPreparedItem(array|object $row, SearchQuery $query, SearchItemContext $context): SearchItem
+{
+    $title = $context->get('titles', [])[$row['id']] ?? $row['reference'];
+
+    return new SearchItem($title, $this->urls->generate('acme_task_show', ['id' => $row['id']]));
+}
+```
+
+A definition that overrides `toPreparedItem()` does not need `toItem()` (since 1.10.0 `toItem()` is no longer
+abstract: its default throws a `LogicException`, so override one of the two).
+
+Rules:
+
+- **Read-only.** No persist, flush, clear, transaction or any other write (REQ-RUNTIME-003): the search runs inside the
+  host's request, on its connection.
+- **State in the context, never in a property.** SearchKit creates a new `SearchItemContext` for every page and every
+  resolved recent, passes it to `prepareItems()` and to `toPreparedItem()` for those rows, and drops it when the call
+  returns. It is never a service and never kept, so data loaded for one viewer cannot reach another request in
+  FrankenPHP worker mode with kernel reset off. The definition itself is a shared service: a property set in
+  `prepareItems()` would outlive the request.
+- **Within the query budget.** Its statements count towards the search's query budget; the contract kit allows one per
+  call by default (`prepareItemsBudget()`), and none for the default no-op.
 
 ## The host visibility event
 
@@ -300,7 +350,10 @@ and database:
 - recents: a visible row resolves; a hidden, archived or other-tenant row, another URL or kind, no tenant and the
   feature off give `null`;
 - `sensitive()` matches what the test declares, and a sensitive group is off while recents keep titles;
-- a query budget, and worker safety (one provider instance, two viewers alternately).
+- a query budget, and worker safety (one provider instance, two viewers alternately);
+- `prepareItems()` (1.10.0): called once per page with exactly the shown rows — never a hidden, host-denied or
+  off-page row — before `toPreparedItem()` renders them with the same context; once for a resolved recent; never when
+  nothing is shown; at most `prepareItemsBudget()` statements (none for the default no-op).
 
 A definition that skips its per-row check or its tenant condition fails the kit. `sensitiveTitles()` and
 `supportsRecents()` are self-declared by your test, so the kit only checks that the definition is consistent with them. Run it on MySQL, MariaDB and
@@ -348,13 +401,15 @@ final class TaskSearchContractTest extends EntitySearchProviderTestCase
 | `tenants()` | Two different tenants. |
 | `seed($tenant, $text): int\|string` | One row of the tenant, visible to its viewers, whose searchable text contains `$text` (it may contain `%`, `_`, `!`, `\`); returns its id. |
 | `seedHidden($tenant, $text): int\|string` | One row of the tenant that your **per-row access check** hides from the viewers of `actAs()` (and the SQL does not filter). |
-| `seedArchived($tenant, $text): int\|string` | One archived or soft-deleted row of the tenant (filtered in SQL). |
+| `seedArchived($tenant, $text): int\|string` | One archived or soft-deleted row of the tenant (filtered in SQL). Not needed when `hasArchivedState()` is `false`. |
+| `hasArchivedState()` | 1.10.0. Default `true`; return `false` when the records have no archived or deleted state: the archived checks are then skipped with a message and `seedArchived()` is never called. |
 | `reference($id): SearchReference` | The recent the browser stores for a row (URL, kind, route and parameters). |
 | `supportsRecents()` | Default `true`; `false` when the definition has no `idField()` / `referenceId()` (every reference must then give `null`). |
 | `sensitiveTitles()` | Default `false`; must equal the definition's `sensitive()`. |
 | `actAs($tenant, $userIdentifier)` | Makes the definition resolve this viewer and tenant (null: none), feature on. |
 | `disableFeature()` | Turns the feature (or `view`) off for the current viewer. |
-| `queryBudget()` | Most statements per search (default 2). |
+| `queryBudget()` | Most statements per search (default 2), `prepareItems()` included. |
+| `prepareItemsBudget()` | 1.10.0. Most statements of one `prepareItems()` call (default 1). |
 
 Each test seeds rows under a fresh random marker, so the tests need no cleanup and never see each other's rows. Add
 your own tests next to the kit's (archived rows, your access event, scopes).
@@ -362,7 +417,7 @@ your own tests next to the kit's (archived rows, your access event, scopes).
 ## Rules
 
 - **Stateless**: FrankenPHP worker mode with kernel reset off. Resolve the tenant and the viewer on each call; keep
-  nothing in properties between calls.
+  nothing in properties between calls (display data for the shown rows goes in the `SearchItemContext`).
 - **Filter in SQL first** (tenant, visibility, archived and deleted rows), then check each candidate (batched).
 - **Oracle-free**: never return a count, an error or a hint for a refusal; SearchKit returns `null`.
 - **Escape**: SearchKit escapes titles and subtitles; never put secret values, notes or bodies of sensitive records in

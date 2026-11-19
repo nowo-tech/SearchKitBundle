@@ -120,7 +120,8 @@ base query, the access check, the row and the "see all" link) and SearchKit's `E
 search flow for it — scope validation, escaped LIKE or a full-text hook, bounded candidates, batched access checks, the
 shared host event `SearchKitEvents::ITEM_VISIBILITY` (deny wins), the visible total, results-page paging, revalidated
 recents and `null` on any refusal. A contract test kit (`Nowo\SearchKitBundle\Test\EntitySearchProviderTestCase`)
-checks a definition against a real database.
+checks a definition against a real database. Since 1.10.0 a definition can batch-load display data for the shown rows
+only (`prepareItems()`, one call per page, with a per-render `SearchItemContext` read by `toPreparedItem()`).
 
 The full guide, with a 30-line example, the hooks, the event and the test kit: **[Write a provider](PROVIDERS.md)**.
 

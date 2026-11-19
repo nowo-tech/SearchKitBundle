@@ -53,13 +53,15 @@ use function trim;
  * 7. the bundle's access check on the candidates (batched: filterVisible), then **one** SearchKitEvents::ITEM_VISIBILITY
  *    event for the page, where a host deny wins;
  * 8. the page cut out of the visible rows, the visible total within the window (exact unless the visible rows fill
- *    the whole window — never derived from rows the viewer may not see), the rows, the "see all" link.
+ *    the whole window — never derived from rows the viewer may not see), the "see all" link;
+ * 9. the shown rows rendered: **one** prepareItems() call with exactly those rows and a new SearchItemContext, then
+ *    toPreparedItem() per row (no call when no row is shown).
  *
  * Any refusal is `null`: no group, no count, no hint, so a forbidden or hidden row looks exactly like a missing one.
  * An exception from a hook reaches SearchKit, which logs the class names and drops the group (null as well).
  *
  * Also a SearchReferenceResolverInterface: with `recent.revalidate`, a stored recent is read again through the same
- * checks (EntitySearchDefinition::idField() / referenceId()).
+ * checks (EntitySearchDefinition::idField() / referenceId()), and rendered the same way (prepareItems() with that one row).
  *
  * Holds only its collaborators: stateless, safe in FrankenPHP worker mode with kernel reset off.
  *
@@ -158,7 +160,7 @@ final readonly class EntitySearchProvider implements PaginatedSearchProviderInte
         return new SearchGroup(
             $group,
             $this->definition->label($query),
-            array_map(fn (array|object $row): SearchItem => $this->item($row, $query), $shown),
+            $this->items($shown, $query),
             $total,
             $this->definition->seeAllUrl($query),
             $this->seeAllLabel($query, $total),
@@ -194,7 +196,7 @@ final readonly class EntitySearchProvider implements PaginatedSearchProviderInte
         if ($visible === []) {
             return null;
         }
-        $item = $this->item($visible[0], $query);
+        $item = $this->items([$visible[0]], $query)[0];
 
         return $item->url === $reference->url && ($item->kind ?? $group) === $reference->kind ? $item : null;
     }
@@ -319,13 +321,29 @@ final readonly class EntitySearchProvider implements PaginatedSearchProviderInte
     }
 
     /**
+     * The rows that are shown, rendered: one prepareItems() call with all of them and a new SearchItemContext (local
+     * to this call, dropped when it returns), then toPreparedItem() per row.
+     *
+     * @param non-empty-list<array<string, mixed>|object> $rows
+     *
+     * @return non-empty-list<SearchItem>
+     */
+    private function items(array $rows, SearchQuery $query): array
+    {
+        $context = new SearchItemContext();
+        $this->definition->prepareItems($rows, $query, $context);
+
+        return array_map(fn (array|object $row): SearchItem => $this->item($row, $query, $context), $rows);
+    }
+
+    /**
      * The definition's row, with the default icon when it sets none.
      *
      * @param array<string, mixed>|object $row
      */
-    private function item(array|object $row, SearchQuery $query): SearchItem
+    private function item(array|object $row, SearchQuery $query, SearchItemContext $context): SearchItem
     {
-        $item = $this->definition->toItem($row, $query);
+        $item = $this->definition->toPreparedItem($row, $query, $context);
         $icon = $this->definition->icon();
         if ($item->icon !== null || $icon === null) {
             return $item;
