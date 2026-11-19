@@ -10,14 +10,19 @@ use Nowo\SearchKitBundle\Model\SearchGroup;
 use Nowo\SearchKitBundle\Model\SearchItem;
 use Nowo\SearchKitBundle\Model\SearchQuery;
 use Nowo\SearchKitBundle\Model\SearchReference;
+use Nowo\SearchKitBundle\Model\SearchSubject;
 use Nowo\SearchKitBundle\Provider\Entity\EntitySearchDefinition;
 use Nowo\SearchKitBundle\Provider\Entity\EntitySearchProvider;
 use Nowo\SearchKitBundle\Search\Group\SearchGroupSettings;
+use Nowo\SearchKitBundle\Test\Internal\RenderRecorder;
+use PHPUnit\Framework\SkippedTest;
 use PHPUnit\Framework\TestCase;
+use ReflectionMethod;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 
 use function array_intersect;
 use function array_map;
+use function array_values;
 use function bin2hex;
 use function count;
 use function implode;
@@ -36,7 +41,9 @@ use function random_bytes;
  * - LIKE wildcards (`%`, `_`, `!`, `\`) in the query are matched literally;
  * - the limit holds, the total is the visible total, and the results page is bounded;
  * - one search stays within the query budget (no N+1);
- * - one provider instance serves two viewers alternately with no state kept (FrankenPHP worker mode).
+ * - prepareItems() runs once per render with exactly the shown rows, before they are rendered (1.10.0);
+ * - one provider instance serves two viewers alternately with no state kept, and one definition instance renders
+ *   exactly like a fresh one (FrankenPHP worker mode).
  *
  * Each test seeds rows under a fresh random marker, so the tests need no cleanup between them and never see each
  * other's rows. The seeded text must end up in one of searchableFields() of a row the viewer may see.
@@ -92,14 +99,43 @@ abstract class EntitySearchProviderTestCase extends TestCase
     abstract protected function seedHidden(int|string $tenant, string $text): int|string;
 
     /**
-     * Inserts one archived (or soft-deleted) row of the tenant, which baseQuery() filters out in SQL.
+     * Inserts one archived (or soft-deleted) row of the tenant, which baseQuery() filters out in SQL. Only called while
+     * hasArchivedState() is true (1.10.0: no longer abstract; the default fails the test, so override it or declare
+     * hasArchivedState() false).
      *
      * @param int|string $tenant The tenant
      * @param string $text Text to put in a searchable field
      *
      * @return int|string The row id
      */
-    abstract protected function seedArchived(int|string $tenant, string $text): int|string;
+    protected function seedArchived(int|string $tenant, string $text): int|string
+    {
+        self::fail('Override seedArchived(), or return false from hasArchivedState() when the records have no archived or deleted state.');
+    }
+
+    /**
+     * Changes the searchable text of a seeded row (1.10.0, optional): the worker-safety check then also renders a row
+     * whose display data changed between two renders on one definition instance. Return false when the test cannot do
+     * it (default): the check still compares every render of the shared instance with a fresh one.
+     *
+     * @param int|string $id A row id returned by seed()
+     * @param string $text The new text (contains the old one, so the row still matches)
+     *
+     * @return bool Whether the text was changed
+     */
+    protected function changeSeededText(int|string $id, string $text): bool
+    {
+        return false;
+    }
+
+    /**
+     * Whether the records have an archived or soft-deleted state that baseQuery() filters out (1.10.0). False: the
+     * archived checks are skipped and seedArchived() is never called. Default: true.
+     */
+    protected function hasArchivedState(): bool
+    {
+        return true;
+    }
 
     /**
      * The recent reference the browser would store for a row (its URL, the kind — usually the group key — and the
@@ -141,11 +177,21 @@ abstract class EntitySearchProviderTestCase extends TestCase
     }
 
     /**
-     * Most SQL statements of one search (default 2: the search query and one batched access check).
+     * Most SQL statements of one search (default 2: the search query and one batched access check), prepareItems()
+     * included.
      */
     protected function queryBudget(): int
     {
         return 2;
+    }
+
+    /**
+     * Most SQL statements of one prepareItems() call (1.10.0; default 1: one batched load of the shown rows' display
+     * data). The default no-op of EntitySearchDefinition must send none.
+     */
+    protected function prepareItemsBudget(): int
+    {
+        return 1;
     }
 
     /**
@@ -276,7 +322,9 @@ abstract class EntitySearchProviderTestCase extends TestCase
         $marker   = $this->marker();
         $this->seed($tenant, $marker . 'v');
         $this->seedHidden($tenant, $marker . 'h');
-        $this->seedArchived($tenant, $marker . 'a');
+        if ($this->hasArchivedState()) {
+            $this->archivedRow($tenant, $marker . 'a');
+        }
         $this->actAs($tenant, self::VIEWER_A);
 
         $group = $this->provider()->search($this->query($marker));
@@ -284,7 +332,32 @@ abstract class EntitySearchProviderTestCase extends TestCase
         self::assertCount(1, $group->items, 'Hidden and archived rows must not be shown.');
         self::assertSame(1, $group->total, 'Hidden and archived rows must not be counted.');
         self::assertNull($this->provider()->search($this->query($marker . 'h')), 'A hidden row alone must give null.');
-        self::assertNull($this->provider()->search($this->query($marker . 'a')), 'An archived row alone must give null.');
+        if ($this->hasArchivedState()) {
+            self::assertNull($this->provider()->search($this->query($marker . 'a')), 'An archived row alone must give null.');
+        }
+    }
+
+    /**
+     * Archived rows are filtered in SQL: never shown, counted or resolved (skipped without an archived state).
+     */
+    public function testContractNeverShowsArchivedRows(): void
+    {
+        if (!$this->hasArchivedState()) {
+            self::markTestSkipped('The definition declares no archived or deleted state (hasArchivedState() is false).');
+        }
+        [$tenant] = $this->tenants();
+        $marker   = $this->marker();
+        $this->seed($tenant, $marker . 'v');
+        $archived = $this->archivedRow($tenant, $marker . 'a');
+        $this->actAs($tenant, self::VIEWER_A);
+        $provider = $this->provider();
+
+        $group = $provider->search($this->query($marker));
+        self::assertInstanceOf(SearchGroup::class, $group);
+        self::assertCount(1, $group->items, 'An archived row must not be shown.');
+        self::assertSame(1, $group->total, 'An archived row must not be counted.');
+        self::assertNull($provider->search($this->query($marker . 'a')), 'An archived row alone must give null.');
+        self::assertNull($provider->resolve($this->reference($archived), self::VIEWER_A, null), 'An archived row must not resolve.');
     }
 
     /**
@@ -327,7 +400,7 @@ abstract class EntitySearchProviderTestCase extends TestCase
         $marker           = $this->marker();
         $visible          = $this->reference($this->seed($tenant, $marker . 'v'));
         $hidden           = $this->reference($this->seedHidden($tenant, $marker . 'h'));
-        $archived         = $this->reference($this->seedArchived($tenant, $marker . 'a'));
+        $archived         = $this->hasArchivedState() ? $this->reference($this->archivedRow($tenant, $marker . 'a')) : null;
         $foreign          = $this->reference($this->seed($other, $marker . 'o'));
         $this->actAs($tenant, self::VIEWER_A);
         $provider = $this->provider();
@@ -340,7 +413,9 @@ abstract class EntitySearchProviderTestCase extends TestCase
             self::assertNull($item, 'Without recents support every reference is dropped.');
         }
         self::assertNull($provider->resolve($hidden, self::VIEWER_A, null), 'Hidden row.');
-        self::assertNull($provider->resolve($archived, self::VIEWER_A, null), 'Archived row.');
+        if ($archived instanceof SearchReference) {
+            self::assertNull($provider->resolve($archived, self::VIEWER_A, null), 'Archived row.');
+        }
         self::assertNull($provider->resolve($foreign, self::VIEWER_A, null), 'Row of another tenant.');
         self::assertNull($provider->resolve(new SearchReference($visible->url . 'x', $visible->kind, $visible->route, $visible->routeParameters), self::VIEWER_A, null), 'Another URL.');
         self::assertNull($provider->resolve(new SearchReference($visible->url, $visible->kind . 'x', $visible->route, $visible->routeParameters), self::VIEWER_A, null), 'Another kind.');
@@ -494,6 +569,179 @@ abstract class EntitySearchProviderTestCase extends TestCase
         self::assertSame($seen[self::VIEWER_A][0], $seen[self::VIEWER_A][1]);
         self::assertSame($seen[self::VIEWER_B][0], $seen[self::VIEWER_B][1]);
         self::assertSame([], array_intersect($seen[self::VIEWER_A][0], $seen[self::VIEWER_B][0]));
+    }
+
+    /**
+     * prepareItems() runs once per page with exactly the shown rows — never a row the access check hides, a row the
+     * host denies or a row beyond the page — right before those rows are rendered, with the context
+     * that toPreparedItem() then gets; and not at all when nothing is shown.
+     */
+    public function testContractPrepareItemsGetsOnlyTheShownRows(): void
+    {
+        [$tenant] = $this->tenants();
+        $marker   = $this->marker();
+        $visible  = [];
+        for ($row = 0; $row < 4; ++$row) {
+            $visible[] = (string) $this->seed($tenant, $marker . 'p' . $row);
+        }
+        $denied   = $visible[1];
+        $excluded = [$denied, (string) $this->seedHidden($tenant, $marker . 'h')];
+        $this->actAs($tenant, self::VIEWER_A);
+        $type       = $this->definition()->subjectType();
+        $dispatcher = new EventDispatcher();
+        $dispatcher->addListener(SearchKitEvents::ITEM_VISIBILITY, static function (SearchItemVisibilityEvent $event) use ($type, $denied): void {
+            $event->deny(new SearchSubject($type, $denied));
+        });
+        $recorder = $this->recorder();
+        $provider = $this->recordingProvider($recorder, $dispatcher);
+
+        $first = $provider->search($this->query($marker, 2));
+        self::assertInstanceOf(SearchGroup::class, $first);
+        self::assertCount(2, $first->items);
+        $firstIds = $this->assertRenderedOnce($recorder, 2);
+        self::assertSame([], array_intersect($firstIds, $excluded), 'prepareItems() must never get a hidden or denied row.');
+        self::assertSame($firstIds, array_values(array_intersect($firstIds, $visible)));
+
+        $recorder->reset();
+        $second = $provider->searchPage($this->query($marker, 2), 2, 2);
+        self::assertInstanceOf(SearchGroup::class, $second);
+        self::assertCount(1, $second->items);
+        $secondIds = $this->assertRenderedOnce($recorder, 1);
+        self::assertSame([], array_intersect($secondIds, [...$excluded, ...$firstIds]), 'prepareItems() must get only the rows of its page.');
+
+        $recorder->reset();
+        self::assertNull($provider->search($this->query($marker . 'h')));
+        self::assertNull($provider->search($this->query($marker . 'p1')));
+        self::assertSame([], $recorder->prepared, 'prepareItems() must not run when no row is shown.');
+        self::assertSame([], $recorder->rendered);
+    }
+
+    /**
+     * A resolved recent is rendered the same way: one prepareItems() call with that row; none for a dropped one.
+     */
+    public function testContractPrepareItemsRunsForResolvedRecents(): void
+    {
+        [$tenant] = $this->tenants();
+        $marker   = $this->marker();
+        $visible  = $this->seed($tenant, $marker . 'v');
+        $hidden   = $this->seedHidden($tenant, $marker . 'h');
+        $this->actAs($tenant, self::VIEWER_A);
+        $recorder = $this->recorder();
+        $provider = $this->recordingProvider($recorder);
+
+        self::assertNull($provider->resolve($this->reference($hidden), self::VIEWER_A, null));
+        self::assertSame([], $recorder->prepared, 'prepareItems() must not run for a dropped recent.');
+
+        $item = $provider->resolve($this->reference($visible), self::VIEWER_A, null);
+        if (!$this->supportsRecents()) {
+            self::assertNull($item);
+            self::assertSame([], $recorder->prepared, 'prepareItems() must not run for a dropped recent.');
+
+            return;
+        }
+        self::assertInstanceOf(SearchItem::class, $item);
+        self::assertSame([(string) $visible], $this->assertRenderedOnce($recorder, 1));
+    }
+
+    /**
+     * prepareItems() keeps the query budget: at most prepareItemsBudget() statements, none for the default no-op, and
+     * the whole search still within queryBudget().
+     */
+    public function testContractPrepareItemsKeepsTheQueryBudget(): void
+    {
+        [$tenant] = $this->tenants();
+        $marker   = $this->marker();
+        for ($row = 0; $row < 5; ++$row) {
+            $this->seed($tenant, $marker . 'b' . $row);
+        }
+        $this->actAs($tenant, self::VIEWER_A);
+        $recorder = $this->recorder();
+        $provider = $this->recordingProvider($recorder);
+
+        $counter = $this->queryCounter();
+        $counter->reset();
+        $group = $provider->search($this->query($marker, 5));
+        $count = $counter->count();
+
+        self::assertInstanceOf(SearchGroup::class, $group);
+        self::assertCount(5, $group->items);
+        self::assertCount(1, $recorder->prepared);
+        $prepareQueries = $recorder->prepared[0]['queries'];
+        $default        = (new ReflectionMethod($this->definition(), 'prepareItems'))->getDeclaringClass()->getName() === EntitySearchDefinition::class;
+        self::assertLessThanOrEqual($default ? 0 : $this->prepareItemsBudget(), $prepareQueries, 'Statements sent by prepareItems().');
+        self::assertLessThanOrEqual($this->queryBudget(), $count, "Queries of one search:\n" . implode("\n", $counter->queries()));
+    }
+
+    /**
+     * 1.10.0: one definition instance serves alternating viewers and changed rows exactly like a fresh instance per
+     * render, so no display data (prepareItems() or otherwise) is memoised on the instance. Without
+     * changeSeededText() the changed-row render is not checked (the kit cannot change a row generically).
+     */
+    public function testContractReusedDefinitionRendersLikeAFreshOne(): void
+    {
+        [$first, $second] = $this->tenants();
+        $marker           = $this->marker();
+        $row              = $this->seed($first, $marker . 'a');
+        $this->seed($second, $marker . 'b');
+        $this->seed($second, $marker . 'c');
+        $shared = $this->provider();
+        $render = function (int|string $tenant, string $viewer, string $why) use ($shared, $marker): void {
+            $this->actAs($tenant, $viewer);
+            $query = $this->query($marker, 10, null, $viewer);
+            self::assertEquals($this->provider()->search($query)?->items, $shared->search($query)?->items, 'A reused definition must render like a fresh one (' . $why . '): keep display data in the SearchItemContext, never in a property.');
+        };
+
+        $render($first, self::VIEWER_A, 'first viewer');
+        $render($second, self::VIEWER_B, 'second viewer');
+        $render($first, self::VIEWER_A, 'first viewer again');
+        if ($this->changeSeededText($row, $marker . 'a changed')) {
+            $render($first, self::VIEWER_A, 'changed row');
+        }
+    }
+
+    /**
+     * seedArchived(), with a hint when a 1.9-style test skips it instead of declaring hasArchivedState() false.
+     */
+    private function archivedRow(int|string $tenant, string $text): int|string
+    {
+        try {
+            return $this->seedArchived($tenant, $text);
+        } catch (SkippedTest $skipped) {
+            self::markTestSkipped($skipped->getMessage() . ' (seedArchived() skipped: if the records have no archived or deleted state, return false from hasArchivedState() so the other checks of this test run.)');
+        }
+    }
+
+    /**
+     * The definition under test, with its prepareItems() / toPreparedItem() calls recorded.
+     */
+    private function recorder(): RenderRecorder
+    {
+        return new RenderRecorder($this->definition(), $this->queryCounter());
+    }
+
+    private function recordingProvider(RenderRecorder $recorder, ?EventDispatcher $dispatcher = null): EntitySearchProvider
+    {
+        return new EntitySearchProvider($recorder, $dispatcher ?? new EventDispatcher());
+    }
+
+    /**
+     * One prepareItems() call with `$rows` rows, then one toPreparedItem() per row, in order, after it and with its
+     * context.
+     *
+     * @return list<string> The prepared ids
+     */
+    private function assertRenderedOnce(RenderRecorder $recorder, int $rows): array
+    {
+        self::assertCount(1, $recorder->prepared, 'prepareItems() must run exactly once per render.');
+        $prepared = $recorder->prepared[0];
+        self::assertCount($rows, $prepared['ids'], 'prepareItems() must get exactly the shown rows.');
+        self::assertSame($prepared['ids'], array_map(static fn (array $call): string => $call['id'], $recorder->rendered), 'toPreparedItem() must render exactly the prepared rows, in order.');
+        foreach ($recorder->rendered as $call) {
+            self::assertSame(1, $call['after'], 'prepareItems() must run before the rows are rendered.');
+            self::assertSame($prepared['context'], $call['context'], 'toPreparedItem() must get the context of prepareItems().');
+        }
+
+        return $prepared['ids'];
     }
 
     /**

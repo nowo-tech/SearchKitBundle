@@ -30,6 +30,9 @@ final class AuditContract extends EntitySearchProviderTestCase
     /** What the test declares (sensitiveTitles()). */
     public bool $sensitive = false;
 
+    /** A 1.9-style test: seedArchived() skips instead of declaring hasArchivedState() false. */
+    public bool $skipArchived = false;
+
     private ?Viewer $viewer = null;
 
     protected function definition(): EntitySearchDefinition
@@ -59,6 +62,10 @@ final class AuditContract extends EntitySearchProviderTestCase
 
     protected function seedArchived(int|string $tenant, string $text): int
     {
+        if ($this->skipArchived) {
+            self::markTestSkipped('No archived notes.');
+        }
+
         return NoteDatabase::get()->insert((string) $tenant, $text, true);
     }
 

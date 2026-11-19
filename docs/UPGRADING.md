@@ -30,6 +30,45 @@ This guide lists the changes integrators must apply when upgrading between versi
 
 ## Unreleased
 
+Target: **1.10.0** (minor, additive). From **1.9.x**:
+
+```bash
+composer update nowo-tech/search-kit-bundle
+```
+
+Nothing to change: 1.9 definitions and contract tests keep working as they are.
+
+New, optional:
+
+- **`prepareItems()` / `toPreparedItem()`** on `EntitySearchDefinition` — load display data (titles from a resolver,
+  names from another table) for the shown rows only, in one statement, instead of per row in `toItem()`. SearchKit calls
+  `prepareItems()` once per page with exactly the rows the provider returns (after the access check, the host event
+  and the page cut) and once per resolved recent; never when nothing is returned. With `access.filter_all_rows` the
+  engine's URL check runs afterwards and may still drop some of them. Store the data in the `SearchItemContext` you
+  get and read it back in `toPreparedItem()` — never in a property of the definition (FrankenPHP worker mode). Keep it
+  read-only. See [Write a provider](PROVIDERS.md#display-data-for-the-shown-rows-prepareitems).
+- **`toItem()` is no longer abstract.** A definition overrides `toItem()` (as in 1.9) or `toPreparedItem()`; with
+  neither, the search throws a `LogicException`. A definition that calls `parent::toItem()` (there was none to call)
+  is unaffected.
+- **Contract kit**:
+  - `hasArchivedState()` (default `true`): return `false` when the records have no archived or deleted state; the
+    archived checks are then skipped with a message and `seedArchived()` is never called. `seedArchived()` is no
+    longer abstract (its default fails the test). A 1.9 test whose `seedArchived()` calls `markTestSkipped()` still
+    works, but can now declare `hasArchivedState()` `false` instead, so the hidden-row checks of the mixed tests run.
+  - New `testContractNeverShowsArchivedRows`, `testContractPrepareItemsGetsOnlyTheShownRows`,
+    `testContractPrepareItemsRunsForResolvedRecents` and `testContractPrepareItemsKeepsTheQueryBudget`; new optional
+    hook `prepareItemsBudget()` (default 1 statement per `prepareItems()` call; the default no-op must send none).
+    `queryBudget()` counts the statements of `prepareItems()` too: raise it by one if your definition now loads its
+    display data there.
+  - New `testContractReusedDefinitionRendersLikeAFreshOne`: one definition instance must render like a fresh one
+    (alternating viewers). Implement the optional `changeSeededText($id, $text): bool` (update the row, return `true`)
+    so it also renders a row whose text changed between two renders.
+  - A `seedArchived()` that calls `markTestSkipped()` still skips its tests, with a hint to declare
+    `hasArchivedState()` `false` instead (making it fail would break 1.9 test suites in a minor release).
+- **`type:` filters**: a provider whose group key is known (every entity provider and every
+  `PaginatedSearchProviderInterface`) is no longer called when the viewer's `type:` filters exclude its group;
+  before, it ran and its group was dropped afterwards. Results are the same.
+
 ## To 1.9.0
 
 From **1.8.1**:
