@@ -32,10 +32,14 @@ Target: **1.10.0** (minor, additive).
 ### Added
 
 - **`EntitySearchDefinition::prepareItems(array $shownRows, SearchQuery $query, SearchItemContext $context)`**: a batch
-  hook (default: nothing) called once per search page with exactly the rows that will be shown — after
+  hook (default: nothing) called once per search page with exactly the rows the provider returns — after
   `filterVisible()`, after `SearchKitEvents::ITEM_VISIBILITY` and after the page cut — right before they are rendered,
-  and once per resolved recent with that row; never when no row is shown. Definitions load display data for the shown
-  ids only, in one statement, with no oracle and no N+1. It must be read-only (no flush, clear or transaction).
+  and once per resolved recent with that row; never when no row is returned. Definitions load display data for those
+  ids only, in one statement, with no oracle and no N+1. It must be read-only (no flush, clear or transaction). With
+  `access.filter_all_rows`, the engine's URL check runs afterwards and may still drop some of these rows.
+- **`SearchEngine`**: a provider whose group key is known (`PaginatedSearchProviderInterface`, every entity provider)
+  and excluded by the viewer's `type:` filters is no longer called at all, in the palette and on the results page;
+  before, it ran and rendered its rows and the group was dropped afterwards.
 - **`EntitySearchDefinition::toPreparedItem(array|object $row, SearchQuery $query, SearchItemContext $context)`**
   (default: `toItem()`) and the new **`Provider\Entity\SearchItemContext`** (`set()`, `get()`, `has()`): a new context
   per page and per resolved recent, passed to `prepareItems()` and then to `toPreparedItem()` for those rows and dropped
@@ -43,7 +47,10 @@ Target: **1.10.0** (minor, additive).
 - **Contract kit**: `hasArchivedState()` (default `true`; `false` skips the archived checks with a message and never
   calls `seedArchived()`), `prepareItemsBudget()` (default 1), and the tests `testContractNeverShowsArchivedRows`,
   `testContractPrepareItemsGetsOnlyTheShownRows`, `testContractPrepareItemsRunsForResolvedRecents` and
-  `testContractPrepareItemsKeepsTheQueryBudget`.
+  `testContractPrepareItemsKeepsTheQueryBudget`. `testContractReusedDefinitionRendersLikeAFreshOne`: one definition
+  instance must render alternating viewers (and, with the new optional `changeSeededText()`, a changed row) exactly
+  like a fresh instance, so display data memoised on the instance fails the kit. A `seedArchived()` that calls
+  `markTestSkipped()` still skips, now with a hint to declare `hasArchivedState()` `false`.
 
 ### Changed
 

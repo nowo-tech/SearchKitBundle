@@ -156,7 +156,7 @@ final readonly class SearchEngine implements SearchEngineInterface
         }
         if (!$actionsOnly) {
             foreach ($this->providers as $provider) {
-                if (!$this->switchedOn($provider) || !$this->runs($provider, $query, $request)) {
+                if (!$this->switchedOn($provider) || !$this->typeAllowsProvider($provider, $query) || !$this->runs($provider, $query, $request)) {
                     continue;
                 }
                 $group = $this->call($provider, static fn (): ?SearchGroup => $provider->search($query));
@@ -188,7 +188,7 @@ final readonly class SearchEngine implements SearchEngineInterface
         }
         $query = $prepared[0];
         foreach ($this->providers as $provider) {
-            if (!$provider instanceof PaginatedSearchProviderInterface || $provider->groupKey() !== $groupKey || !$this->switchedOn($provider) || !$this->runs($provider, $query, $request)) {
+            if (!$provider instanceof PaginatedSearchProviderInterface || $provider->groupKey() !== $groupKey || !$this->switchedOn($provider) || !$this->typeAllowsProvider($provider, $query) || !$this->runs($provider, $query, $request)) {
                 continue;
             }
             $group = $this->call($provider, static fn (): ?SearchGroup => $provider->searchPage($query, max(1, $page), $perPage));
@@ -288,6 +288,16 @@ final readonly class SearchEngine implements SearchEngineInterface
         return !$this->groups instanceof SearchGroupSettings
             || !$provider instanceof PaginatedSearchProviderInterface
             || $this->groups->isEnabled($provider->groupKey());
+    }
+
+    /**
+     * Whether a provider whose group key is known passes the `type:` filters before it is called (1.10.0): a group
+     * the viewer filtered out is never searched or rendered. finalise() still checks the key of every returned group.
+     */
+    private function typeAllowsProvider(SearchProviderInterface $provider, SearchQuery $query): bool
+    {
+        return !$provider instanceof PaginatedSearchProviderInterface
+            || $this->typeAllows($provider->groupKey(), $query->filtersOf(self::TYPE_FILTER));
     }
 
     /**

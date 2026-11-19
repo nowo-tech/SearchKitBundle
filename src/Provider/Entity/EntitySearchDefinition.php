@@ -210,12 +210,14 @@ abstract class EntitySearchDefinition
     }
 
     /**
-     * Batch hook before the rows are rendered (1.10.0): called **once** per search page with exactly the rows that
-     * will be shown — after filterVisible(), after the host's SearchKitEvents::ITEM_VISIBILITY event and after the
+     * Batch hook before the rows are rendered (1.10.0): called **once** per search page with exactly the rows the
+     * provider returns — after filterVisible(), after the host's SearchKitEvents::ITEM_VISIBILITY event and after the
      * page cut — and once per resolved recent with that one row, right before toPreparedItem() runs for them. Never
-     * called when no row is shown. Use it to load display data for the shown ids only (e.g. titles from a host
-     * resolver, in one query: no N+1, and nothing is ever loaded for a row the viewer may not see) and store it in
-     * `$context`, which SearchKit then passes to toPreparedItem().
+     * called when the provider returns no row, nor for a group the viewer's `type:` filter excludes. With
+     * `access.filter_all_rows`, SearchKit's engine checks every returned row's URL afterwards and may still drop some
+     * of them. Use it to load display data for those ids only (e.g. titles from a host resolver, in one query: no N+1,
+     * and nothing is loaded for a row the bundle's check or the host event hides) and store it in `$context`, which
+     * SearchKit then passes to toPreparedItem().
      *
      * Read-only: no persist, flush, clear or transaction, no write of any kind (REQ-RUNTIME-003). Keep what you load
      * in `$context`, never in a property of the definition: the context is new for each call and dropped afterwards,

@@ -15,6 +15,7 @@ use Nowo\SearchKitBundle\Provider\Entity\EntitySearchDefinition;
 use Nowo\SearchKitBundle\Provider\Entity\EntitySearchProvider;
 use Nowo\SearchKitBundle\Search\Group\SearchGroupSettings;
 use Nowo\SearchKitBundle\Test\Internal\RenderRecorder;
+use PHPUnit\Framework\SkippedTest;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
 use Symfony\Component\EventDispatcher\EventDispatcher;
@@ -41,7 +42,8 @@ use function random_bytes;
  * - the limit holds, the total is the visible total, and the results page is bounded;
  * - one search stays within the query budget (no N+1);
  * - prepareItems() runs once per render with exactly the shown rows, before they are rendered (1.10.0);
- * - one provider instance serves two viewers alternately with no state kept (FrankenPHP worker mode).
+ * - one provider instance serves two viewers alternately with no state kept, and one definition instance renders
+ *   exactly like a fresh one (FrankenPHP worker mode).
  *
  * Each test seeds rows under a fresh random marker, so the tests need no cleanup between them and never see each
  * other's rows. The seeded text must end up in one of searchableFields() of a row the viewer may see.
@@ -109,6 +111,21 @@ abstract class EntitySearchProviderTestCase extends TestCase
     protected function seedArchived(int|string $tenant, string $text): int|string
     {
         self::fail('Override seedArchived(), or return false from hasArchivedState() when the records have no archived or deleted state.');
+    }
+
+    /**
+     * Changes the searchable text of a seeded row (1.10.0, optional): the worker-safety check then also renders a row
+     * whose display data changed between two renders on one definition instance. Return false when the test cannot do
+     * it (default): the check still compares every render of the shared instance with a fresh one.
+     *
+     * @param int|string $id A row id returned by seed()
+     * @param string $text The new text (contains the old one, so the row still matches)
+     *
+     * @return bool Whether the text was changed
+     */
+    protected function changeSeededText(int|string $id, string $text): bool
+    {
+        return false;
     }
 
     /**
@@ -306,7 +323,7 @@ abstract class EntitySearchProviderTestCase extends TestCase
         $this->seed($tenant, $marker . 'v');
         $this->seedHidden($tenant, $marker . 'h');
         if ($this->hasArchivedState()) {
-            $this->seedArchived($tenant, $marker . 'a');
+            $this->archivedRow($tenant, $marker . 'a');
         }
         $this->actAs($tenant, self::VIEWER_A);
 
@@ -331,7 +348,7 @@ abstract class EntitySearchProviderTestCase extends TestCase
         [$tenant] = $this->tenants();
         $marker   = $this->marker();
         $this->seed($tenant, $marker . 'v');
-        $archived = $this->seedArchived($tenant, $marker . 'a');
+        $archived = $this->archivedRow($tenant, $marker . 'a');
         $this->actAs($tenant, self::VIEWER_A);
         $provider = $this->provider();
 
@@ -383,7 +400,7 @@ abstract class EntitySearchProviderTestCase extends TestCase
         $marker           = $this->marker();
         $visible          = $this->reference($this->seed($tenant, $marker . 'v'));
         $hidden           = $this->reference($this->seedHidden($tenant, $marker . 'h'));
-        $archived         = $this->hasArchivedState() ? $this->reference($this->seedArchived($tenant, $marker . 'a')) : null;
+        $archived         = $this->hasArchivedState() ? $this->reference($this->archivedRow($tenant, $marker . 'a')) : null;
         $foreign          = $this->reference($this->seed($other, $marker . 'o'));
         $this->actAs($tenant, self::VIEWER_A);
         $provider = $this->provider();
@@ -653,6 +670,45 @@ abstract class EntitySearchProviderTestCase extends TestCase
         $default        = (new ReflectionMethod($this->definition(), 'prepareItems'))->getDeclaringClass()->getName() === EntitySearchDefinition::class;
         self::assertLessThanOrEqual($default ? 0 : $this->prepareItemsBudget(), $prepareQueries, 'Statements sent by prepareItems().');
         self::assertLessThanOrEqual($this->queryBudget(), $count, "Queries of one search:\n" . implode("\n", $counter->queries()));
+    }
+
+    /**
+     * 1.10.0: one definition instance serves alternating viewers and changed rows exactly like a fresh instance per
+     * render, so no display data (prepareItems() or otherwise) is memoised on the instance. Without
+     * changeSeededText() the changed-row render is not checked (the kit cannot change a row generically).
+     */
+    public function testContractReusedDefinitionRendersLikeAFreshOne(): void
+    {
+        [$first, $second] = $this->tenants();
+        $marker           = $this->marker();
+        $row              = $this->seed($first, $marker . 'a');
+        $this->seed($second, $marker . 'b');
+        $this->seed($second, $marker . 'c');
+        $shared = $this->provider();
+        $render = function (int|string $tenant, string $viewer, string $why) use ($shared, $marker): void {
+            $this->actAs($tenant, $viewer);
+            $query = $this->query($marker, 10, null, $viewer);
+            self::assertEquals($this->provider()->search($query)?->items, $shared->search($query)?->items, 'A reused definition must render like a fresh one (' . $why . '): keep display data in the SearchItemContext, never in a property.');
+        };
+
+        $render($first, self::VIEWER_A, 'first viewer');
+        $render($second, self::VIEWER_B, 'second viewer');
+        $render($first, self::VIEWER_A, 'first viewer again');
+        if ($this->changeSeededText($row, $marker . 'a changed')) {
+            $render($first, self::VIEWER_A, 'changed row');
+        }
+    }
+
+    /**
+     * seedArchived(), with a hint when a 1.9-style test skips it instead of declaring hasArchivedState() false.
+     */
+    private function archivedRow(int|string $tenant, string $text): int|string
+    {
+        try {
+            return $this->seedArchived($tenant, $text);
+        } catch (SkippedTest $skipped) {
+            self::markTestSkipped($skipped->getMessage() . ' (seedArchived() skipped: if the records have no archived or deleted state, return false from hasArchivedState() so the other checks of this test run.)');
+        }
     }
 
     /**

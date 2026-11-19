@@ -23,11 +23,14 @@ final class PreparedNoteContractTest extends EntitySearchProviderTestCase
     /** Breaks the definition on purpose: one title query per shown row (N+1). */
     public bool $perRow = false;
 
+    /** Breaks the definition on purpose: titles memoised on the instance. */
+    public bool $memoise = false;
+
     private ?Viewer $viewer = null;
 
     protected function definition(): EntitySearchDefinition
     {
-        return new PreparedNoteDefinition(NoteDatabase::get()->connection, $this->viewer(), $this->perRow);
+        return new PreparedNoteDefinition(NoteDatabase::get()->connection, $this->viewer(), $this->perRow, $this->memoise);
     }
 
     /**
@@ -56,6 +59,13 @@ final class PreparedNoteContractTest extends EntitySearchProviderTestCase
     protected function seedHidden(int|string $tenant, string $text): int
     {
         return NoteDatabase::get()->insert((string) $tenant, $text, false, true);
+    }
+
+    protected function changeSeededText(int|string $id, string $text): bool
+    {
+        NoteDatabase::get()->connection->update(NoteDatabase::TABLE, ['title' => $text], ['id' => $id]);
+
+        return true;
     }
 
     protected function hasArchivedState(): bool

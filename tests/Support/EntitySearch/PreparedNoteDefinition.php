@@ -23,16 +23,21 @@ use function is_string;
 
 /**
  * 1.10.0: a DBAL definition of records with no archived state whose titles are not in the search query: prepareItems()
- * loads them for the shown ids in one statement and toPreparedItem() reads them from the context.
+ * loads them for the shown ids in one statement and toPreparedItem() reads them from the context. `$perRow` and
+ * `$memoise` break it on purpose (N+1, titles memoised on the instance) for the kit's own tests.
  */
 final class PreparedNoteDefinition extends EntitySearchDefinition
 {
     public const string TITLES = 'titles';
 
+    /** @var array<string, string>|null Broken on purpose with `$memoise`: titles kept on the instance */
+    private ?array $memo = null;
+
     public function __construct(
         private readonly Connection $connection,
         private readonly Viewer $viewer,
         private readonly bool $perRow = false,
+        private readonly bool $memoise = false,
     ) {
     }
 
@@ -81,6 +86,11 @@ final class PreparedNoteDefinition extends EntitySearchDefinition
      */
     public function prepareItems(array $shownRows, SearchQuery $query, SearchItemContext $context): void
     {
+        if ($this->memoise && $this->memo !== null) {
+            $context->set(self::TITLES, $this->memo);
+
+            return;
+        }
         $ids    = array_map(fn (array|object $row): int => (int) $this->subjectId($row), $shownRows);
         $titles = [];
         foreach ($this->perRow ? array_map(static fn (int $id): array => [$id], $ids) : [$ids] as $batch) {
@@ -98,6 +108,9 @@ final class PreparedNoteDefinition extends EntitySearchDefinition
             }
         }
         $context->set(self::TITLES, $titles);
+        if ($this->memoise) {
+            $this->memo = $titles;
+        }
     }
 
     public function toPreparedItem(array|object $row, SearchQuery $query, SearchItemContext $context): SearchItem

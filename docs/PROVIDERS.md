@@ -232,12 +232,15 @@ Since **1.10.0**. Some display data is not in the search query: a title that a h
 table. Loading it in `toItem()` costs one query per row (N+1), and loading it in `filterVisible()` loads it for rows the
 host event may still deny. `prepareItems()` runs at the right moment:
 
-- **once** per search page, with exactly the rows that will be shown — after `filterVisible()`, after the host's
+- **once** per search page, with exactly the rows the provider returns — after `filterVisible()`, after the host's
   `ITEM_VISIBILITY` event and after the page cut — right before they are rendered;
 - once per resolved recent (revalidation), with that one row;
-- **never** when no row is shown (the search is `null`).
+- **never** when the provider returns no row (the search is `null`), nor for a group the viewer's `type:` filter
+  excludes (SearchKit does not call that provider at all).
 
-So nothing is ever loaded for a row the viewer may not see, and one batched query serves the page. Store what you load
+So nothing is loaded for a row the bundle's check or the host event hides, and one batched query serves the page.
+With `access.filter_all_rows` (see [CONFIGURATION](CONFIGURATION.md)), SearchKit's engine then checks the URL of every
+returned row and may still drop some: data prepared for those rows is simply not shown. Store what you load
 in the `SearchItemContext` SearchKit passes, and read it back in `toPreparedItem()`:
 
 ```php
@@ -350,7 +353,9 @@ and database:
 - recents: a visible row resolves; a hidden, archived or other-tenant row, another URL or kind, no tenant and the
   feature off give `null`;
 - `sensitive()` matches what the test declares, and a sensitive group is off while recents keep titles;
-- a query budget, and worker safety (one provider instance, two viewers alternately);
+- a query budget, and worker safety: one provider instance, two viewers alternately, and (1.10.0) one definition
+  instance that must render every search — other viewers, and a changed row when `changeSeededText()` is implemented
+  — exactly like a fresh instance, so display data memoised on the instance fails the kit;
 - `prepareItems()` (1.10.0): called once per page with exactly the shown rows — never a hidden, host-denied or
   off-page row — before `toPreparedItem()` renders them with the same context; once for a resolved recent; never when
   nothing is shown; at most `prepareItemsBudget()` statements (none for the default no-op).
@@ -402,7 +407,7 @@ final class TaskSearchContractTest extends EntitySearchProviderTestCase
 | `seed($tenant, $text): int\|string` | One row of the tenant, visible to its viewers, whose searchable text contains `$text` (it may contain `%`, `_`, `!`, `\`); returns its id. |
 | `seedHidden($tenant, $text): int\|string` | One row of the tenant that your **per-row access check** hides from the viewers of `actAs()` (and the SQL does not filter). |
 | `seedArchived($tenant, $text): int\|string` | One archived or soft-deleted row of the tenant (filtered in SQL). Not needed when `hasArchivedState()` is `false`. |
-| `hasArchivedState()` | 1.10.0. Default `true`; return `false` when the records have no archived or deleted state: the archived checks are then skipped with a message and `seedArchived()` is never called. |
+| `hasArchivedState()` | 1.10.0. Default `true`; return `false` when the records have no archived or deleted state: the archived checks are then skipped with a message and `seedArchived()` is never called. A 1.9 test whose `seedArchived()` calls `markTestSkipped()` still skips (now with a hint to declare `hasArchivedState()` `false`). |
 | `reference($id): SearchReference` | The recent the browser stores for a row (URL, kind, route and parameters). |
 | `supportsRecents()` | Default `true`; `false` when the definition has no `idField()` / `referenceId()` (every reference must then give `null`). |
 | `sensitiveTitles()` | Default `false`; must equal the definition's `sensitive()`. |
@@ -410,6 +415,7 @@ final class TaskSearchContractTest extends EntitySearchProviderTestCase
 | `disableFeature()` | Turns the feature (or `view`) off for the current viewer. |
 | `queryBudget()` | Most statements per search (default 2), `prepareItems()` included. |
 | `prepareItemsBudget()` | 1.10.0. Most statements of one `prepareItems()` call (default 1). |
+| `changeSeededText($id, $text): bool` | 1.10.0, optional. Changes a seeded row's searchable text (the new text contains the old one) and returns `true`; the worker-safety check then also renders a changed row on the reused definition. Default `false`: that step is skipped, since the kit cannot change a row on its own. |
 
 Each test seeds rows under a fresh random marker, so the tests need no cleanup and never see each other's rows. Add
 your own tests next to the kit's (archived rows, your access event, scopes).

@@ -115,6 +115,45 @@ final class EngineTest extends TestCase
         self::assertSame(['is:open'], array_map(static fn ($f): string => $f->toToken(), $result->filters));
     }
 
+    /**
+     * 1.10.0 (audit VK-1): a provider whose group key the `type:` filters exclude is never called, in the palette or
+     * on the results page.
+     */
+    public function testTypeFilteredOutProvidersAreNeverCalled(): void
+    {
+        $tasks = new class implements PaginatedSearchProviderInterface {
+            public int $calls = 0;
+
+            public function groupKey(): string
+            {
+                return 'tasks';
+            }
+
+            public function search(SearchQuery $query): SearchGroup
+            {
+                ++$this->calls;
+
+                return new SearchGroup('tasks', 'Tasks', [new SearchItem('Bug task', '/tasks/1')]);
+            }
+
+            public function searchPage(SearchQuery $query, int $page, int $perPage): SearchGroup
+            {
+                return $this->search($query);
+            }
+        };
+        $engine = new SearchEngine([$tasks], 2, 5, null, [], new SearchFilterParser(['type']));
+        $user   = new InMemoryUser('alice', null, ['ROLE_USER']);
+
+        self::assertSame([], $engine->execute(new SearchRequest('bug type:other', $user))->groups);
+        self::assertSame([], $engine->execute(new SearchRequest('bug -type:tasks', $user))->groups);
+        self::assertNull($engine->page(new SearchRequest('bug type:other', $user), 'tasks', 1, 10));
+        self::assertSame(0, $tasks->calls, 'A provider the type: filters exclude must never run.');
+
+        self::assertSame(['tasks'], $this->keys($engine->execute(new SearchRequest('bug type:tasks', $user))->groups));
+        self::assertInstanceOf(SearchGroup::class, $engine->page(new SearchRequest('bug', $user), 'tasks', 1, 10));
+        self::assertSame(2, $tasks->calls);
+    }
+
     public function testTotalsMergeRankingAndTheRowAccessFilter(): void
     {
         $now     = new DateTimeImmutable();

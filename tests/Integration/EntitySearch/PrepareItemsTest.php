@@ -215,6 +215,33 @@ final class PrepareItemsTest extends TestCase
         (new PreparedNoteContractTest('testContractNeverShowsArchivedRows'))->testContractNeverShowsArchivedRows();
     }
 
+    public function testTheKitFailsADefinitionThatMemoisesDisplayData(): void
+    {
+        $case          = new PreparedNoteContractTest('testContractReusedDefinitionRendersLikeAFreshOne');
+        $case->memoise = true;
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage('A reused definition must render like a fresh one');
+        $case->testContractReusedDefinitionRendersLikeAFreshOne();
+    }
+
+    public function testTheKitChecksAChangedRowOnAReusedDefinition(): void
+    {
+        (new PreparedNoteContractTest('testContractReusedDefinitionRendersLikeAFreshOne'))->testContractReusedDefinitionRendersLikeAFreshOne();
+        (new AuditContract('testContractReusedDefinitionRendersLikeAFreshOne'))->testContractReusedDefinitionRendersLikeAFreshOne();
+        $this->addToAssertionCount(1);
+    }
+
+    public function testASkippingSeedArchivedStillSkipsWithAHint(): void
+    {
+        $case               = new AuditContract('testContractNeverShowsArchivedRows');
+        $case->skipArchived = true;
+
+        $this->expectException(SkippedWithMessageException::class);
+        $this->expectExceptionMessage('No archived notes. (seedArchived() skipped: if the records have no archived or deleted state, return false from hasArchivedState()');
+        $case->testContractNeverShowsArchivedRows();
+    }
+
     private function recorder(EntitySearchDefinition $definition): RenderRecorder
     {
         return new RenderRecorder($definition, $this->db->counter);
