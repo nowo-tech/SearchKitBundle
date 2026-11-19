@@ -346,6 +346,14 @@ public function candidateQuery(int|string $tenant, SearchQuery $query, SearchCan
 - **Keep `baseQuery()` consistent.** It stays abstract, and SearchKit no longer calls it directly once you override
   `candidateQuery()`; build both on one private method.
 - **Same rules as `baseQuery()`**: a new builder each call, no limit, no parameter named `nowo_search_*`.
+- **Recents.** `resolve()` also calls `candidateQuery()`, with a query whose text is empty. A bound that depends on
+  the text (e.g. it counts only the boards that match) therefore treats a recent as unbounded; a bound that leaves the
+  recent's row out of the query drops the recent (`null`). Both fail closed: no row the bound did not scan is ever
+  shown, and the partial flag has no effect on a single recent.
+- **Decorators must forward both hooks.** Any class that wraps another definition — a host decorator (logging,
+  caching, extra access rules), not only a test helper — must forward `candidateQuery()` and `filterCandidates()` to
+  the inner definition. One that forwards only `baseQuery()` / `filterVisible()` inherits the defaults, which call
+  its own `baseQuery()`: the inner definition's bound is skipped and the total is wrongly reported exact.
 - **Contract kit**: implement `seedBeyondTheBound()` (see below) so the kit checks the inexact total, that no other
   tenant's row shows up, and that the flag does not leak into the next search.
 

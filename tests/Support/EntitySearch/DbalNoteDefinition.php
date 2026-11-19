@@ -73,9 +73,27 @@ final class DbalNoteDefinition extends EntitySearchDefinition
         return ['n.title', 'n.body'];
     }
 
+    /**
+     * The rows of the tenant, bounded like candidateQuery() (one private builder: baseQuery() stays consistent with
+     * it; the flag of a hit bound has nowhere to go here and is dropped).
+     */
     public function baseQuery(int|string $tenant, SearchQuery $query): DbalQueryBuilder
     {
-        return $this->connection->createQueryBuilder()
+        return $this->notes($tenant, $query, new SearchCandidateContext());
+    }
+
+    public function candidateQuery(int|string $tenant, SearchQuery $query, SearchCandidateContext $context): DbalQueryBuilder
+    {
+        return $this->notes($tenant, $query, $context);
+    }
+
+    /**
+     * The one builder of baseQuery() and candidateQuery(): tenant and archived rows in SQL, then the owner bound
+     * (marks `$context` partial when more owners match than it scans).
+     */
+    private function notes(int|string $tenant, SearchQuery $query, SearchCandidateContext $context): DbalQueryBuilder
+    {
+        $queryBuilder = $this->connection->createQueryBuilder()
             ->select('n.id', 'n.title', 'n.hidden')
             ->from(NoteDatabase::TABLE, 'n')
             ->where('n.tenant = :tenant')
@@ -83,12 +101,7 @@ final class DbalNoteDefinition extends EntitySearchDefinition
             ->setParameter('tenant', (string) $tenant)
             ->setParameter('archived', false, ParameterType::BOOLEAN)
             ->orderBy('n.id', 'ASC');
-    }
-
-    public function candidateQuery(int|string $tenant, SearchQuery $query, SearchCandidateContext $context): DbalQueryBuilder
-    {
-        $queryBuilder = $this->baseQuery($tenant, $query);
-        $words        = SearchWords::words($query->text);
+        $words = SearchWords::words($query->text);
         if ($this->ownerBound === null || $words === []) {
             return $queryBuilder;
         }

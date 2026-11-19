@@ -48,8 +48,13 @@ Nothing to change in definitions. What is new:
   Keep the flag in the context, never in a property (see
   [Bounded candidates](PROVIDERS.md#bounded-candidates-a-partial-total)).
 - **Contract kit**: a new test, `testContractBoundedCandidatesGiveAnInexactTotal`, skipped unless you implement the
-  optional hook `seedBeyondTheBound()`. A test class that wraps the definition in its own decorator should forward
-  `candidateQuery()` and `filterCandidates()` too.
+  optional hook `seedBeyondTheBound()`.
+- **Decorators must forward the new hooks.** Any class that wraps another `EntitySearchDefinition` — a host
+  decorator (logging, caching, extra access rules) as much as a test helper — must forward `candidateQuery()` and
+  `filterCandidates()` to the inner definition, as it forwards the other hooks. A decorator that forwards only
+  `baseQuery()` / `filterVisible()` inherits the defaults, which call the decorator's `baseQuery()`, so the inner
+  definition's `candidateQuery()` never runs: its bound is skipped and the total is wrongly reported exact. The kit's
+  `RenderRecorder` forwards both.
 - **DBAL 3**: the kit's `QueryCountingMiddleware` now works on DBAL 3.8+ as well as DBAL 4, so a DBAL 3 host can run
   the contract kit (it was a PHP fatal error in 1.9.0–1.10.1). If you worked around it with your own counting
   middleware, you can switch back. The `doctrine/dbal` suggestion is `^3.8 || ^4.2`.

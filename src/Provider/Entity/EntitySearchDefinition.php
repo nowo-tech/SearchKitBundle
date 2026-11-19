@@ -119,7 +119,11 @@ abstract class EntitySearchDefinition
      * when the bound is hit: the total is then reported as inexact ("N+") instead of claiming an exact count of a
      * partial scan. SearchKit calls it once per search page and once per resolved recent (with a new context each
      * time), and never baseQuery() directly, so keep baseQuery() consistent with it (e.g. both build on one private
-     * method). Keep the flag in `$context`, never in a property: the definition is a shared service.
+     * method). Keep the flag in `$context`, never in a property: the definition is a shared service. A recent is
+     * resolved with an empty query text: a text-dependent bound then does not apply, a bound that leaves the row out
+     * drops the recent (both fail closed). A decorator of another definition must forward this hook and
+     * filterCandidates(): the defaults call the decorator's own baseQuery() / filterVisible(), skipping the inner
+     * definition's bound.
      *
      * @param int|string $tenant The tenant
      * @param SearchQuery $query The search

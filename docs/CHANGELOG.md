@@ -41,7 +41,9 @@ Target: **1.11.0** (minor, additive).
   `baseQuery()` / `filterVisible()`. When the definition calls `$context->markPartial()`, the group's `exactTotal` is
   false, on the palette and the results page, and SearchKit shows the capped "N+" count. The context is new for each
   search page and each resolved recent and is never kept, so the flag cannot reach another search in FrankenPHP
-  worker mode. 1.9 and 1.10 definitions are unchanged: by default nothing is partial.
+  worker mode. 1.9 and 1.10 definitions are unchanged: by default nothing is partial. Any decorator of another
+  definition (host or test code) must forward the two new hooks, or the inner definition's bound is skipped and the
+  total is wrongly exact (UPGRADING). Recents are resolved through `candidateQuery()` with an empty query text.
 - **Contract kit**: `testContractBoundedCandidatesGiveAnInexactTotal` and the optional hook `seedBeyondTheBound()`
   (default `false`, the test is then skipped). With the hook, the kit asserts an inexact total for a search that hits
   the definition's bound, no other tenant's row, and an exact total for the next search on the same provider
