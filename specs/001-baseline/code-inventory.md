@@ -1,8 +1,8 @@
 # Search Kit Bundle — baseline code inventory
 
 **Package**: `nowo-tech/search-kit-bundle`  
-**Last audited**: 2026-11-17 (spec 240, 1.8.0)  
-**Production units**: **90/90**  
+**Last audited**: 2026-11-20 (v1.11.2)  
+**Production units**: **111/111**  
 **Audit command**: `find src -type f \( -name '*.php' -o -name '*.twig' -o -name '*.yaml' -o -name '*.ts' -o -name '*.css' \) -not -path 'src/Resources/assets/tests/*' | wc -l`
 
 ## Scope notes
@@ -15,15 +15,16 @@
 
 | Category | Mapped |
 | --- | ---: |
-| Bundle, configuration & DI | 7 |
-| Contracts & model | 30 |
-| Engine & providers | 18 |
+| Bundle, configuration & DI | 8 |
+| Contracts & model | 33 |
+| Engine & providers | 29 |
 | HTTP | 5 |
 | Twig, markup & theme | 8 |
 | Stylesheets | 3 |
 | Browser (TypeScript) | 12 |
+| Test kit (1.9.0) | 6 |
 | Translations | 7 |
-| **Total** | **90** |
+| **Total** | **111** |
 
 
 ## Bundle, configuration & DI
@@ -37,6 +38,7 @@
 | `src/Resources/config/routes.php` | US-01 | FR-ROUTE-001 |
 | `src/Resources/config/services.php` | US-01, US-02 | FR-DI-001 |
 | `src/Resources/synonyms/concepts.php` | US-240-04 | FR-240-SYN-001 |
+| `src/DependencyInjection/Compiler/EntitySearchPass.php` | US-02 | FR-DI-001, FR-SPI-001 |
 
 ## Contracts & model
 
@@ -72,6 +74,9 @@
 | `src/Model/SearchFilterValue.php` | US-240-03 | FR-240-FILTER-002 |
 | `src/Model/SearchTerm.php` | US-240-04 | FR-240-SYN-001 |
 | `src/Model/SearchReference.php` | US-240-07 | FR-240-RECENT-001 |
+| `src/Event/SearchItemVisibilityEvent.php` | US-02, US-240-01 | FR-240-ACCESS-001, FR-SPI-001 |
+| `src/Event/SearchKitEvents.php` | US-02, US-240-01 | FR-240-ACCESS-001, FR-SPI-001 |
+| `src/Model/SearchSubject.php` | US-02 | FR-MODEL-001, FR-SPI-001 |
 
 ## Engine & providers
 
@@ -95,6 +100,17 @@
 | `src/Search/Synonym/ConceptGroupSynonymProvider.php` | US-240-04 | FR-240-SYN-001 |
 | `src/Search/Ranking/SearchRanker.php` | US-240-05 | FR-240-RANK-001 |
 | `src/Search/Recent/RecentResolver.php` | US-240-07 | FR-240-RECENT-001 |
+| `src/Provider/Entity/EntitySearchDefinition.php` | US-02 | FR-SPI-001, FR-ENGINE-001 |
+| `src/Provider/Entity/EntitySearchProvider.php` | US-02 | FR-SPI-001, FR-ENGINE-001, FR-240-ACCESS-001 |
+| `src/Provider/Entity/SearchCandidateContext.php` | US-02 | FR-SPI-001, FR-240-COST-001 |
+| `src/Provider/Entity/SearchItemContext.php` | US-02 | FR-SPI-001, FR-240-COST-001 |
+| `src/Search/Group/SearchGroupSettings.php` | US-02, US-08 | FR-CFG-001, FR-ENGINE-001 |
+| `src/Search/Group/SensitiveGroupNotice.php` | US-02, US-08 | FR-CFG-001, FR-240-ACCESS-001 |
+| `src/Search/Query/LikePattern.php` | US-02 | FR-ENGINE-001, FR-240-LEAK-001 |
+| `src/Search/Query/ScopeParser.php` | US-04 | FR-SPI-002, FR-240-LEAK-001 |
+| `src/Search/Query/SearchWindow.php` | US-02 | FR-ENGINE-001, FR-240-COST-001 |
+| `src/Search/Query/SearchWords.php` | US-02 | FR-ENGINE-001, FR-240-MATCH-001 |
+| `src/Search/Query/SeeAllLink.php` | US-02 | FR-SPI-001, FR-PAGES-001 |
 
 ## HTTP
 
@@ -143,6 +159,17 @@
 | `src/Resources/assets/src/min-length.ts` | US-02, US-08 | FR-TS-007 |
 | `src/Resources/assets/src/motion.ts` | US-03, US-07 | FR-TS-008 |
 | `src/Resources/assets/src/filters.ts` | US-240-03 | FR-240-TS-001 |
+
+## Test kit (1.9.0)
+
+| Source path | Spec section | Requirement ID(s) |
+| --- | --- | --- |
+| `src/Test/EntitySearchProviderTestCase.php` | US-02 | FR-SPI-001 |
+| `src/Test/Internal/CountingConnection.php` | US-02 | FR-SPI-001 |
+| `src/Test/Internal/CountingDriver.php` | US-02 | FR-SPI-001 |
+| `src/Test/Internal/RenderRecorder.php` | US-02 | FR-SPI-001 |
+| `src/Test/QueryCounter.php` | US-02 | FR-SPI-001 |
+| `src/Test/QueryCountingMiddleware.php` | US-02 | FR-SPI-001 |
 
 ## Translations
 
