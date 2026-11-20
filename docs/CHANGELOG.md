@@ -32,6 +32,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- The results list of the dropdown uses the UiKit thin scrollbar look: size, thumb, thumb hover and track come from the
+  `--nowo-ui-scrollbar-*` tokens, with a fallback from the field's own text colour (and `scrollbar-width: thin` where
+  `::-webkit-scrollbar` is unsupported) when UiKit is absent. Previously the bar used the border colour and its own geometry.
+
 ## [1.11.2] - 2026-11-20
 
 Target: **1.11.2** (patch).
