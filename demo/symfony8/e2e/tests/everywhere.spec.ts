@@ -10,7 +10,7 @@ async function signIn(page: Page, username: string): Promise<void> {
   await page.getByLabel('Username').fill(username);
   await page.getByLabel('Password').fill('password');
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByTestId('demo-masthead')).toContainText(username);
+  await expect(page.getByTestId('demo-platform')).toContainText(username);
   await page.evaluate(() => document.querySelectorAll('.sf-toolbar, .sf-minitoolbar').forEach((el) => el.remove()));
 }
 
