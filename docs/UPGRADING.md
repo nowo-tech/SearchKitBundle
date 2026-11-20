@@ -34,6 +34,10 @@ This guide lists the changes integrators must apply when upgrading between versi
 
 ## Unreleased
 
+Target: **1.11.2** (patch). Nothing to change. Kit checks that do not apply to your definition (no bound, no archived
+state, a 1-row window) now pass instead of being skipped, so the kit runs under `--fail-on-skipped`. An
+`--exclude-filter` added for `testContractBoundedCandidatesGiveAnInexactTotal` can be removed.
+
 ## To 1.11.1
 
 From **1.11.0**:

@@ -18,7 +18,6 @@ use Nowo\SearchKitBundle\Tests\Support\EntitySearch\Viewer;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
-use PHPUnit\Framework\SkippedWithMessageException;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Symfony\Component\EventDispatcher\EventDispatcher;
@@ -223,8 +222,12 @@ final class AuditRegressionTest extends TestCase
             $this->contract('testContractHiddenRowsBeyondTheWindowChangeNothing', $switches)->testContractHiddenRowsBeyondTheWindowChangeNothing();
         }
 
-        $this->expectException(SkippedWithMessageException::class);
-        $this->contract('testContractHiddenRowsBeyondTheWindowChangeNothing', ['candidates' => 1])->testContractHiddenRowsBeyondTheWindowChangeNothing();
+        // 1.11.2: a 1-row window cannot hold the check: it passes (one assertion, not risky) instead of skipping.
+        $case = $this->contract('testContractHiddenRowsBeyondTheWindowChangeNothing', ['candidates' => 1]);
+        $case->testContractHiddenRowsBeyondTheWindowChangeNothing();
+        self::assertSame(1, $case->numberOfAssertionsPerformed());
+        // A window above 500 is checked as a 500-row window.
+        $this->contract('testContractHiddenRowsBeyondTheWindowChangeNothing', ['candidates' => 1000])->testContractHiddenRowsBeyondTheWindowChangeNothing();
     }
 
     /**

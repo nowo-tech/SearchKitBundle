@@ -232,6 +232,13 @@ jobs:
           SYMFONY_DEPRECATIONS_HELPER: max[direct]=0
         run: vendor/bin/phpunit --group database --no-coverage
 
+      # 1.11.2: the kit with its optional hooks at their defaults must skip nothing (hosts run it with --fail-on-skipped).
+      - name: Run the kit with default hooks (--fail-on-skipped)
+        env:
+          SEARCH_KIT_TEST_DATABASE_URL: ${{ matrix.database.url }}
+          SYMFONY_DEPRECATIONS_HELPER: max[direct]=0
+        run: vendor/bin/phpunit --group kit-defaults --no-coverage --fail-on-skipped --fail-on-risky
+
   static-analysis:
     name: Static analysis (PHPStan, Rector, Igor)
     runs-on: ubuntu-latest

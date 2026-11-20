@@ -26,6 +26,7 @@ use function array_values;
 use function bin2hex;
 use function count;
 use function implode;
+use function min;
 use function random_bytes;
 
 /**
@@ -139,7 +140,7 @@ abstract class EntitySearchProviderTestCase extends TestCase
      * The kit only calls it with the first tenant of tenants(); a search for a fresh row in the second tenant must not
      * hit the bound. Make the bound reachable only by what this hook seeds (e.g. count only the boards that match the
      * text), or reset the database between tests, so that the other contract tests still see exact totals. Return
-     * false (default) when the definition has no bound: the check is skipped.
+     * false (default) when the definition has no bound: the check does not apply and passes (1.11.2; never skipped).
      *
      * @param int|string $tenant The first tenant
      * @param string $text Text to put in a searchable field of the rows
@@ -168,7 +169,7 @@ abstract class EntitySearchProviderTestCase extends TestCase
 
     /**
      * Whether the records have an archived or soft-deleted state that baseQuery() filters out (1.10.0). False: the
-     * archived checks are skipped and seedArchived() is never called. Default: true.
+     * archived checks do not apply (they pass, 1.11.2; never skipped) and seedArchived() is never called. Default: true.
      */
     protected function hasArchivedState(): bool
     {
@@ -376,12 +377,15 @@ abstract class EntitySearchProviderTestCase extends TestCase
     }
 
     /**
-     * Archived rows are filtered in SQL: never shown, counted or resolved (skipped without an archived state).
+     * Archived rows are filtered in SQL: never shown, counted or resolved. Without an archived state
+     * (hasArchivedState() false) the check does not apply and passes (1.11.2: it used to be skipped).
      */
     public function testContractNeverShowsArchivedRows(): void
     {
         if (!$this->hasArchivedState()) {
-            self::markTestSkipped('The definition declares no archived or deleted state (hasArchivedState() is false).');
+            $this->notApplicable();
+
+            return;
         }
         [$tenant] = $this->tenants();
         $marker   = $this->marker();
@@ -405,18 +409,24 @@ abstract class EntitySearchProviderTestCase extends TestCase
      * it holds) and at least one visible row lands in it whatever the definition's order — newest or oldest first,
      * or equal timestamps with a random id tiebreak. With `maxCandidates()` hidden rows (1.9.0–1.11.0) an order
      * unrelated to the insertion order could push both visible rows out and fail the test by chance.
+     *
+     * 1.11.2: a window above 500 is checked as a 500-row window, and a 1-row window (where the check cannot apply)
+     * passes; both used to be skipped.
      */
     public function testContractHiddenRowsBeyondTheWindowChangeNothing(): void
     {
-        $candidates = $this->definition()->maxCandidates();
-        if ($candidates < 2 || $candidates > 500) {
-            self::markTestSkipped('maxCandidates() must be 2 to 500 for this check.');
+        $candidates = min(500, $this->definition()->maxCandidates());
+        if ($candidates < 2) {
+            $this->notApplicable();
+
+            return;
         }
+        $provider = new EntitySearchProvider(new RenderRecorder($this->definition(), $this->queryCounter(), $candidates), new EventDispatcher());
         [$tenant] = $this->tenants();
         $this->actAs($tenant, self::VIEWER_A);
         $plain = $this->marker();
         $this->seed($tenant, $plain . 'v');
-        $reference = $this->provider()->search($this->query($plain));
+        $reference = $provider->search($this->query($plain));
         self::assertInstanceOf(SearchGroup::class, $reference);
 
         $marker = $this->marker();
@@ -425,7 +435,7 @@ abstract class EntitySearchProviderTestCase extends TestCase
             $this->seedHidden($tenant, $marker . 'h' . $row);
         }
         $this->seed($tenant, $marker . 'last');
-        $group = $this->provider()->search($this->query($marker));
+        $group = $provider->search($this->query($marker));
 
         self::assertInstanceOf(SearchGroup::class, $group, 'A visible row must still be found.');
         self::assertSame(count($group->items), $group->total, 'Only visible rows are counted.');
@@ -619,15 +629,18 @@ abstract class EntitySearchProviderTestCase extends TestCase
     /**
      * 1.11.0: a definition that bounds its own candidates (SearchCandidateContext::markPartial()) reports an inexact
      * total, in the palette and on the results page, still shows no other tenant's row, and the flag belongs to that
-     * one search: the next search on the same provider instance is exact again. Skipped unless seedBeyondTheBound()
-     * seeds the rows.
+     * one search: the next search on the same provider instance is exact again. Without seedBeyondTheBound() (it
+     * returns false: the definition has no bound) the check does not apply and passes (1.11.2: it used to be skipped,
+     * which failed hosts running the kit with `--fail-on-skipped`).
      */
     public function testContractBoundedCandidatesGiveAnInexactTotal(): void
     {
         [$tenant, $other] = $this->tenants();
         $marker           = $this->marker();
         if (!$this->seedBeyondTheBound($tenant, $marker)) {
-            self::markTestSkipped('The definition does not bound its candidates (seedBeyondTheBound() returns false).');
+            $this->notApplicable();
+
+            return;
         }
         $foreign = $this->reference($this->seed($other, $marker . 'other'))->url;
         $this->actAs($tenant, self::VIEWER_A);
@@ -826,6 +839,15 @@ abstract class EntitySearchProviderTestCase extends TestCase
         if ($this->changeSeededText($row, $marker . 'a changed')) {
             $render($first, self::VIEWER_A, 'changed row');
         }
+    }
+
+    /**
+     * A check that does not apply to this definition (an optional hook at its default): it passes, with one assertion
+     * recorded so PHPUnit does not flag it as risky. Never a skip, so hosts can run the kit with `--fail-on-skipped`.
+     */
+    private function notApplicable(): void
+    {
+        $this->addToAssertionCount(1);
     }
 
     /**
