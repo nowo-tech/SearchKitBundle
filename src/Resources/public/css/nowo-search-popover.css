@@ -68,17 +68,38 @@
   padding: 0.35rem;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: var(--nowo-search-border) transparent;
+}
+
+/* The UiKit thin scrollbar look: size, thumb, thumb-hover and track come from the --nowo-ui-scrollbar-* tokens (set them
+   on :root to restyle every scroller at once); the fallbacks keep the bar thin and quiet when UiKit is absent. Engines
+   without ::-webkit-scrollbar take the standard properties. */
+@supports not selector(::-webkit-scrollbar) {
+  .nowo-search__results {
+    scrollbar-width: thin;
+    scrollbar-color: var(--nowo-ui-scrollbar-thumb, color-mix(in srgb, var(--nowo-search-fg) 28%, transparent)) var(--nowo-ui-scrollbar-track, transparent);
+  }
 }
 
 .nowo-search__results::-webkit-scrollbar {
-  width: 6px;
+  width: var(--nowo-ui-scrollbar-size, 6px);
+  height: var(--nowo-ui-scrollbar-size, 6px);
+}
+
+.nowo-search__results::-webkit-scrollbar-track {
+  background: var(--nowo-ui-scrollbar-track, transparent);
 }
 
 .nowo-search__results::-webkit-scrollbar-thumb {
-  border-radius: 3px;
-  background: var(--nowo-search-border);
+  border-radius: 999px;
+  background: var(--nowo-ui-scrollbar-thumb, color-mix(in srgb, var(--nowo-search-fg) 28%, transparent));
+}
+
+.nowo-search__results::-webkit-scrollbar-thumb:hover {
+  background: var(--nowo-ui-scrollbar-thumb-hover, color-mix(in srgb, var(--nowo-search-fg) 45%, transparent));
+}
+
+.nowo-search__results::-webkit-scrollbar-button {
+  display: none;
 }
 
 .nowo-search__group + .nowo-search__group {
