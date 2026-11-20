@@ -493,7 +493,7 @@ final class TaskSearchContractTest extends EntitySearchProviderTestCase
 | `seed($tenant, $text): int\|string` | One row of the tenant, visible to its viewers, whose searchable text contains `$text` (it may contain `%`, `_`, `!`, `\`); returns its id. |
 | `seedHidden($tenant, $text): int\|string` | One row of the tenant that your **per-row access check** hides from the viewers of `actAs()` (and the SQL does not filter). |
 | `seedArchived($tenant, $text): int\|string` | One archived or soft-deleted row of the tenant (filtered in SQL). Not needed when `hasArchivedState()` is `false`. |
-| `hasArchivedState()` | 1.10.0. Default `true`; return `false` when the records have no archived or deleted state: the archived checks are then skipped with a message and `seedArchived()` is never called. A 1.9 test whose `seedArchived()` calls `markTestSkipped()` still skips (now with a hint to declare `hasArchivedState()` `false`). |
+| `hasArchivedState()` | 1.10.0. Default `true`; return `false` when the records have no archived or deleted state: the archived checks then pass as not applicable (1.11.2; they were skipped before) and `seedArchived()` is never called. A 1.9 test whose own `seedArchived()` calls `markTestSkipped()` still skips (with a hint to declare `hasArchivedState()` `false`). |
 | `reference($id): SearchReference` | The recent the browser stores for a row (URL, kind, route and parameters). |
 | `supportsRecents()` | Default `true`; `false` when the definition has no `idField()` / `referenceId()` (every reference must then give `null`). |
 | `sensitiveTitles()` | Default `false`; must equal the definition's `sensitive()`. |
@@ -502,8 +502,12 @@ final class TaskSearchContractTest extends EntitySearchProviderTestCase
 | `queryBudget()` | Most statements per search (default 2), `prepareItems()` included. |
 | `prepareItemsBudget()` | 1.10.0. Most statements of one `prepareItems()` call (default 1). |
 | `hiddenRowsFilteredInSql()` | 1.10.1. Default: the definition's `sensitive()`. Return `true` when `baseQuery()` itself filters out every row `seedHidden()` creates; the kit then asserts that hidden rows change nothing at all (rows, total, exactness). A sensitive group must filter in SQL; it may override the hook to `false` only when PHP or a host event alone can decide the visibility, and then documents that it accepts the side channel. |
-| `seedBeyondTheBound($tenant, $text): bool` | 1.11.0, optional. Seeds rows of the first tenant so that a search for `$text` hits your definition's own bound (it calls `markPartial()`) and still shows at least one row; returns `true`. The kit then asserts an inexact total on the palette and the results page, no other tenant's row, and an exact total for the next search, in the second tenant, on the same provider instance. Make the bound reachable only by what the hook seeds (e.g. count only the boards that match the text), or reset the database between tests, so the other contract tests still see exact totals. Default `false`: the check is skipped. |
+| `seedBeyondTheBound($tenant, $text): bool` | 1.11.0, optional. Seeds rows of the first tenant so that a search for `$text` hits your definition's own bound (it calls `markPartial()`) and still shows at least one row; returns `true`. The kit then asserts an inexact total on the palette and the results page, no other tenant's row, and an exact total for the next search, in the second tenant, on the same provider instance. Make the bound reachable only by what the hook seeds (e.g. count only the boards that match the text), or reset the database between tests, so the other contract tests still see exact totals. Default `false`: the check passes as not applicable (1.11.2; it was skipped in 1.11.0–1.11.1). |
 | `changeSeededText($id, $text): bool` | 1.10.0, optional. Changes a seeded row's searchable text (the new text contains the old one) and returns `true`; the worker-safety check then also renders a changed row on the reused definition. Default `false`: that step is skipped, since the kit cannot change a row on its own. |
+
+**No kit test skips because an optional hook keeps its default** (1.11.2): a check that does not apply passes, with
+one assertion recorded so it is not risky. Hosts can run the kit with `--fail-on-skipped` and `--fail-on-risky`. A
+required hook left unimplemented still fails.
 
 Each test seeds rows under a fresh random marker, so the tests need no cleanup and never see each other's rows. Add
 your own tests next to the kit's (archived rows, your access event, scopes).

@@ -31,6 +31,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+Target: **1.11.2** (patch).
+
+### Fixed
+
+- **Contract kit: no test skips any more because an optional hook keeps its default.** 1.11.0 added
+  `testContractBoundedCandidatesGiveAnInexactTotal`, which called `markTestSkipped()` when `seedBeyondTheBound()`
+  returned `false` (the default). Every host running its SearchKit contract tests with `--fail-on-skipped` then failed.
+  The check now passes as not applicable, with one assertion recorded so PHPUnit does not flag it as risky. The same
+  applies to the other kit skips:
+  - `testContractNeverShowsArchivedRows` with `hasArchivedState()` false passes instead of skipping;
+  - `testContractHiddenRowsBeyondTheWindowChangeNothing` checks a window above 500 rows as a 500-row window (it was
+    skipped), and passes as not applicable for a 1-row window.
+
+  Required hooks still fail when missing. A 1.9-style test whose own `seedArchived()` skips still skips, with the
+  hint to declare `hasArchivedState()` false. New self-tests run the whole kit with every optional hook at its
+  default (with and without an archived state), and CI runs them with `--fail-on-skipped --fail-on-risky` on every
+  database. No runtime change.
+
 ## [1.11.1] - 2026-11-19
 
 Target: **1.11.1** (patch).

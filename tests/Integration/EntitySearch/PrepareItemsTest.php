@@ -211,11 +211,12 @@ final class PrepareItemsTest extends TestCase
         (new PreparedNoteContractTest('testContractNeverShowsArchivedRows'))->defaultSeedArchived();
     }
 
-    public function testTheKitSkipsTheArchivedCheckWithoutAnArchivedState(): void
+    public function testTheKitPassesTheArchivedCheckWithoutAnArchivedState(): void
     {
-        $this->expectException(SkippedWithMessageException::class);
-        $this->expectExceptionMessage('hasArchivedState() is false');
-        (new PreparedNoteContractTest('testContractNeverShowsArchivedRows'))->testContractNeverShowsArchivedRows();
+        // 1.11.2: not applicable, so it passes with one assertion (not risky) instead of skipping.
+        $case = new PreparedNoteContractTest('testContractNeverShowsArchivedRows');
+        $case->testContractNeverShowsArchivedRows();
+        self::assertSame(1, $case->numberOfAssertionsPerformed());
     }
 
     public function testTheKitFailsADefinitionThatMemoisesDisplayData(): void
@@ -245,11 +246,12 @@ final class PrepareItemsTest extends TestCase
         $case->testContractNeverShowsArchivedRows();
     }
 
-    public function testTheKitSkipsTheBoundedCheckWithoutABound(): void
+    public function testTheKitPassesTheBoundedCheckWithoutABound(): void
     {
-        $this->expectException(SkippedWithMessageException::class);
-        $this->expectExceptionMessage('seedBeyondTheBound() returns false');
-        (new AuditContract('testContractBoundedCandidatesGiveAnInexactTotal'))->testContractBoundedCandidatesGiveAnInexactTotal();
+        // 1.11.2: not applicable, so it passes with one assertion (not risky) instead of skipping.
+        $case = new AuditContract('testContractBoundedCandidatesGiveAnInexactTotal');
+        $case->testContractBoundedCandidatesGiveAnInexactTotal();
+        self::assertSame(1, $case->numberOfAssertionsPerformed());
     }
 
     public function testTheKitFailsABoundedDefinitionThatClaimsAnExactTotal(): void
