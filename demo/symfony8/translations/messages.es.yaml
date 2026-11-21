@@ -29,6 +29,12 @@ demo:
   badge:
     private: privado
   see_all_docs: 'Toda la documentación'
+  nav:
+    docs: 'Documentación'
+    projects: 'Proyectos'
+    settings: 'Ajustes'
+    admin: 'Administración'
+    users: 'Usuarios'
   action:
     home: Inicio
     docs: 'Leer la documentación'

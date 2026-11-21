@@ -1,44 +1,50 @@
-{#- REQ-DEMO-014: the demo shell is UiKit's admin layout with UiKit's default theme (nowo-ui.css from the bundle's own
-    asset package, no CSS framework, no CDN). Vite only builds the demo entry (assets/app.ts). -#}
-{% extends '@NowoUiKit/layout/admin.html.twig' %}
+{#- REQ-DEMO-014: the demo runs inside UiKit's shared demo platform shell (@NowoUiKit/demo_platform/layout.html.twig):
+    the same top bar, aside, content width, theme and footer as every other nowo-tech bundle demo. This file only
+    declares the demo (nowo_ui_demo_platform). The bundle is a top bar widget: the header search renders in the shell's
+    header_end block. Vite only builds the demo entry (assets/app.ts). -#}
+{% extends '@NowoUiKit/demo_platform/layout.html.twig' %}
+{% set _route = app.request.attributes.get('_route')|default('homepage') %}
+{% set _route_params = app.request.attributes.get('_route_params')|default({}) %}
+{% set _locale = app.request.locale %}
+{% set _nav = [
+    {label: 'demo.action.home', route: 'homepage', params: {_locale: _locale}},
+] %}
+{% if app.user %}
+    {% set _nav = _nav|merge([
+        {label: 'Online shop', route: 'demo_project', params: {_locale: _locale, id: 'shop'}, section: 'demo.nav.projects', testid: 'demo-nav-project-shop'},
+        {label: 'Mobile app', route: 'demo_project', params: {_locale: _locale, id: 'mobile'}, section: 'demo.nav.projects', testid: 'demo-nav-project-mobile'},
+        {label: 'demo.settings.profile', route: 'demo_settings', params: {_locale: _locale, section: 'profile'}, section: 'demo.nav.settings', testid: 'demo-nav-settings-profile'},
+        {label: 'demo.settings.security', route: 'demo_settings', params: {_locale: _locale, section: 'security'}, section: 'demo.nav.settings', testid: 'demo-nav-settings-security'},
+        {label: 'demo.settings.language', route: 'demo_settings', params: {_locale: _locale, section: 'language'}, section: 'demo.nav.settings', testid: 'demo-nav-settings-language'},
+    ]) %}
+{% endif %}
+{% if is_granted('ROLE_ADMIN') %}
+    {% set _nav = _nav|merge([{label: 'demo.nav.users', route: 'demo_users', params: {_locale: _locale}, section: 'demo.nav.admin'}]) %}
+{% endif %}
+{% for _slug, _doc in {installation: 'Installation', configuration: 'Configuration', providers: 'Search providers', scope: 'Search scope', theming: 'Theming', shortcuts: 'Keyboard shortcuts'} %}
+    {% set _nav = _nav|merge([{label: _doc, route: 'demo_doc', params: {_locale: _locale, slug: _slug}, section: 'demo.nav.docs', testid: 'demo-nav-doc-' ~ _slug}]) %}
+{% endfor %}
+{% set nowo_ui_demo_platform = {
+    bundle: 'Search Kit',
+    home_href: path('homepage', {_locale: _locale}),
+    repository: 'https://github.com/nowo-tech/SearchKitBundle',
+    translation_domain: 'messages',
+    locales: [
+        {code: 'en', href: path(_route, _route_params|merge({_locale: 'en'}))},
+        {code: 'es', href: path(_route, _route_params|merge({_locale: 'es'}))},
+    ],
+    auth: {login_href: path('demo_login', {_locale: _locale}), logout_route: 'demo_logout'},
+    nav: _nav,
+} %}
 
-{% block nowo_ui_document_title %}{% block title %}{{ 'demo.title'|trans }}{% endblock %}{% endblock %}
+{% block nowo_ui_document_title %}{% block title %}{{ 'demo.title'|trans }}{% endblock %} — Symfony 8{% endblock %}
 
-{% block nowo_ui_styles %}
-    {{ parent() }}
-    {{ vite_entry_link_tags('app') }}
-    {% block stylesheets %}{% endblock %}
+{% block nowo_ui_demo_platform_header_end %}
+    {# The header search: magnifier → field, Ctrl/⌘ K or "/" (renders nothing for guests). #}
+    {{ include('@NowoSearchKitBundle/search.html.twig', {nowo_search_actions: [
+        {title: 'demo.action.home'|trans, url: path('homepage', {_locale: _locale}), kind: 'action'},
+    ]}) }}
 {% endblock %}
-
-{% block nowo_ui_navigation %}
-    {% set locale_route = app.request.attributes.get('_route') %}
-    {% set locale_params = app.request.attributes.get('_route_params')|default({}) %}
-    <header class="nowo-ui-header" data-testid="demo-masthead">
-        <a class="nowo-ui-brand" href="{{ path('homepage', { _locale: app.request.locale }) }}">{{ 'demo.brand'|trans }}</a>
-        <nav class="nowo-ui-menu" aria-label="{{ 'demo.brand'|trans }}">
-            <a class="nowo-ui-link" href="{{ path('homepage', { _locale: app.request.locale }) }}"{% if locale_route == 'homepage' %} aria-current="page"{% endif %}>{{ 'demo.action.home'|trans }}</a>
-            {% if not app.user %}
-                <a class="nowo-ui-link" href="{{ path('demo_login', { _locale: app.request.locale }) }}"{% if locale_route == 'demo_login' %} aria-current="page"{% endif %}>{{ 'demo.login.nav'|trans }}</a>
-            {% endif %}
-        </nav>
-        <div class="nowo-ui-header__end">
-            {% if app.user %}
-                {# The header search: magnifier → field, Ctrl/⌘ K or "/" (renders nothing for guests). #}
-                {{ include('@NowoSearchKitBundle/search.html.twig', {nowo_search_actions: [
-                    {title: 'demo.action.home'|trans, url: path('homepage', {_locale: app.request.locale}), kind: 'action'},
-                ]}) }}
-                <span class="nowo-ui-muted">{{ app.user.userIdentifier }}</span>
-                <a class="nowo-ui-link" href="{{ path('demo_logout') }}">{{ 'demo.logout'|trans }}</a>
-            {% endif %}
-            {% for code, label in {en: 'English', es: 'Español'} %}
-                <a class="nowo-ui-link" href="{{ path(locale_route, locale_params|merge({ _locale: code })) }}" hreflang="{{ code }}"{% if app.request.locale == code %} aria-current="true"{% endif %}>{{ code|upper }}</a>
-            {% endfor %}
-            {{ include('@NowoUiKitBundle/partials/_theme_toggle.html.twig', { compact: true }, false) }}
-        </div>
-    </header>
-{% endblock %}
-
-{% block nowo_ui_content %}{% block body %}{% endblock %}{% endblock %}
 
 {% block nowo_ui_scripts %}
     {{ parent() }}

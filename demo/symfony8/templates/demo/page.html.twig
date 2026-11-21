@@ -5,5 +5,7 @@
 {% endblock %}
 
 {% block body %}
-    <p class="nowo-ui-muted">{{ 'demo.page.hint'|trans }}</p>
+    {% embed '@NowoUiKit/demo_platform/_section.html.twig' with {title: title, kind: 'detail'} %}
+        {% block section_body %}<p class="nowo-ui-muted">{{ 'demo.page.hint'|trans }}</p>{% endblock %}
+    {% endembed %}
 {% endblock %}
