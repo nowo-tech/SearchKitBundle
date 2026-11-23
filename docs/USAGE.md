@@ -41,6 +41,7 @@
 - [Translations](#translations)
 - [JSON endpoint](#json-endpoint)
 - [Naming conventions](#naming-conventions)
+- [Browser console](#browser-console)
 
 ## How it fits together
 
@@ -763,3 +764,7 @@ PHP classes `Nowo\SearchKitBundle\…`, config root `nowo_search_kit`, route `no
 `NowoSearch`, events `nowo-search:*`, provider tag `nowo_search_kit.provider`, rate limiter `nowo_search_kit`. 1.8.0: routes
 `nowo_search_kit_results`, `nowo_search_kit_recent`, `nowo_search_kit_filter_values`; tags
 `nowo_search_kit.{access_checker,page_source,action_provider,filter_values,synonym_provider,reference_resolver}`.
+
+## Browser console
+
+The bundle's script logs one line when it loads (`📦 [search-kit] script loaded, build: 2026-11-23 14:05 UTC`) so a developer can tell which build a page runs. To silence it, set `<html data-nowo-console="quiet">` or `globalThis.NOWO_CONSOLE = 'quiet'` before the script loads; nothing is printed then. The default is unchanged.
