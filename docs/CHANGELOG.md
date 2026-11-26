@@ -34,6 +34,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- The `📦 [name] script loaded` console banner now prints once per page, even when the script is loaded twice: per-name once-guard (a `Set` on `globalThis`) in `logger.ts`, with a Vitest test and rebuilt assets (REQ-ASSETS-005).
+
 ### Changed
 
 - CI (not shipped): the Dependabot asset rebuild (`.github/workflows/dependabot-assets.yml`, was `dependabot.yml`) is split into a read-only build job (no persisted credentials, `pnpm install --frozen-lockfile --ignore-scripts`) and a commit job, the only one with write access, that never installs or builds: it accepts only regular files under the asset paths from the build artifact, commits them and dispatches `ci.yml` (now `workflow_dispatch`-able) so the required checks run on the rebuilt head (audits ZAWD-M1, ZAWD-L2). It now runs on Dependabot npm branches only.
