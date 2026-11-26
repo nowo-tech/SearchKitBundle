@@ -914,7 +914,9 @@ abstract class EntitySearchProviderTestCase extends TestCase
 
     /**
      * 1.13.0: a filter key the definition does not declare gives null — with text and without — whatever the
-     * definition's other filters, so a group never ignores a filter and lists rows the viewer filtered out.
+     * definition's other filters, so a group never ignores a filter and lists rows the viewer filtered out. 1.13.1: a
+     * definition that declares no key at all is never sent a filter by the engine (its supportedFilters() is empty);
+     * a direct call leaves the filters to its hooks, as in 1.12, so only the filters-only checks apply to it.
      */
     public function testContractUndeclaredFiltersGiveNull(): void
     {
@@ -927,8 +929,13 @@ abstract class EntitySearchProviderTestCase extends TestCase
         self::assertNotContains($key, $provider->supportedFilters());
 
         self::assertInstanceOf(SearchGroup::class, $provider->search($this->query($marker)));
+        // 1.13.1: a definition that declares no key keeps the 1.12 behaviour on a direct call (its own hooks read the
+        // filters, for a bundle's wrapper that checks its keys first); the engine never sends it a filter.
+        $declares = $provider->supportedFilters() !== [];
         foreach ([false, true] as $negated) {
-            self::assertNull($provider->search($this->filteredQuery($marker, [new SearchFilter($key, 'x', $negated)])), 'A filter the definition does not declare must give null.');
+            if ($declares) {
+                self::assertNull($provider->search($this->filteredQuery($marker, [new SearchFilter($key, 'x', $negated)])), 'A filter the definition does not declare must give null.');
+            }
             self::assertNull($provider->search($this->filteredQuery('', [new SearchFilter($key, 'x', $negated)])), 'A filters-only query with an undeclared filter must give null.');
         }
         self::assertNull($provider->search($this->filteredQuery('', [])), 'A query with no text and no filter must give null.');
@@ -1028,7 +1035,7 @@ abstract class EntitySearchProviderTestCase extends TestCase
         $provider = $this->provider();
         $counter  = $this->queryCounter();
 
-        foreach ([[$marker, false], [$marker, true], ['', false]] as [$text, $negated]) {
+        foreach ([[$marker, false], [$marker, true], ['', false], ['', true]] as [$text, $negated]) {
             $answers = [];
             foreach (['hidden' => $hidden, 'missing' => $missing] as $kind => $value) {
                 $counter->reset();
@@ -1102,6 +1109,11 @@ abstract class EntitySearchProviderTestCase extends TestCase
         self::assertInstanceOf(SearchGroup::class, $group, 'A filters-only query must run for a definition that declares the key.');
         self::assertNotContains($outside, $this->urls($group), 'A filters-only query showed a row the filter leaves out.');
         self::assertNotContains($foreign, $this->urls($group), 'A filters-only query showed another tenant\'s row.');
+
+        // 1.13.1 (audit ZCN-SK-L1): a negated filters-only query keeps the other rows of the viewer's tenant only.
+        $negated = $this->provider()->search($this->filteredQuery('', [new SearchFilter($key, $this->matchingFilterValue(), true)], 50));
+        self::assertInstanceOf(SearchGroup::class, $negated, 'A negated filters-only query must run for a definition that declares the key.');
+        self::assertNotContains($foreign, $this->urls($negated), 'A negated filters-only query showed another tenant\'s row.');
     }
 
     /**

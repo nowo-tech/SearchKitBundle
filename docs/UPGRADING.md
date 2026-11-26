@@ -5,6 +5,7 @@ This guide lists the changes integrators must apply when upgrading between versi
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.13.1](#to-1131)
 - [To 1.13.0](#to-1130)
 - [To 1.12.1](#to-1121)
 - [To 1.12.0](#to-1120)
@@ -39,6 +40,22 @@ This guide lists the changes integrators must apply when upgrading between versi
 
 ## Unreleased
 
+## To 1.13.1
+
+From **1.13.0**:
+
+```bash
+composer update nowo-tech/search-kit-bundle
+```
+
+No change is required. 1.13.0 made a direct `EntitySearchProvider` call with a filter the definition does not
+declare return `null`; that broke bundles whose own `FilterableSearchProviderInterface` wraps the provider and reads
+the filter in the definition's `baseQuery()` (ChatKit `from:`, Wiki `space:`). From 1.13.1 the strict rule applies
+only to a definition that declares at least one key in `supportedFilters()`; a definition that declares none gets the
+filters in the `SearchQuery` as in 1.12 (text still required). Such a wrapper must keep checking its own keys before
+it calls the provider. A host whose contract-kit subclass relied on the 1.13.0 assertion for a definition without
+filter keys sees one assertion fewer; the kit's negated filters-only checks are new (audit ZCN-SK-L1).
+
 ## To 1.13.0
 
 From **1.12.x**:
@@ -54,7 +71,8 @@ filter other than `type:` skips its group, a filters-only query never runs it). 
   filters-only query (`is:open`) too; it returns `null` at once (before resolving the tenant) unless the definition
   declares one of the query's keys.
 - Called directly (not through the engine) with a query that carries a filter the definition does not declare, the
-  provider now returns `null` instead of ignoring the filter.
+  provider now returns `null` instead of ignoring the filter. (1.13.1: only when the definition declares at least
+  one filter key — see [To 1.13.1](#to-1131).)
 
 **Adopting typed filters in a definition** (e.g. Beacon tasks and issues, spec 240 FR-034):
 

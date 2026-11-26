@@ -36,6 +36,9 @@ final class StubDefinition extends EntitySearchDefinition
     /** @var (Closure(int|string): (DbalQueryBuilder|OrmQueryBuilder))|null */
     public ?Closure $query = null;
 
+    /** @var (Closure(int|string, SearchQuery): (DbalQueryBuilder|OrmQueryBuilder))|null A base query that reads the search (its filters) */
+    public ?Closure $queryFor = null;
+
     /** @var (Closure(DbalQueryBuilder|OrmQueryBuilder, string): bool)|null */
     public ?Closure $scope = null;
 
@@ -111,6 +114,9 @@ final class StubDefinition extends EntitySearchDefinition
 
     public function baseQuery(int|string $tenant, SearchQuery $query): DbalQueryBuilder|OrmQueryBuilder
     {
+        if ($this->queryFor instanceof Closure) {
+            return ($this->queryFor)($tenant, $query);
+        }
         if ($this->query instanceof Closure) {
             return ($this->query)($tenant);
         }

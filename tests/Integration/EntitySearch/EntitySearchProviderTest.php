@@ -9,6 +9,8 @@ use Doctrine\DBAL\Query\QueryBuilder as DbalQueryBuilder;
 use Doctrine\ORM\QueryBuilder as OrmQueryBuilder;
 use InvalidArgumentException;
 use LogicException;
+use Nowo\SearchKitBundle\Contract\FilterableSearchProviderInterface;
+use Nowo\SearchKitBundle\Contract\PaginatedSearchProviderInterface;
 use Nowo\SearchKitBundle\Event\SearchItemVisibilityEvent;
 use Nowo\SearchKitBundle\Event\SearchKitEvents;
 use Nowo\SearchKitBundle\Model\SearchFilter;
@@ -38,6 +40,7 @@ use function array_column;
 use function array_map;
 use function array_values;
 use function bin2hex;
+use function count;
 use function is_array;
 use function random_bytes;
 
@@ -572,8 +575,76 @@ final class EntitySearchProviderTest extends TestCase
         }
         $definition->filterKeys = null;
         $definition->filters    = null;
-        self::assertNull($provider->search($this->filtered($this->marker, $filter)), 'Without declared keys, a filter skips the group.');
+        self::assertInstanceOf(SearchGroup::class, $provider->search($this->filtered($this->marker, $filter)), 'Without declared keys, a direct call leaves the filters to the hooks, as in 1.12 (1.13.1).');
+        self::assertNull($provider->search($this->filtered('', $filter)), 'Without declared keys, a filters-only query still gives null.');
         self::assertInstanceOf(SearchGroup::class, $provider->search($this->filtered($this->marker, new SearchFilter('type', 'stub'))), 'type alone never skips it.');
+        $definition->filterKeys = ['type', 'Bad Key'];
+        self::assertNull($provider->search($this->filtered($this->marker, $filter)), 'A definition that declares keys (even only invalid ones) is strict.');
+    }
+
+    /**
+     * 1.13.1 regression (ChatKit `from:`, Wiki `space:`): a bundle's FilterableSearchProviderInterface wrapper checks its
+     * own keys, then calls EntitySearchProvider over a definition that declares no key and reads the filter in
+     * baseQuery(). 1.13.0 gave null for every such query; 1.12 and 1.13.1 apply the definition's own filter.
+     */
+    public function testWrapperFiltersReadByTheDefinitionStillApply(): void
+    {
+        $this->db->insert('tenant-a', $this->marker . ' from alice', false, false, 'alice');
+        $this->db->insert('tenant-a', $this->marker . ' from bob', false, false, 'bob');
+        $this->db->insert('tenant-b', $this->marker . ' foreign alice', false, false, 'alice');
+        $definition           = new StubDefinition();
+        $definition->queryFor = function (int|string $tenant, SearchQuery $query): DbalQueryBuilder {
+            $queryBuilder = $this->db->connection->createQueryBuilder()
+                ->select('n.id', 'n.title')
+                ->from(NoteDatabase::TABLE, 'n')
+                ->where('n.tenant = :tenant')
+                ->setParameter('tenant', (string) $tenant)
+                ->orderBy('n.id', 'ASC');
+            $from = $query->filtersOf('from');
+            if ($from !== []) {
+                $queryBuilder->andWhere('n.owner = :owner')->setParameter('owner', $from[0]->value === 'me' ? (string) $query->userIdentifier : $from[0]->value);
+            }
+
+            return $queryBuilder;
+        };
+        $wrapper = new readonly class(new EntitySearchProvider($definition)) implements FilterableSearchProviderInterface, PaginatedSearchProviderInterface {
+            public function __construct(private EntitySearchProvider $provider)
+            {
+            }
+
+            public function supportedFilters(): array
+            {
+                return ['from'];
+            }
+
+            public function groupKey(): string
+            {
+                return $this->provider->groupKey();
+            }
+
+            public function search(SearchQuery $query): ?SearchGroup
+            {
+                return $this->searchPage($query, 1, $query->limit);
+            }
+
+            public function searchPage(SearchQuery $query, int $page, int $perPage): ?SearchGroup
+            {
+                $from = $query->filtersOf('from');
+                if (count($from) > 1 || ($from !== [] && $from[0]->negated) || count($query->filters) !== count($from)) {
+                    return null;
+                }
+
+                return $this->provider->searchPage($query, $page, $perPage);
+            }
+        };
+
+        self::assertSame([], (new EntitySearchProvider($definition))->supportedFilters(), 'The engine never routes a filter to the bare provider.');
+        self::assertSame([$this->marker . ' from alice', $this->marker . ' from bob'], $this->titles($wrapper->search($this->query($this->marker))));
+        self::assertSame([$this->marker . ' from alice'], $this->titles($wrapper->search($this->filtered($this->marker, new SearchFilter('from', 'me')))), 'from:me applies the definition\'s own filter.');
+        self::assertSame([$this->marker . ' from bob'], $this->titles($wrapper->search($this->filtered($this->marker, new SearchFilter('from', 'bob')))));
+        self::assertNull($wrapper->search($this->filtered($this->marker, new SearchFilter('from', 'carol'))), 'No row: null.');
+        self::assertNull($wrapper->search($this->filtered($this->marker, new SearchFilter('from', 'me', true))), 'The wrapper\'s own deny rules still hold.');
+        self::assertNull($wrapper->search($this->filtered('', new SearchFilter('from', 'me'))), 'Filters-only: no text, null as in 1.12.');
     }
 
     public function testOrmFiltersUseTheSameConditions(): void
