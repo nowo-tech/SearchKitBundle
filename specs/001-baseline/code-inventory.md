@@ -1,8 +1,8 @@
 # Search Kit Bundle — baseline code inventory
 
 **Package**: `nowo-tech/search-kit-bundle`  
-**Last audited**: 2026-11-26 (v1.12.0)  
-**Production units**: **112/112**  
+**Last audited**: 2026-11-26 (1.13.0, unreleased)  
+**Production units**: **113/113**  
 **Audit command**: `find src -type f \( -name '*.php' -o -name '*.twig' -o -name '*.yaml' -o -name '*.ts' -o -name '*.css' \) -not -path 'src/Resources/assets/tests/*' | wc -l`
 
 ## Scope notes
@@ -17,14 +17,14 @@
 | --- | ---: |
 | Bundle, configuration & DI | 8 |
 | Contracts & model | 33 |
-| Engine & providers | 29 |
+| Engine & providers | 30 |
 | HTTP | 5 |
 | Twig, markup & theme | 8 |
 | Stylesheets | 3 |
 | Browser (TypeScript) | 13 |
 | Test kit (1.9.0) | 6 |
 | Translations | 7 |
-| **Total** | **112** |
+| **Total** | **113** |
 
 
 ## Bundle, configuration & DI
@@ -100,12 +100,13 @@
 | `src/Search/Synonym/ConceptGroupSynonymProvider.php` | US-240-04 | FR-240-SYN-001 |
 | `src/Search/Ranking/SearchRanker.php` | US-240-05 | FR-240-RANK-001 |
 | `src/Search/Recent/RecentResolver.php` | US-240-07 | FR-240-RECENT-001 |
-| `src/Provider/Entity/EntitySearchDefinition.php` | US-02 | FR-SPI-001, FR-ENGINE-001 |
-| `src/Provider/Entity/EntitySearchProvider.php` | US-02 | FR-SPI-001, FR-ENGINE-001, FR-240-ACCESS-001 |
+| `src/Provider/Entity/EntitySearchDefinition.php` | US-02 | FR-SPI-001, FR-ENGINE-001, FR-240-FILTER-003 |
+| `src/Provider/Entity/EntitySearchProvider.php` | US-02 | FR-SPI-001, FR-ENGINE-001, FR-240-ACCESS-001, FR-240-FILTER-003 |
 | `src/Provider/Entity/SearchCandidateContext.php` | US-02 | FR-SPI-001, FR-240-COST-001 |
 | `src/Provider/Entity/SearchItemContext.php` | US-02 | FR-SPI-001, FR-240-COST-001 |
 | `src/Search/Group/SearchGroupSettings.php` | US-02, US-08 | FR-CFG-001, FR-ENGINE-001 |
 | `src/Search/Group/SensitiveGroupNotice.php` | US-02, US-08 | FR-CFG-001, FR-240-ACCESS-001 |
+| `src/Search/Query/FilterCondition.php` | US-240-03 | FR-240-FILTER-003, FR-240-LEAK-001 |
 | `src/Search/Query/LikePattern.php` | US-02 | FR-ENGINE-001, FR-240-LEAK-001 |
 | `src/Search/Query/ScopeParser.php` | US-04 | FR-SPI-002, FR-240-LEAK-001 |
 | `src/Search/Query/SearchWindow.php` | US-02 | FR-ENGINE-001, FR-240-COST-001 |
@@ -165,7 +166,7 @@
 
 | Source path | Spec section | Requirement ID(s) |
 | --- | --- | --- |
-| `src/Test/EntitySearchProviderTestCase.php` | US-02 | FR-SPI-001 |
+| `src/Test/EntitySearchProviderTestCase.php` | US-02 | FR-SPI-001, FR-240-FILTER-003 |
 | `src/Test/Internal/CountingConnection.php` | US-02 | FR-SPI-001 |
 | `src/Test/Internal/CountingDriver.php` | US-02 | FR-SPI-001 |
 | `src/Test/Internal/RenderRecorder.php` | US-02 | FR-SPI-001 |

@@ -15,6 +15,7 @@ scope, escaped LIKE, bounded limit, access checks, the shared host event, the vi
   - [Optional](#optional)
 - [ORM definitions](#orm-definitions)
 - [Scopes](#scopes)
+- [Typed filters](#typed-filters)
 - [Full text](#full-text)
 - [Recents](#recents)
 - [Display data for the shown rows: prepareItems()](#display-data-for-the-shown-rows-prepareitems)
@@ -94,14 +95,18 @@ Per call, always in this order:
 
 1. the group is on (`nowo_search_kit.groups.<key>.enabled`); a [sensitive](#optional) group only runs while recents are
    revalidated or off;
-2. a non-empty text of at least `minLength()` characters, a results page inside the candidate window;
+2. every typed filter of the query but `type` is one of `supportedFilters()` (1.13.0), or the search is refused; a
+   non-empty text of at least `minLength()` characters — or no text and at least one such filter (a filters-only
+   query) —, a results page inside the candidate window;
 3. `tenant()` — `null` means no results — then `featureEnabled()`; then `candidateQuery()` (1.11.0; default
    `baseQuery()`) with a new `SearchCandidateContext` for this search;
 4. the scope (client input): shape-checked, then `applyScope()` restricts the query in SQL — or the search is refused;
+   then, when the query carries declared filters, `applyFilters()` restricts it in SQL (1.13.0) — or the search is
+   refused;
 5. `applyFullText()`, or an escaped `LOWER(field) LIKE :p ESCAPE '!'` of every query word over `searchableFields()`
-   (each word must occur in one of the fields);
+   (each word must occur in one of the fields); no text (filters-only): no match condition;
 6. one query of at most `maxCandidates()` rows (a parameter named `nowo_search_*` bound by `baseQuery()`,
-   `applyScope()` or `applyFullText()` is refused with a `LogicException`: SearchKit binds those);
+   `applyScope()`, `applyFilters()` or `applyFullText()` is refused with a `LogicException`: SearchKit binds those);
 7. `filterCandidates()` (1.11.0; default `filterVisible()`) on the candidates, with the same context (batched;
    SearchKit keeps only rows that were candidates), then **one**
    `SearchKitEvents::ITEM_VISIBILITY` event for the page, where a host deny wins;
@@ -151,6 +156,7 @@ And one of:
 | `subjectType()` | the group key | Subject type in the host event (`[a-z][a-z0-9_.-]{0,63}`). |
 | `subjectId(array\|object $row)` | `$row['id']` or `$row->getId()` | The row id (host event, candidate check). |
 | `applyScope($queryBuilder, string $scope, int\|string $tenant, SearchQuery $query)` | `false` (no scopes) | See [Scopes](#scopes). |
+| `supportedFilters()` / `applyFilters($queryBuilder, array $filters, int\|string $tenant, SearchQuery $query)` | `[]` / `false` (deny) | 1.13.0. See [Typed filters](#typed-filters). |
 | `applyFullText($queryBuilder, array $terms, SearchQuery $query)` | `false` (LIKE) | See [Full text](#full-text). |
 | `minLength()` | `0` | Shortest text this group searches (SearchKit's `min_length` applies first). |
 | `maxCandidates()` | `100` | Rows read and checked per search (1–1000): bounds the checks, the total and the deepest page. |
@@ -199,6 +205,31 @@ public function applyScope(DbalQueryBuilder|OrmQueryBuilder $qb, string $scope, 
     return true;
 }
 ```
+
+## Typed filters
+
+1.13.0. A definition that lists keys in `supportedFilters()` (and the host in `nowo_search_kit.filters.keys`) runs for
+queries carrying them — `checkout is:open`, or filters-only `is:open assignee:me` — and SearchKit calls
+`applyFilters()` with those filters (typed order, `type` left out, `-key:` as `$filter->negated`) on the query of
+`candidateQuery()`, after the scope and before the text match, the window and the count. Any other key still skips the
+group. Rules:
+
+- **In SQL.** Add conditions to the query builder; the total and the pages are then those of the filtered rows. Never
+  filter in `filterCandidates()` instead: rows that do not match would take places in the window.
+- **Bound values.** `FilterCondition::equals($qb, 't.status', $resolved, $filter->negated, 'f_status' . $i)` binds the
+  value; never write a filter value into DQL/SQL. No parameter named `nowo_search_*`.
+- **Resolve for the viewer; hidden = missing.** `me`, a member, a project: resolve it within the tenant and for the
+  viewer. A value naming something the viewer may not see must take exactly the path of a value naming nothing —
+  `FilterCondition::matchNothing()` for a positive filter, no condition for a negated one — so rows, total, exactness
+  and the number of statements are identical. Prefer resolving in SQL (a join or subquery) to a lookup query that only
+  some values trigger.
+- **Negation.** `-key:value` excludes the matches; `equals()` keeps rows whose column is NULL (`-assignee:me` lists
+  unassigned tasks).
+- **Deny.** Return `false` for what you cannot apply (an unknown word of a fixed vocabulary such as `is:`): the group
+  gives `null`, like no match.
+- **Stateless.** Keep nothing of a search in a property.
+
+A full example (Beacon `is:` / `assignee:`) is in [UPGRADING — To 1.13.0](UPGRADING.md#to-1130).
 
 ## Full text
 
@@ -421,6 +452,7 @@ All stateless, in `Nowo\SearchKitBundle\Search\Query`:
 | `ScopeParser::isValid()` / `value()` / `positiveInt()` | Reads `prefix:value` scopes; `null` for anything else. |
 | `SearchWindow::of()` | The bounded candidate window, the page slice and the visible total. |
 | `SeeAllLink::build()` | The list-page link with the query text (and optionally the scope), `null` when unsafe. |
+| `FilterCondition::equals()` / `matchNothing()` | 1.13.0. `field = :p` / `(field IS NULL OR field <> :p)` with the value bound; `1 = 0` for a value that resolves to nothing. |
 
 ## Testing a provider: the contract kit
 
@@ -443,7 +475,12 @@ and database:
 - `prepareItems()` (1.10.0): called once per page with exactly the shown rows — never a hidden, host-denied or
   off-page row — before `toPreparedItem()` renders them with the same context; once for a resolved recent; never when
   nothing is shown; at most `prepareItemsBudget()` statements (none for the default no-op);
-- bounded candidates (1.11.0, with `seedBeyondTheBound()`): an inexact total for that search only.
+- bounded candidates (1.11.0, with `seedBeyondTheBound()`): an inexact total for that search only;
+- typed filters (1.13.0): a key the definition does not declare gives `null` (always checked); with `filterKey()`, the
+  filter is applied in SQL before the window and the total (the window is filled with non-matching rows), `-key:`
+  returns exactly the other rows, a hidden value answers exactly like a missing one (rows, total, exactness and SQL
+  statement count; positive, negated and filters-only), a hostile value matches nothing and never appears in the SQL
+  text, and a filters-only query shows no row outside the filter or the tenant.
 
 A definition that skips its per-row check or its tenant condition fails the kit. `sensitiveTitles()` and
 `supportsRecents()` are self-declared by your test, so the kit only checks that the definition is consistent with them. Run it on MySQL, MariaDB and
@@ -503,6 +540,10 @@ final class TaskSearchContractTest extends EntitySearchProviderTestCase
 | `prepareItemsBudget()` | 1.10.0. Most statements of one `prepareItems()` call (default 1). |
 | `hiddenRowsFilteredInSql()` | 1.10.1. Default: the definition's `sensitive()`. Return `true` when `baseQuery()` itself filters out every row `seedHidden()` creates; the kit then asserts that hidden rows change nothing at all (rows, total, exactness). A sensitive group must filter in SQL; it may override the hook to `false` only when PHP or a host event alone can decide the visibility, and then documents that it accepts the side channel. |
 | `seedBeyondTheBound($tenant, $text): bool` | 1.11.0, optional. Seeds rows of the first tenant so that a search for `$text` hits your definition's own bound (it calls `markPartial()`) and still shows at least one row; returns `true`. The kit then asserts an inexact total on the palette and the results page, no other tenant's row, and an exact total for the next search, in the second tenant, on the same provider instance. Make the bound reachable only by what the hook seeds (e.g. count only the boards that match the text), or reset the database between tests, so the other contract tests still see exact totals. Default `false`: the check passes as not applicable (1.11.2; it was skipped in 1.11.0–1.11.1). |
+| `filterKey(): ?string` | 1.13.0, optional. A key of `supportedFilters()`; `null` (default): only the undeclared-filter check applies. |
+| `seedForFilter($tenant, $text, bool $matching): int\|string` | 1.13.0, with `filterKey()`. One visible row containing `$text` that `filterKey():matchingFilterValue()` matches or not. |
+| `matchingFilterValue(): string` | 1.13.0, with `filterKey()`. The value the matching rows match for `VIEWER_A` (e.g. `me`). |
+| `seedHiddenFilterValue($tenant, $otherTenant, $text): string` | 1.13.0, with `filterKey()`. Seeds something that exists but the viewer may not use (another tenant's member with rows containing `$text`) and returns the value naming it. |
 | `changeSeededText($id, $text): bool` | 1.10.0, optional. Changes a seeded row's searchable text (the new text contains the old one) and returns `true`; the worker-safety check then also renders a changed row on the reused definition. Default `false`: that step is skipped, since the kit cannot change a row on its own. |
 
 **No kit test skips because an optional hook keeps its default** (1.11.2): a check that does not apply passes, with

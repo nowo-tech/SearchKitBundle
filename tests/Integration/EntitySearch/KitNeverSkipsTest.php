@@ -6,6 +6,7 @@ namespace Nowo\SearchKitBundle\Tests\Integration\EntitySearch;
 
 use Nowo\SearchKitBundle\Tests\Support\EntitySearch\DefaultHooksNoteContract;
 use PHPUnit\Framework\Assert;
+use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\SkippedTest;
@@ -57,6 +58,27 @@ final class KitNeverSkipsTest extends TestCase
             ++$ran;
         }
 
-        self::assertGreaterThanOrEqual(20, $ran, "The kit's 20 contract tests (1.11.2) must all run.");
+        self::assertGreaterThanOrEqual(25, $ran, "The kit's 25 contract tests (1.13.0) must all run.");
+    }
+
+    /**
+     * 1.13.0: the filter hooks a contract test must implement once it declares filterKey() fail with a hint by default.
+     */
+    public function testFilterHooksFailWithAHintUntilImplemented(): void
+    {
+        $case  = new DefaultHooksNoteContractTest('testContractFiltersApplyInSqlBeforeTheTotal');
+        $calls = [
+            'seedForFilter'         => ['tenant-a', 'x', true],
+            'matchingFilterValue'   => [],
+            'seedHiddenFilterValue' => ['tenant-a', 'tenant-b', 'x'],
+        ];
+        foreach ($calls as $method => $arguments) {
+            try {
+                (new ReflectionMethod($case, $method))->invoke($case, ...$arguments);
+                self::fail($method . '() must fail by default.');
+            } catch (AssertionFailedError $failure) {
+                self::assertStringContainsString('Override ' . $method . '()', $failure->getMessage());
+            }
+        }
     }
 }

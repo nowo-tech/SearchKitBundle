@@ -5,6 +5,7 @@ This guide lists the changes integrators must apply when upgrading between versi
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.13.0](#to-1130)
 - [To 1.12.1](#to-1121)
 - [To 1.12.0](#to-1120)
 - [To 1.11.3](#to-1113)
@@ -37,6 +38,87 @@ This guide lists the changes integrators must apply when upgrading between versi
 - [1.0.0 (2026-10-16)](#100-2026-10-16)
 
 ## Unreleased
+
+## To 1.13.0
+
+From **1.12.x**:
+
+```bash
+composer update nowo-tech/search-kit-bundle
+```
+
+No change is required: an `EntitySearchDefinition` that declares no filter behaves as before (a query with a typed
+filter other than `type:` skips its group, a filters-only query never runs it). Two things change around it:
+
+- `EntitySearchProvider` now implements `FilterableSearchProviderInterface`. The engine therefore calls it for a
+  filters-only query (`is:open`) too; it returns `null` at once (before resolving the tenant) unless the definition
+  declares one of the query's keys.
+- Called directly (not through the engine) with a query that carries a filter the definition does not declare, the
+  provider now returns `null` instead of ignoring the filter.
+
+**Adopting typed filters in a definition** (e.g. Beacon tasks and issues, spec 240 FR-034):
+
+1. List the keys in the host config — the parser only reads configured keys:
+
+   ```yaml
+   nowo_search_kit:
+       filters:
+           keys: [is, assignee]
+   ```
+
+2. Declare them and apply them in SQL, resolving every value **for the viewer**:
+
+   ```php
+   use Doctrine\DBAL\Query\QueryBuilder as DbalQueryBuilder;
+   use Doctrine\ORM\QueryBuilder as OrmQueryBuilder;
+   use Nowo\SearchKitBundle\Search\Query\FilterCondition;
+
+   public function supportedFilters(): array
+   {
+       return ['is', 'assignee'];
+   }
+
+   public function applyFilters(DbalQueryBuilder|OrmQueryBuilder $qb, array $filters, int|string $tenant, SearchQuery $query): bool
+   {
+       foreach ($filters as $i => $filter) {
+           if ($filter->key === 'is') {
+               // A fixed, public vocabulary: an unknown word denies (the group gives null).
+               $closed = match ($filter->value) { 'open' => false, 'closed' => true, default => null };
+               if ($closed === null) {
+                   return false;
+               }
+               FilterCondition::equals($qb, 't.closed', $closed, $filter->negated, 'f_is' . $i, 'boolean');
+               continue;
+           }
+           // assignee: `me`, or a member of THIS tenant the viewer may see. Anything else — unknown, another
+           // tenant's user, a hidden member — takes the same path: no row for `assignee:x`, nothing excluded for
+           // `-assignee:x`. Same statement, same count, no existence oracle.
+           $member = $filter->value === 'me' ? $this->members->idOf($query->userIdentifier, $tenant)
+               : $this->members->visibleIdByHandle($filter->value, $tenant, $query->userIdentifier);
+           if ($member === null) {
+               if (!$filter->negated) {
+                   FilterCondition::matchNothing($qb);
+               }
+               continue;
+           }
+           FilterCondition::equals($qb, 't.assignee_id', $member, $filter->negated, 'f_assignee' . $i); // NULL assignee kept by -assignee:
+       }
+
+       return true;
+   }
+   ```
+
+   Resolve a member in SQL (a join / subquery on the tenant's visible members) when you can: a lookup query that runs
+   only for some values adds a statement and breaks "same statement count". Bind every value (`FilterCondition`, or
+   `setParameter()`); never write a filter value into DQL/SQL. Name no parameter `nowo_search_*`.
+
+3. Run the contract kit with the filter hooks: `filterKey()` (`'assignee'`), `seedForFilter($tenant, $text, $matching)`,
+   `matchingFilterValue()` (`'me'`) and `seedHiddenFilterValue($tenant, $otherTenant, $text)` (a member of the other
+   tenant with tasks). The kit then checks the SQL filter before the total, negation, hidden = missing (rows, total,
+   exactness, statement count), bound values and filters-only queries.
+
+`SearchFilterValuesProviderInterface` (value suggestions after `assignee:`) is unchanged: register one per key if the
+field should suggest values.
 
 ## To 1.12.1
 

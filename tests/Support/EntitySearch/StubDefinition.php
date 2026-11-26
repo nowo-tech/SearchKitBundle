@@ -7,6 +7,7 @@ namespace Nowo\SearchKitBundle\Tests\Support\EntitySearch;
 use Closure;
 use Doctrine\DBAL\Query\QueryBuilder as DbalQueryBuilder;
 use Doctrine\ORM\QueryBuilder as OrmQueryBuilder;
+use Nowo\SearchKitBundle\Model\SearchFilter;
 use Nowo\SearchKitBundle\Model\SearchItem;
 use Nowo\SearchKitBundle\Model\SearchQuery;
 use Nowo\SearchKitBundle\Model\SearchReference;
@@ -49,6 +50,12 @@ final class StubDefinition extends EntitySearchDefinition
 
     /** @var (Closure(SearchCandidateContext, string): void)|null Called by candidateQuery() / filterCandidates() with the hook name */
     public ?Closure $candidates = null;
+
+    /** @var list<string>|null Filter keys (null: the default, none) */
+    public ?array $filterKeys = null;
+
+    /** @var (Closure(DbalQueryBuilder|OrmQueryBuilder, list<SearchFilter>): bool)|null */
+    public ?Closure $filters = null;
 
     public ?int $min = null;
 
@@ -128,6 +135,16 @@ final class StubDefinition extends EntitySearchDefinition
     public function applyScope(DbalQueryBuilder|OrmQueryBuilder $queryBuilder, string $scope, int|string $tenant, SearchQuery $query): bool
     {
         return $this->scope instanceof Closure ? ($this->scope)($queryBuilder, $scope) : parent::applyScope($queryBuilder, $scope, $tenant, $query);
+    }
+
+    public function supportedFilters(): array
+    {
+        return $this->filterKeys ?? parent::supportedFilters();
+    }
+
+    public function applyFilters(DbalQueryBuilder|OrmQueryBuilder $queryBuilder, array $filters, int|string $tenant, SearchQuery $query): bool
+    {
+        return $this->filters instanceof Closure ? ($this->filters)($queryBuilder, $filters) : parent::applyFilters($queryBuilder, $filters, $tenant, $query);
     }
 
     public function applyFullText(DbalQueryBuilder|OrmQueryBuilder $queryBuilder, array $terms, SearchQuery $query): bool

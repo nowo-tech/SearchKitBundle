@@ -36,6 +36,8 @@ use function rawurlencode;
  */
 final class DbalNoteDefinition extends EntitySearchDefinition
 {
+    use NoteFilters;
+
     public function __construct(
         private readonly Connection $connection,
         private readonly Viewer $viewer,

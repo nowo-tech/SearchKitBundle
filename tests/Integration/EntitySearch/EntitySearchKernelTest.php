@@ -77,6 +77,47 @@ final class EntitySearchKernelTest extends TestCase
         }
     }
 
+    /**
+     * 1.13.0: an entity definition that declares filter keys runs for them — also filters-only (`is:mine`) — and a
+     * definition that declares none is skipped, through the engine; a kept-alive kernel keeps no filter state.
+     */
+    public function testEntityDefinitionsRunForTheFiltersTheyDeclare(): void
+    {
+        $kernel = new TestKernel(['filters' => ['keys' => ['owner', 'is']]], true, null, TestKernel::SCOPE_CONTEXT, false, true);
+        $kernel->boot();
+
+        try {
+            $engine = $kernel->getContainer()->get(SearchEngine::class);
+            self::assertInstanceOf(SearchEngine::class, $engine);
+            $alice = new InMemoryUser('alice', null);
+
+            $mine = $engine->search($alice, $this->marker . ' owner:me');
+            self::assertSame(['kernel_notes'], $this->keys($mine), 'The stub declares no filter: skipped.');
+            self::assertSame($this->marker . ' shop note', $mine[0]->items[0]->title);
+            self::assertSame([], $this->keys($engine->search($alice, $this->marker . ' -is:mine')));
+            self::assertContains('kernel_notes', $this->keys($engine->search($alice, 'is:mine')), 'A filters-only query reaches the definition.');
+            $page = $engine->page(new SearchRequest($this->marker . ' is:mine', $alice), 'kernel_notes', 1, 20);
+            self::assertSame(1, $page?->total);
+
+            // FrankenPHP worker mode, kernel reset off: one kept-alive container alternates filtered, unfiltered and
+            // tenant-less searches; nothing of one search (its filters) reaches the next.
+            $bob    = new InMemoryUser('bob', null);
+            $rounds = [];
+            for ($round = 0; $round < 2; ++$round) {
+                $rounds[] = [
+                    $this->keys($engine->search($alice, $this->marker . ' -is:mine')),
+                    $this->keys($engine->search($alice, $this->marker)),
+                    $this->keys($engine->search($bob, $this->marker . ' is:mine')),
+                    $this->keys($engine->search($alice, $this->marker . ' owner:me')),
+                ];
+            }
+            self::assertSame([[], ['kernel_notes', 'kernel_stub', 'echo'], [], ['kernel_notes']], $rounds[0]);
+            self::assertSame($rounds[0], $rounds[1]);
+        } finally {
+            $kernel->shutdown();
+        }
+    }
+
     public function testGroupsCanBeSwitchedOffAndReordered(): void
     {
         $kernel = new TestKernel([

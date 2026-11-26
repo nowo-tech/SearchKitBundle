@@ -13,6 +13,9 @@ use Nowo\SearchKitBundle\Tests\Support\EntitySearch\NoteDatabase;
 use Nowo\SearchKitBundle\Tests\Support\EntitySearch\Viewer;
 use PHPUnit\Framework\Attributes\Group;
 
+use function bin2hex;
+use function random_bytes;
+
 /**
  * The provider contract kit against a DBAL definition, on the test database (SQLite, or MySQL / MariaDB / PostgreSQL
  * through SEARCH_KIT_TEST_DATABASE_URL).
@@ -77,5 +80,34 @@ final class DbalNoteContractTest extends EntitySearchProviderTestCase
     protected function reference(int|string $id): SearchReference
     {
         return new SearchReference('/notes/' . $id, 'notes', 'note_show', ['id' => (string) $id]);
+    }
+
+    protected function filterKey(): string
+    {
+        return 'owner';
+    }
+
+    protected function seedForFilter(int|string $tenant, string $text, bool $matching): int
+    {
+        $owner = $matching ? self::VIEWER_A : 'bob';
+
+        return NoteDatabase::get()->insert((string) $tenant, $text, false, false, $owner);
+    }
+
+    protected function matchingFilterValue(): string
+    {
+        return 'me';
+    }
+
+    /**
+     * An owner who exists only in the other tenant, with notes containing the text.
+     */
+    protected function seedHiddenFilterValue(int|string $tenant, int|string $otherTenant, string $text): string
+    {
+        $owner = 'carol' . bin2hex(random_bytes(4));
+        NoteDatabase::get()->insert((string) $otherTenant, $text, false, false, $owner);
+        NoteDatabase::get()->insert((string) $otherTenant, $text, false, false, $owner);
+
+        return $owner;
     }
 }

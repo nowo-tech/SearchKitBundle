@@ -122,7 +122,9 @@ search flow for it — scope validation, escaped LIKE or a full-text hook, bound
 shared host event `SearchKitEvents::ITEM_VISIBILITY` (deny wins), the visible total, results-page paging, revalidated
 recents and `null` on any refusal. A contract test kit (`Nowo\SearchKitBundle\Test\EntitySearchProviderTestCase`)
 checks a definition against a real database. Since 1.10.0 a definition can batch-load display data for the shown rows
-only (`prepareItems()`, one call per page, with a per-render `SearchItemContext` read by `toPreparedItem()`).
+only (`prepareItems()`, one call per page, with a per-render `SearchItemContext` read by `toPreparedItem()`). Since
+1.13.0 a definition can apply typed filters in SQL (`supportedFilters()` + `applyFilters()`, see
+[Typed filters](#typed-filters)).
 
 The full guide, with a 30-line example, the hooks, the event and the test kit: **[Write a provider](PROVIDERS.md)**.
 
@@ -445,6 +447,16 @@ the engine's (keeps or drops groups by key). The field shows the filters as chip
 suggests values from `SearchFilterValuesProviderInterface` services (`GET {prefix}/filters?key=&q=`), which return only
 values the viewer may see. **Resolve every value for the viewer and answer an unknown or forbidden value exactly like
 "no match".**
+
+**Entity definitions (1.13.0).** An `EntitySearchDefinition` takes part by declaring its keys in `supportedFilters()`
+and applying them in SQL in `applyFilters($queryBuilder, $filters, $tenant, $query)` — after the scope, before the text
+match, the candidate window and the total, so counts and pages are those of the filtered rows. It gets only the
+filters of its declared keys (never `type`), negated ones included (`$filter->negated`); returning `false` denies (the
+group gives `null`). With a declared key in the query and no text, the definition runs without a match condition
+(`is:open assignee:me` lists the viewer's open tasks). `FilterCondition::equals()` binds the resolved value and keeps
+NULL columns for `-key:`; `FilterCondition::matchNothing()` makes an unresolvable value run the same statement as a
+value with no match. Example and contract-kit hooks: [UPGRADING — To 1.13.0](UPGRADING.md#to-1130) and
+[Write a provider](PROVIDERS.md#typed-filters).
 
 ### Matching, synonyms and fuzzy
 

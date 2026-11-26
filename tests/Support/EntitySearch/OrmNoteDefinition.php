@@ -15,6 +15,8 @@ use Nowo\SearchKitBundle\Provider\Entity\EntitySearchDefinition;
  */
 final class OrmNoteDefinition extends EntitySearchDefinition
 {
+    use NoteFilters;
+
     public function __construct(
         private readonly EntityManager $entityManager,
         private readonly Viewer $viewer,

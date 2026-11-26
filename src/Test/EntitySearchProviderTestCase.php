@@ -6,6 +6,7 @@ namespace Nowo\SearchKitBundle\Test;
 
 use Nowo\SearchKitBundle\Event\SearchItemVisibilityEvent;
 use Nowo\SearchKitBundle\Event\SearchKitEvents;
+use Nowo\SearchKitBundle\Model\SearchFilter;
 use Nowo\SearchKitBundle\Model\SearchGroup;
 use Nowo\SearchKitBundle\Model\SearchItem;
 use Nowo\SearchKitBundle\Model\SearchQuery;
@@ -45,7 +46,12 @@ use function random_bytes;
  * - one search stays within the query budget (no N+1);
  * - prepareItems() runs once per render with exactly the shown rows, before they are rendered (1.10.0);
  * - one provider instance serves two viewers alternately with no state kept, and one definition instance renders
- *   exactly like a fresh one (FrankenPHP worker mode).
+ *   exactly like a fresh one (FrankenPHP worker mode);
+ * - typed filters (1.13.0): a key the definition does not declare gives null; a declared one is applied in SQL before
+ *   the window and the total, negated (`-key:`) it returns exactly the other rows, a value naming something the
+ *   viewer may not see answers exactly like a value naming nothing (rows, total, exactness, statement count), the
+ *   value is bound (never in the SQL text), a filters-only query shows no row outside the filter or the tenant, and
+ *   the filter does not leak into the next search (optional: filterKey()).
  *
  * Each test seeds rows under a fresh random marker, so the tests need no cleanup between them and never see each
  * other's rows. The seeded text must end up in one of searchableFields() of a row the viewer may see.
@@ -231,6 +237,71 @@ abstract class EntitySearchProviderTestCase extends TestCase
     protected function prepareItemsBudget(): int
     {
         return 1;
+    }
+
+    /**
+     * A typed filter key the definition applies (1.13.0, optional): one of its supportedFilters(), e.g. `assignee`.
+     * Null (default): the filter checks do not apply and pass (never skipped), except that a query with a filter the
+     * definition does not declare must give null. With a key, implement seedForFilter(), matchingFilterValue() and
+     * seedHiddenFilterValue().
+     */
+    protected function filterKey(): ?string
+    {
+        return null;
+    }
+
+    /**
+     * Inserts one row of the tenant, visible to the viewers of actAs(), whose searchable text contains `$text`, and
+     * that `filterKey():matchingFilterValue()` matches (`$matching` true) or does not match (false). Only called while
+     * filterKey() is not null.
+     *
+     * @param int|string $tenant The tenant
+     * @param string $text Text to put in a searchable field
+     * @param bool $matching Whether the row matches the filter
+     *
+     * @return int|string The row id
+     */
+    protected function seedForFilter(int|string $tenant, string $text, bool $matching): int|string
+    {
+        self::fail('Override seedForFilter() (filterKey() is not null).');
+    }
+
+    /**
+     * The value of filterKey() that the matching rows of seedForFilter() match for VIEWER_A in the first tenant
+     * (e.g. `me`, `open`). Only called while filterKey() is not null.
+     */
+    protected function matchingFilterValue(): string
+    {
+        self::fail('Override matchingFilterValue() (filterKey() is not null).');
+    }
+
+    /**
+     * Makes a value of filterKey() that names something which **exists** but VIEWER_A of the first tenant may not use —
+     * a user or project of the other tenant, a private project — with rows containing `$text` behind it, and returns
+     * it. The kit asserts it answers exactly like a value that names nothing. Only called while filterKey() is not null.
+     *
+     * @param int|string $tenant The first tenant (the viewer's)
+     * @param int|string $otherTenant The second tenant
+     * @param string $text Text to put in a searchable field of the rows behind the value
+     *
+     * @return string The value (1 to SearchFilter::MAX_VALUE_LENGTH characters)
+     */
+    protected function seedHiddenFilterValue(int|string $tenant, int|string $otherTenant, string $text): string
+    {
+        self::fail('Override seedHiddenFilterValue() (filterKey() is not null).');
+    }
+
+    /**
+     * A query of a viewer with typed filters (1.13.0).
+     *
+     * @param string $text Query text (may be empty: a filters-only query)
+     * @param list<SearchFilter> $filters The filters
+     * @param int $limit Rows per group
+     * @param string $viewer The viewer
+     */
+    protected function filteredQuery(string $text, array $filters, int $limit = 10, string $viewer = self::VIEWER_A): SearchQuery
+    {
+        return new SearchQuery($text, null, $limit, null, false, $viewer, $filters);
     }
 
     /**
@@ -839,6 +910,198 @@ abstract class EntitySearchProviderTestCase extends TestCase
         if ($this->changeSeededText($row, $marker . 'a changed')) {
             $render($first, self::VIEWER_A, 'changed row');
         }
+    }
+
+    /**
+     * 1.13.0: a filter key the definition does not declare gives null — with text and without — whatever the
+     * definition's other filters, so a group never ignores a filter and lists rows the viewer filtered out.
+     */
+    public function testContractUndeclaredFiltersGiveNull(): void
+    {
+        [$tenant] = $this->tenants();
+        $marker   = $this->marker();
+        $this->seed($tenant, $marker);
+        $this->actAs($tenant, self::VIEWER_A);
+        $provider = $this->provider();
+        $key      = 'skcundeclared';
+        self::assertNotContains($key, $provider->supportedFilters());
+
+        self::assertInstanceOf(SearchGroup::class, $provider->search($this->query($marker)));
+        foreach ([false, true] as $negated) {
+            self::assertNull($provider->search($this->filteredQuery($marker, [new SearchFilter($key, 'x', $negated)])), 'A filter the definition does not declare must give null.');
+            self::assertNull($provider->search($this->filteredQuery('', [new SearchFilter($key, 'x', $negated)])), 'A filters-only query with an undeclared filter must give null.');
+        }
+        self::assertNull($provider->search($this->filteredQuery('', [])), 'A query with no text and no filter must give null.');
+        self::assertNull($provider->search($this->filteredQuery('', [new SearchFilter('type', $provider->groupKey())])), 'A query with no text and only the engine\'s type filter must give null.');
+    }
+
+    /**
+     * 1.13.0: the filter is applied in SQL before the candidate window and the total — rows that do not match never
+     * take places in the window — and does not stick to the provider: the next unfiltered search sees every row.
+     */
+    public function testContractFiltersApplyInSqlBeforeTheTotal(): void
+    {
+        $key = $this->filterKey();
+        if ($key === null) {
+            $this->notApplicable();
+
+            return;
+        }
+        [$tenant] = $this->tenants();
+        $marker   = $this->marker();
+        $provider = $this->provider();
+        self::assertContains($key, $provider->supportedFilters(), 'filterKey() must be one of the definition\'s supportedFilters().');
+        $matching = [];
+        for ($row = 0; $row < 3; ++$row) {
+            $matching[] = $this->reference($this->seedForFilter($tenant, $marker . 'm' . $row, true))->url;
+        }
+        $window = $this->definition()->maxCandidates();
+        $fill   = $window <= 200 ? $window : 4;
+        for ($row = 0; $row < $fill; ++$row) {
+            $this->seedForFilter($tenant, $marker . 'o' . $row, false);
+        }
+        $this->actAs($tenant, self::VIEWER_A);
+        $filter = new SearchFilter($key, $this->matchingFilterValue());
+
+        $group = $provider->search($this->filteredQuery($marker, [$filter]));
+        self::assertInstanceOf(SearchGroup::class, $group, 'The rows matching the filter must be found.');
+        self::assertEqualsCanonicalizing($matching, $this->urls($group), 'Exactly the matching rows must be shown.');
+        self::assertSame(3, $group->total, 'The total must count the filtered rows only (filter applied in SQL before the window).');
+        self::assertTrue($group->exactTotal, 'Rows the filter drops must not take places in the candidate window.');
+        $page = $provider->searchPage($this->filteredQuery($marker, [$filter], 2), 2, 2);
+        self::assertInstanceOf(SearchGroup::class, $page);
+        self::assertCount(1, $page->items, 'Pages of a filtered search must page the filtered rows.');
+
+        $unfiltered = $provider->search($this->query($marker, 50));
+        self::assertInstanceOf(SearchGroup::class, $unfiltered);
+        self::assertGreaterThan(3, $unfiltered->total, 'The filter stuck to the provider: keep nothing of a search in a property.');
+    }
+
+    /**
+     * 1.13.0: `-key:value` returns exactly the rows `key:value` leaves out (a NULL column included).
+     */
+    public function testContractNegatedFiltersReturnTheOtherRows(): void
+    {
+        $key = $this->filterKey();
+        if ($key === null) {
+            $this->notApplicable();
+
+            return;
+        }
+        [$tenant] = $this->tenants();
+        $marker   = $this->marker();
+        $this->seedForFilter($tenant, $marker . 'm0', true);
+        $this->seedForFilter($tenant, $marker . 'm1', true);
+        $others = [];
+        for ($row = 0; $row < 4; ++$row) {
+            $others[] = $this->reference($this->seedForFilter($tenant, $marker . 'o' . $row, false))->url;
+        }
+        $this->actAs($tenant, self::VIEWER_A);
+
+        $group = $this->provider()->search($this->filteredQuery($marker, [new SearchFilter($key, $this->matchingFilterValue(), true)]));
+        self::assertInstanceOf(SearchGroup::class, $group, 'A negated filter must return the rows it does not match.');
+        self::assertEqualsCanonicalizing($others, $this->urls($group), 'A negated filter must return exactly the other rows.');
+        self::assertSame(4, $group->total);
+        self::assertTrue($group->exactTotal);
+    }
+
+    /**
+     * 1.13.0, anti-probing: a value naming something the viewer may not see answers exactly like a value naming
+     * nothing — positive or negated, with text or filters-only: the same rows, total and exactness, and the same
+     * number of SQL statements (same work, no timing oracle).
+     */
+    public function testContractHiddenFilterValuesLookMissing(): void
+    {
+        $key = $this->filterKey();
+        if ($key === null) {
+            $this->notApplicable();
+
+            return;
+        }
+        [$tenant, $other] = $this->tenants();
+        $marker           = $this->marker();
+        $this->seedForFilter($tenant, $marker . 'm', true);
+        $this->seedForFilter($tenant, $marker . 'o', false);
+        $hidden  = $this->seedHiddenFilterValue($tenant, $other, $marker . 'h');
+        $missing = 'skcnobody' . bin2hex(random_bytes(6));
+        $this->actAs($tenant, self::VIEWER_A);
+        $provider = $this->provider();
+        $counter  = $this->queryCounter();
+
+        foreach ([[$marker, false], [$marker, true], ['', false]] as [$text, $negated]) {
+            $answers = [];
+            foreach (['hidden' => $hidden, 'missing' => $missing] as $kind => $value) {
+                $counter->reset();
+                $group          = $provider->search($this->filteredQuery($text, [new SearchFilter($key, $value, $negated)]));
+                $answers[$kind] = [
+                    'urls'       => $this->urls($group),
+                    'total'      => $group?->total,
+                    'exact'      => $group?->exactTotal,
+                    'statements' => $counter->count(),
+                ];
+            }
+            self::assertSame($answers['missing'], $answers['hidden'], 'A hidden filter value must answer exactly like a missing one (' . ($negated ? 'negated' : 'positive') . ($text === '' ? ', filters-only' : '') . ').');
+            if (!$negated) {
+                self::assertSame([], $answers['hidden']['urls'], 'A value naming nothing the viewer may see must give no row.');
+            }
+        }
+    }
+
+    /**
+     * 1.13.0: a filter value is bound, never written into the SQL text, and a hostile value gives no row and no error.
+     */
+    public function testContractFilterValuesAreBound(): void
+    {
+        $key = $this->filterKey();
+        if ($key === null) {
+            $this->notApplicable();
+
+            return;
+        }
+        [$tenant] = $this->tenants();
+        $marker   = $this->marker();
+        $this->seedForFilter($tenant, $marker, true);
+        $this->actAs($tenant, self::VIEWER_A);
+        $probe   = 'skcprobe' . bin2hex(random_bytes(4));
+        $counter = $this->queryCounter();
+
+        foreach ([$probe . "' OR '1'='1", $probe . '") OR 1=1 --', $probe . '%_!\\'] as $value) {
+            foreach ([false, true] as $negated) {
+                $counter->reset();
+                $group = $this->provider()->search($this->filteredQuery($marker, [new SearchFilter($key, $value, $negated)]));
+                if (!$negated) {
+                    self::assertNull($group, 'A hostile filter value must match nothing.');
+                }
+                foreach ($counter->queries() as $sql) {
+                    self::assertStringNotContainsString($probe, $sql, 'A filter value was written into the SQL: bind it as a parameter.');
+                }
+            }
+        }
+    }
+
+    /**
+     * 1.13.0: a filters-only query (no text) runs for a definition that declares the key, and shows no row the filter
+     * leaves out and no other tenant's row.
+     */
+    public function testContractFilterOnlyQueriesStayInsideTheFilter(): void
+    {
+        $key = $this->filterKey();
+        if ($key === null) {
+            $this->notApplicable();
+
+            return;
+        }
+        [$tenant, $other] = $this->tenants();
+        $marker           = $this->marker();
+        $this->seedForFilter($tenant, $marker . 'm', true);
+        $outside = $this->reference($this->seedForFilter($tenant, $marker . 'o', false))->url;
+        $foreign = $this->reference($this->seedForFilter($other, $marker . 'f', true))->url;
+        $this->actAs($tenant, self::VIEWER_A);
+
+        $group = $this->provider()->search($this->filteredQuery('', [new SearchFilter($key, $this->matchingFilterValue())], 50));
+        self::assertInstanceOf(SearchGroup::class, $group, 'A filters-only query must run for a definition that declares the key.');
+        self::assertNotContains($outside, $this->urls($group), 'A filters-only query showed a row the filter leaves out.');
+        self::assertNotContains($foreign, $this->urls($group), 'A filters-only query showed another tenant\'s row.');
     }
 
     /**
