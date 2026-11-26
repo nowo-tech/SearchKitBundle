@@ -36,6 +36,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **BC break in 1.13.0 for bundle wrappers** (ChatKit `from:`, Wiki `space:`): a bundle's own
+  `FilterableSearchProviderInterface` that checks its keys and then calls `EntitySearchProvider` over a definition
+  that reads the filter itself (in `baseQuery()`) got `null` for every filtered query, because 1.13.0 refused any
+  filter key the definition does not declare. A definition that declares **no** filter key (`supportedFilters()`
+  `[]`, the default) keeps the 1.12 behaviour again: on a direct call the filters stay in the `SearchQuery` for its
+  hooks, `applyFilters()` is not called, and a text is required. The engine still never sends such a provider a
+  filter (its `supportedFilters()` is empty). A definition that declares at least one key keeps the strict 1.13.0
+  rules (any other key gives `null`). Regression test with the wrapper pattern.
+
+### Changed
+
+- Contract kit: `testContractUndeclaredFiltersGiveNull` checks the text-plus-undeclared-filter case only for a
+  definition that declares filter keys (the filters-only checks still apply to every definition);
+  `testContractHiddenFilterValuesLookMissing` also compares a **negated filters-only** hidden value with a missing one,
+  and `testContractFilterOnlyQueriesStayInsideTheFilter` checks that a negated filters-only query shows no other
+  tenant's row (audit ZCN-SK-L1).
+
 ## [1.13.0] - 2026-11-26
 
 ### Added

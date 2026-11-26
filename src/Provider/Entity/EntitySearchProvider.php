@@ -50,7 +50,8 @@ use function trim;
  * 1. the group is on (`nowo_search_kit.groups.<key>.enabled`), and a sensitive group only runs while recents are
  *    revalidated or off;
  * 2. every typed filter of the query (but `type`) is one the definition declares (supportedFilters(), 1.13.0), or
- *    null; a non-empty text of at least the definition's minLength() — or no text and at least one such filter
+ *    null — unless the definition declares none: its hooks then read the filters themselves, as in 1.12 (1.13.1);
+ *    a non-empty text of at least the definition's minLength() — or no text and at least one such filter
  *    (a filters-only query, 1.13.0) —, a page inside the candidate window;
  * 3. the viewer's tenant (null: no results), then the feature gate; then the definition's candidateQuery() with a new
  *    SearchCandidateContext (1.11.0; default baseQuery()), which filterCandidates() gets too;
@@ -246,10 +247,19 @@ final readonly class EntitySearchProvider implements PaginatedSearchProviderInte
      * one of them has a key the definition does not declare (deny by default, also when the provider is called
      * directly).
      *
+     * A definition that declares no filter key at all (supportedFilters() `[]`, the default) keeps the 1.12 behaviour
+     * (1.13.1): the filters stay in the SearchQuery for its own hooks (baseQuery(), candidateQuery()), as a bundle's
+     * FilterableSearchProviderInterface wrapper around this provider relies on, and none is handed to applyFilters().
+     * A text is then required, as before 1.13.0. The engine never sends such a provider a filter (its
+     * supportedFilters() is empty), so only a wrapper that checks its own keys first reaches this path.
+     *
      * @return list<SearchFilter>|null
      */
     private function filtersOf(SearchQuery $query): ?array
     {
+        if ($this->definition->supportedFilters() === []) {
+            return [];
+        }
         $supported = $this->supportedFilters();
         $filters   = [];
         foreach ($query->filters as $filter) {

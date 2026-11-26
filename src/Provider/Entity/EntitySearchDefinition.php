@@ -154,8 +154,10 @@ abstract class EntitySearchDefinition
     /**
      * The typed filter keys this definition applies (1.13.0): e.g. `['is', 'assignee']` (SearchFilter::KEY_PATTERN;
      * the host lists them in `nowo_search_kit.filters.keys` too). `type` is the engine's and is never passed on.
-     * Default: none — a query with any other filter skips this group, and a query with filters and no text is never
-     * run for it (deny by default, as before 1.13.0).
+     * Default: none — the engine skips this group for a query with any filter but `type`, and a query with filters and
+     * no text is never run for it (deny by default, as before 1.13.0). With none declared, a direct call (a bundle's
+     * own FilterableSearchProviderInterface wrapper that checks its keys first) leaves the filters in the SearchQuery
+     * for your hooks to apply, as in 1.12 (1.13.1); once you declare a key, every other key gives null.
      *
      * @return list<string>
      */

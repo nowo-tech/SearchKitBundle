@@ -95,7 +95,9 @@ Per call, always in this order:
 
 1. the group is on (`nowo_search_kit.groups.<key>.enabled`); a [sensitive](#optional) group only runs while recents are
    revalidated or off;
-2. every typed filter of the query but `type` is one of `supportedFilters()` (1.13.0), or the search is refused; a
+2. every typed filter of the query but `type` is one of `supportedFilters()` (1.13.0), or the search is refused
+   (1.13.1: only once the definition declares a key; one that declares none reads the filters in its own hooks, as
+   in 1.12 — see [Typed filters](#typed-filters)); a
    non-empty text of at least `minLength()` characters — or no text and at least one such filter (a filters-only
    query) —, a results page inside the candidate window;
 3. `tenant()` — `null` means no results — then `featureEnabled()`; then `candidateQuery()` (1.11.0; default
@@ -228,6 +230,12 @@ group. Rules:
 - **Deny.** Return `false` for what you cannot apply (an unknown word of a fixed vocabulary such as `is:`): the group
   gives `null`, like no match.
 - **Stateless.** Keep nothing of a search in a property.
+
+**A definition that declares no key** (the default) is never sent a filter by the engine. A bundle may still wrap
+`EntitySearchProvider` in its own `FilterableSearchProviderInterface` that checks its keys first and then calls the
+provider, with the definition reading the filter from the `SearchQuery` in `baseQuery()` (ChatKit `from:`, Wiki
+`space:`): the provider then leaves the filters to the hooks, as in 1.12 (1.13.1), with a text required. Once a
+definition declares a key, SearchKit applies the strict rules above and any other key gives `null`.
 
 A full example (Beacon `is:` / `assignee:`) is in [UPGRADING — To 1.13.0](UPGRADING.md#to-1130).
 
