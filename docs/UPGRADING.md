@@ -5,6 +5,7 @@ This guide lists the changes integrators must apply when upgrading between versi
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.12.1](#to-1121)
 - [To 1.12.0](#to-1120)
 - [To 1.11.3](#to-1113)
 - [To 1.11.2](#to-1112)
@@ -36,6 +37,14 @@ This guide lists the changes integrators must apply when upgrading between versi
 - [1.0.0 (2026-10-16)](#100-2026-10-16)
 
 ## Unreleased
+
+## To 1.12.1
+
+From **1.12.0**:
+
+```bash
+composer update nowo-tech/search-kit-bundle
+```
 
 ## To 1.12.0
 
