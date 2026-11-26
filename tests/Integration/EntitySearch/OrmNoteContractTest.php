@@ -13,6 +13,9 @@ use Nowo\SearchKitBundle\Tests\Support\EntitySearch\OrmNoteDefinition;
 use Nowo\SearchKitBundle\Tests\Support\EntitySearch\Viewer;
 use PHPUnit\Framework\Attributes\Group;
 
+use function bin2hex;
+use function random_bytes;
+
 /**
  * The provider contract kit against an ORM definition (entities), on the test database.
  */
@@ -77,5 +80,34 @@ final class OrmNoteContractTest extends EntitySearchProviderTestCase
     protected function supportsRecents(): bool
     {
         return false;
+    }
+
+    protected function filterKey(): string
+    {
+        return 'owner';
+    }
+
+    protected function seedForFilter(int|string $tenant, string $text, bool $matching): int
+    {
+        $owner = $matching ? self::VIEWER_A : 'bob';
+
+        return NoteDatabase::get()->insert((string) $tenant, 'Note', false, false, $owner, $text);
+    }
+
+    protected function matchingFilterValue(): string
+    {
+        return 'me';
+    }
+
+    /**
+     * An owner who exists only in the other tenant, with notes containing the text.
+     */
+    protected function seedHiddenFilterValue(int|string $tenant, int|string $otherTenant, string $text): string
+    {
+        $owner = 'carol' . bin2hex(random_bytes(4));
+        NoteDatabase::get()->insert((string) $otherTenant, 'Note', false, false, $owner, $text);
+        NoteDatabase::get()->insert((string) $otherTenant, 'Note', false, false, $owner, $text);
+
+        return $owner;
     }
 }

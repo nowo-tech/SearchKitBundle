@@ -22,6 +22,8 @@ use function is_string;
  */
 final class KernelNoteDefinition extends EntitySearchDefinition
 {
+    use NoteFilters;
+
     public const string TENANT = 'kernel';
 
     public function __construct(

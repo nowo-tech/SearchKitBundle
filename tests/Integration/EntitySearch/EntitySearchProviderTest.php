@@ -11,6 +11,7 @@ use InvalidArgumentException;
 use LogicException;
 use Nowo\SearchKitBundle\Event\SearchItemVisibilityEvent;
 use Nowo\SearchKitBundle\Event\SearchKitEvents;
+use Nowo\SearchKitBundle\Model\SearchFilter;
 use Nowo\SearchKitBundle\Model\SearchGroup;
 use Nowo\SearchKitBundle\Model\SearchItem;
 use Nowo\SearchKitBundle\Model\SearchQuery;
@@ -35,6 +36,7 @@ use Symfony\Component\Translation\IdentityTranslator;
 
 use function array_column;
 use function array_map;
+use function array_values;
 use function bin2hex;
 use function is_array;
 use function random_bytes;
@@ -485,6 +487,111 @@ final class EntitySearchProviderTest extends TestCase
         $definition->useReferenceId = true;
         $item                       = (new EntitySearchProvider($definition))->resolve($reference, 'alice', null);
         self::assertSame('/stub/' . $id, $item?->url);
+    }
+
+    public function testSupportedFiltersAreTheDefinitionsValidKeysOnce(): void
+    {
+        $provider = new EntitySearchProvider(new DbalNoteDefinition($this->db->connection, new Viewer('tenant-a', 'alice')));
+
+        self::assertSame(['owner', 'body', 'is'], $provider->supportedFilters(), 'type, invalid keys and duplicates are dropped.');
+        self::assertSame([], (new EntitySearchProvider(new StubDefinition()))->supportedFilters(), 'Default: no filters.');
+    }
+
+    public function testFiltersAreAppliedInSqlWithNegationAndNullColumns(): void
+    {
+        $this->db->insert('tenant-a', $this->marker . ' mine', false, false, 'alice', 'red');
+        $this->db->insert('tenant-a', $this->marker . ' bobs', false, false, 'bob', 'blue');
+        $this->db->insert('tenant-a', $this->marker . ' empty', false, false, 'bob');
+        $this->db->insert('tenant-b', $this->marker . ' foreign', false, false, 'carol', 'red');
+        $provider = new EntitySearchProvider(new DbalNoteDefinition($this->db->connection, new Viewer('tenant-a', 'alice')));
+
+        self::assertSame([$this->marker . ' mine'], $this->titles($provider->search($this->filtered($this->marker, new SearchFilter('is', 'mine')))));
+        self::assertSame([$this->marker . ' bobs', $this->marker . ' empty'], $this->titles($provider->search($this->filtered($this->marker, new SearchFilter('is', 'mine', true)))));
+        self::assertSame([$this->marker . ' mine'], $this->titles($provider->search($this->filtered($this->marker, new SearchFilter('owner', 'me')))));
+        self::assertSame([$this->marker . ' mine', $this->marker . ' empty'], $this->titles($provider->search($this->filtered($this->marker, new SearchFilter('body', 'blue', true)))), 'A negated filter keeps NULL columns.');
+        self::assertSame([$this->marker . ' bobs'], $this->titles($provider->search($this->filtered($this->marker, new SearchFilter('owner', 'bob'), new SearchFilter('body', 'blue'), new SearchFilter('type', 'notes')))), 'Filters combine (AND); type is the engine\'s.');
+        self::assertNull($provider->search($this->filtered($this->marker, new SearchFilter('owner', 'carol'))), 'Another tenant\'s owner matches nothing.');
+        self::assertNull($provider->search($this->filtered($this->marker, new SearchFilter('is', 'starred'))), 'An unknown is: word matches nothing.');
+        self::assertCount(3, $this->titles($provider->search($this->filtered($this->marker, new SearchFilter('is', 'starred', true)))), 'A negated unknown is: word excludes nothing.');
+        self::assertNull($provider->search($this->filtered($this->marker, new SearchFilter('project', 'x'))), 'An undeclared key gives null, also when the provider is called directly.');
+
+        $group = $provider->search($this->filtered('', new SearchFilter('owner', 'bob'), new SearchFilter('body', 'blue')));
+        self::assertInstanceOf(SearchGroup::class, $group, 'A filters-only query runs for a definition that declares the keys.');
+        self::assertContains($this->marker . ' bobs', $this->titles($group));
+        self::assertNull($provider->search($this->filtered('', new SearchFilter('type', 'notes'))), 'No text and only type: nothing to select by.');
+    }
+
+    public function testFilteredTotalsArePagedAfterTheFilter(): void
+    {
+        for ($row = 0; $row < 5; ++$row) {
+            $this->db->insert('tenant-a', $this->marker . ' other ' . $row, false, false, 'bob');
+        }
+        $this->db->insert('tenant-a', $this->marker . ' mine 1');
+        $this->db->insert('tenant-a', $this->marker . ' mine 2');
+        $provider = new EntitySearchProvider(new DbalNoteDefinition($this->db->connection, new Viewer('tenant-a', 'alice'), null, true, 4));
+
+        $group = $provider->search($this->filtered($this->marker, new SearchFilter('is', 'mine')));
+        self::assertInstanceOf(SearchGroup::class, $group);
+        self::assertSame([2, true], [$group->total, $group->exactTotal], 'The window of 4 holds the 2 filtered rows: exact total.');
+        self::assertFalse($provider->search($this->query($this->marker))?->exactTotal, 'Unfiltered, the 7 rows overflow the window.');
+    }
+
+    public function testFilterMinLengthAndDenyRules(): void
+    {
+        $this->db->insert('tenant-a', $this->marker . ' ab');
+        $definition             = new StubDefinition();
+        $definition->filterKeys = ['is'];
+        $provider               = new EntitySearchProvider($definition);
+        $filter                 = new SearchFilter('is', 'open');
+
+        self::assertNull($provider->search($this->filtered($this->marker, $filter)), 'Default applyFilters(): deny.');
+        $seen                = [];
+        $definition->filters = static function (DbalQueryBuilder|OrmQueryBuilder $queryBuilder, array $filters) use (&$seen): bool {
+            $seen = $filters;
+
+            return true;
+        };
+        self::assertInstanceOf(SearchGroup::class, $provider->search($this->filtered($this->marker, $filter, new SearchFilter('type', 'stub'))));
+        self::assertSame([$filter], $seen, 'Only the declared filters reach the definition, type left out.');
+        $definition->min = 100;
+        self::assertNull($provider->search($this->filtered($this->marker, $filter)), 'A text shorter than minLength() still gives null.');
+        self::assertInstanceOf(SearchGroup::class, $provider->search($this->filtered('', $filter)), 'minLength() is about the text: a filters-only query runs.');
+        $definition->min     = null;
+        $definition->filters = static function (DbalQueryBuilder|OrmQueryBuilder $queryBuilder): bool {
+            $queryBuilder->andWhere('n.title = :nowo_search_f')->setParameter('nowo_search_f', 'x');
+
+            return true;
+        };
+        foreach ([$this->marker, ''] as $text) {
+            try {
+                $provider->search($this->filtered($text, $filter));
+                self::fail('A reserved parameter bound by applyFilters() must be refused.');
+            } catch (LogicException $exception) {
+                self::assertStringContainsString('applyFilters()', $exception->getMessage());
+            }
+        }
+        $definition->filterKeys = null;
+        $definition->filters    = null;
+        self::assertNull($provider->search($this->filtered($this->marker, $filter)), 'Without declared keys, a filter skips the group.');
+        self::assertInstanceOf(SearchGroup::class, $provider->search($this->filtered($this->marker, new SearchFilter('type', 'stub'))), 'type alone never skips it.');
+    }
+
+    public function testOrmFiltersUseTheSameConditions(): void
+    {
+        $entityManager = $this->db->entityManager();
+        $entityManager->clear();
+        $this->db->insert('tenant-a', 'Note', false, false, 'alice', $this->marker . ' a');
+        $this->db->insert('tenant-a', 'Note', false, false, 'bob', $this->marker . ' b');
+        $provider = new EntitySearchProvider(new OrmNoteDefinition($entityManager, new Viewer('tenant-a', 'alice')));
+
+        self::assertCount(1, $provider->search($this->filtered($this->marker, new SearchFilter('owner', 'me')))->items ?? []);
+        self::assertCount(1, $provider->search($this->filtered($this->marker, new SearchFilter('is', 'mine', true)))->items ?? []);
+        self::assertNull($provider->search($this->filtered($this->marker, new SearchFilter('is', 'starred'))));
+    }
+
+    private function filtered(string $text, SearchFilter ...$filters): SearchQuery
+    {
+        return new SearchQuery($text, null, 10, null, false, 'alice', array_values($filters), 'en');
     }
 
     private function query(string $text, ?string $scope = null, int $limit = 10): SearchQuery

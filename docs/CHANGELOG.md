@@ -35,6 +35,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Typed filters for entity definitions** (Beacon spec 240 FR-034): `EntitySearchDefinition::supportedFilters()`
+  (default `[]`) and `applyFilters(QueryBuilder, list<SearchFilter>, tenant, SearchQuery): bool` (default `false`:
+  deny). `EntitySearchProvider` now implements `FilterableSearchProviderInterface` with the definition's keys (`type`,
+  invalid keys and duplicates dropped): a definition that declares `is` / `assignee` runs for `is:open assignee:me`,
+  also as a **filters-only** query (no text: no match condition, the filters alone select the rows). The filters are
+  applied **in SQL** after the scope and before the text match, the candidate window, the total and the paging, so
+  totals and pages are those of the filtered rows. Negation (`-key:`) is passed through (`SearchFilter::$negated`).
+  `applyFilters()` returning `false` gives `null`, like no match; a parameter named `nowo_search_*` bound by it is
+  refused with a `LogicException`. A filter key the definition does not declare still gives `null`, also when the
+  provider is called directly (deny by default).
+- `Search\Query\FilterCondition`: `equals()` adds `field = :p` or, negated, `(field IS NULL OR field <> :p)` and binds
+  the resolved value (field and parameter names checked, `nowo_search_*` refused); `matchNothing()` adds `1 = 0` for a
+  value that names nothing the viewer may see, so it runs the same statement as a value with no match.
+- Contract kit: six tests (`testContractUndeclaredFiltersGiveNull`, `…FiltersApplyInSqlBeforeTheTotal`,
+  `…NegatedFiltersReturnTheOtherRows`, `…HiddenFilterValuesLookMissing`, `…FilterValuesAreBound`,
+  `…FilterOnlyQueriesStayInsideTheFilter`) and optional hooks `filterKey()`, `seedForFilter()`,
+  `matchingFilterValue()`, `seedHiddenFilterValue()`, `filteredQuery()`. With `filterKey()` null (default) only the
+  undeclared-filter check applies; the others pass as not applicable (never skipped). A hidden value must answer like
+  a missing one: same rows, total, exactness and number of SQL statements; a filter value must never appear in the
+  SQL text. `RenderRecorder` forwards the two new hooks.
+
 ## [1.12.1] - 2026-11-26
 
 ### Fixed

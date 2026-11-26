@@ -7,6 +7,7 @@ namespace Nowo\SearchKitBundle\Provider\Entity;
 use Doctrine\DBAL\Query\QueryBuilder as DbalQueryBuilder;
 use Doctrine\ORM\QueryBuilder as OrmQueryBuilder;
 use LogicException;
+use Nowo\SearchKitBundle\Model\SearchFilter;
 use Nowo\SearchKitBundle\Model\SearchItem;
 use Nowo\SearchKitBundle\Model\SearchQuery;
 use Nowo\SearchKitBundle\Model\SearchReference;
@@ -146,6 +147,44 @@ abstract class EntitySearchDefinition
      * @param SearchQuery $query The search
      */
     public function applyScope(DbalQueryBuilder|OrmQueryBuilder $queryBuilder, string $scope, int|string $tenant, SearchQuery $query): bool
+    {
+        return false;
+    }
+
+    /**
+     * The typed filter keys this definition applies (1.13.0): e.g. `['is', 'assignee']` (SearchFilter::KEY_PATTERN;
+     * the host lists them in `nowo_search_kit.filters.keys` too). `type` is the engine's and is never passed on.
+     * Default: none — a query with any other filter skips this group, and a query with filters and no text is never
+     * run for it (deny by default, as before 1.13.0).
+     *
+     * @return list<string>
+     */
+    public function supportedFilters(): array
+    {
+        return [];
+    }
+
+    /**
+     * Applies the query's typed filters (1.13.0) **in SQL**, before SearchKit adds the text match, reads the candidate
+     * window and counts: the total and the pages are then those of the filtered rows. Called only when the query
+     * carries at least one filter whose key supportedFilters() lists (`$filters`, in typed order, `type` left out),
+     * after the scope; never for a filter key you did not declare (the group is skipped).
+     *
+     * Each SearchFilter value is client input. Resolve it **for the viewer** (`me`, a user or project the viewer may
+     * see in this tenant) and bind what you resolved as a parameter — never write a value into DQL/SQL. A value that
+     * names something the viewer may not see must take **exactly** the path of a value that names nothing (same
+     * conditions, same number of statements: no existence oracle). Honour `$filter->negated` (`-key:value`: exclude
+     * the matches; mind NULL columns — FilterCondition does both). Return true when every filter was applied; return
+     * false to deny (unknown `is:` word, a filter you cannot apply): the group then gives null, like no match. Bind no
+     * parameter named `nowo_search_*` (refused with a LogicException). Read-only and stateless (keep nothing in a
+     * property). Default: false (deny).
+     *
+     * @param DbalQueryBuilder|OrmQueryBuilder $queryBuilder The query of candidateQuery(), scope applied
+     * @param non-empty-list<SearchFilter> $filters The filters of supported keys
+     * @param int|string $tenant The tenant
+     * @param SearchQuery $query The search (its text may be empty: a filters-only query)
+     */
+    public function applyFilters(DbalQueryBuilder|OrmQueryBuilder $queryBuilder, array $filters, int|string $tenant, SearchQuery $query): bool
     {
         return false;
     }

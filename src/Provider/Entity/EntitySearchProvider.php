@@ -9,10 +9,12 @@ use Doctrine\ORM\Query\Parameter;
 use Doctrine\ORM\QueryBuilder as OrmQueryBuilder;
 use InvalidArgumentException;
 use LogicException;
+use Nowo\SearchKitBundle\Contract\FilterableSearchProviderInterface;
 use Nowo\SearchKitBundle\Contract\PaginatedSearchProviderInterface;
 use Nowo\SearchKitBundle\Contract\SearchReferenceResolverInterface;
 use Nowo\SearchKitBundle\Event\SearchItemVisibilityEvent;
 use Nowo\SearchKitBundle\Event\SearchKitEvents;
+use Nowo\SearchKitBundle\Model\SearchFilter;
 use Nowo\SearchKitBundle\Model\SearchGroup;
 use Nowo\SearchKitBundle\Model\SearchItem;
 use Nowo\SearchKitBundle\Model\SearchQuery;
@@ -25,6 +27,7 @@ use Nowo\SearchKitBundle\Search\Query\LikePattern;
 use Nowo\SearchKitBundle\Search\Query\ScopeParser;
 use Nowo\SearchKitBundle\Search\Query\SearchWindow;
 use Nowo\SearchKitBundle\Search\Query\SearchWords;
+use Nowo\SearchKitBundle\Search\SearchEngine;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
@@ -34,6 +37,7 @@ use function array_keys;
 use function array_map;
 use function array_values;
 use function count;
+use function in_array;
 use function is_array;
 use function mb_strlen;
 use function preg_match;
@@ -45,11 +49,15 @@ use function trim;
  *
  * 1. the group is on (`nowo_search_kit.groups.<key>.enabled`), and a sensitive group only runs while recents are
  *    revalidated or off;
- * 2. a non-empty text of at least the definition's minLength(), a page inside the candidate window;
+ * 2. every typed filter of the query (but `type`) is one the definition declares (supportedFilters(), 1.13.0), or
+ *    null; a non-empty text of at least the definition's minLength() — or no text and at least one such filter
+ *    (a filters-only query, 1.13.0) —, a page inside the candidate window;
  * 3. the viewer's tenant (null: no results), then the feature gate; then the definition's candidateQuery() with a new
  *    SearchCandidateContext (1.11.0; default baseQuery()), which filterCandidates() gets too;
  * 4. the scope, client input: shape-checked (ScopeParser), then applied by the definition in SQL — or refused;
- * 5. the definition's full-text hook, or an escaped LIKE (`ESCAPE '!'`) of every query word over the declared fields;
+ *    then the typed filters, applied by the definition in SQL (applyFilters(), 1.13.0) — or refused;
+ * 5. the definition's full-text hook, or an escaped LIKE (`ESCAPE '!'`) of every query word over the declared fields
+ *    (no text: no match condition);
  * 6. at most `maxCandidates()` rows in one query;
  * 7. the bundle's access check on the candidates (batched: filterCandidates(), default filterVisible()), then **one** SearchKitEvents::ITEM_VISIBILITY
  *    event for the page, where a host deny wins;
@@ -63,6 +71,9 @@ use function trim;
  * Any refusal is `null`: no group, no count, no hint, so a forbidden or hidden row looks exactly like a missing one.
  * An exception from a hook reaches SearchKit, which logs the class names and drops the group (null as well).
  *
+ * A FilterableSearchProviderInterface (1.13.0) whose keys are the definition's: the engine then runs the group for
+ * the filters it declares, and still skips it for any other key (deny by default).
+ *
  * Also a SearchReferenceResolverInterface: with `recent.revalidate`, a stored recent is read again through the same
  * checks (EntitySearchDefinition::idField() / referenceId()), and rendered the same way (prepareItems() with that one row).
  *
@@ -71,7 +82,7 @@ use function trim;
  * @author Héctor Franco Aceituno <hectorfranco@nowo.tech>
  * @copyright 2026 Nowo.tech
  */
-final readonly class EntitySearchProvider implements PaginatedSearchProviderInterface, SearchReferenceResolverInterface
+final readonly class EntitySearchProvider implements PaginatedSearchProviderInterface, FilterableSearchProviderInterface, SearchReferenceResolverInterface
 {
     /** Allowed group keys: a letter first, so a key is always a valid SearchSubject type too. */
     public const string GROUP_PATTERN = '/^[a-z][a-z0-9_-]{0,63}\z/';
@@ -106,6 +117,24 @@ final readonly class EntitySearchProvider implements PaginatedSearchProviderInte
     }
 
     /**
+     * The definition's filter keys (1.13.0): those of supportedFilters() that are valid keys (SearchFilter::KEY_PATTERN),
+     * once each, without the engine's `type`.
+     *
+     * @return list<string>
+     */
+    public function supportedFilters(): array
+    {
+        $keys = [];
+        foreach ($this->definition->supportedFilters() as $key) {
+            if ($key !== SearchEngine::TYPE_FILTER && preg_match(SearchFilter::KEY_PATTERN, $key) === 1 && !in_array($key, $keys, true)) {
+                $keys[] = $key;
+            }
+        }
+
+        return $keys;
+    }
+
+    /**
      * The group key, checked.
      *
      * @throws InvalidArgumentException When the key is not GROUP_PATTERN (SearchKit logs it and drops the group)
@@ -137,9 +166,11 @@ final readonly class EntitySearchProvider implements PaginatedSearchProviderInte
         if (!$this->runs($group)) {
             return null;
         }
-        $text   = trim($query->text);
-        $window = SearchWindow::of($page, $perPage, $this->definition->maxCandidates());
-        if ($text === '' || mb_strlen($text) < $this->definition->minLength() || !$window instanceof SearchWindow) {
+        $filters = $this->filtersOf($query);
+        $text    = trim($query->text);
+        $window  = SearchWindow::of($page, $perPage, $this->definition->maxCandidates());
+        if ($filters === null || !$window instanceof SearchWindow
+            || ($text === '' ? $filters === [] : mb_strlen($text) < $this->definition->minLength())) {
             return null;
         }
         $tenant = $this->definition->tenant($query);
@@ -150,6 +181,9 @@ final readonly class EntitySearchProvider implements PaginatedSearchProviderInte
         $queryBuilder = $this->definition->candidateQuery($tenant, $query, $context);
         if ($query->scope !== null
             && (!ScopeParser::isValid($query->scope) || !$this->definition->applyScope($queryBuilder, $query->scope, $tenant, $query))) {
+            return null;
+        }
+        if ($filters !== [] && !$this->definition->applyFilters($queryBuilder, $filters, $tenant, $query)) {
             return null;
         }
         $this->match($queryBuilder, $text, $query);
@@ -208,7 +242,31 @@ final readonly class EntitySearchProvider implements PaginatedSearchProviderInte
     }
 
     /**
-     * Refuses a query on which the definition (baseQuery(), applyScope() or applyFullText()) already bound a parameter
+     * The query's typed filters this definition applies, in typed order (`type` left out: the engine's), or null when
+     * one of them has a key the definition does not declare (deny by default, also when the provider is called
+     * directly).
+     *
+     * @return list<SearchFilter>|null
+     */
+    private function filtersOf(SearchQuery $query): ?array
+    {
+        $supported = $this->supportedFilters();
+        $filters   = [];
+        foreach ($query->filters as $filter) {
+            if ($filter->key === SearchEngine::TYPE_FILTER) {
+                continue;
+            }
+            if (!in_array($filter->key, $supported, true)) {
+                return null;
+            }
+            $filters[] = $filter;
+        }
+
+        return $filters;
+    }
+
+    /**
+     * Refuses a query on which the definition (baseQuery(), applyScope(), applyFilters() or applyFullText()) already bound a parameter
      * SearchKit reserves. Checked right before SearchKit binds its own parameters, so none can be overwritten.
      *
      * @throws LogicException When a parameter name starts with PARAMETER_PREFIX
@@ -220,7 +278,7 @@ final readonly class EntitySearchProvider implements PaginatedSearchProviderInte
             : array_map(static fn (Parameter $parameter): string => $parameter->getName(), $queryBuilder->getParameters()->toArray());
         foreach ($names as $name) {
             if (str_starts_with((string) $name, self::PARAMETER_PREFIX)) {
-                throw new LogicException('An EntitySearchDefinition (baseQuery(), applyScope(), applyFullText()) must not bind parameters named "' . self::PARAMETER_PREFIX . '*": SearchKit binds them.');
+                throw new LogicException('An EntitySearchDefinition (baseQuery(), applyScope(), applyFilters(), applyFullText()) must not bind parameters named "' . self::PARAMETER_PREFIX . '*": SearchKit binds them.');
             }
         }
     }
@@ -244,9 +302,15 @@ final readonly class EntitySearchProvider implements PaginatedSearchProviderInte
 
     /**
      * Full text when the definition handles it, otherwise every word must occur in one of the fields (escaped LIKE).
+     * No text (a filters-only query, 1.13.0): no match condition, the filters alone select the rows.
      */
     private function match(DbalQueryBuilder|OrmQueryBuilder $queryBuilder, string $text, SearchQuery $query): void
     {
+        if ($text === '') {
+            $this->assertNoReservedParameter($queryBuilder);
+
+            return;
+        }
         if ($this->definition->applyFullText($queryBuilder, SearchWords::fullTextTerms($text), $query)) {
             return;
         }

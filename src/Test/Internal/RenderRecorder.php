@@ -6,6 +6,7 @@ namespace Nowo\SearchKitBundle\Test\Internal;
 
 use Doctrine\DBAL\Query\QueryBuilder as DbalQueryBuilder;
 use Doctrine\ORM\QueryBuilder as OrmQueryBuilder;
+use Nowo\SearchKitBundle\Model\SearchFilter;
 use Nowo\SearchKitBundle\Model\SearchItem;
 use Nowo\SearchKitBundle\Model\SearchQuery;
 use Nowo\SearchKitBundle\Model\SearchReference;
@@ -143,6 +144,29 @@ final class RenderRecorder extends EntitySearchDefinition
     public function applyScope(DbalQueryBuilder|OrmQueryBuilder $queryBuilder, string $scope, int|string $tenant, SearchQuery $query): bool
     {
         return $this->inner->applyScope($queryBuilder, $scope, $tenant, $query);
+    }
+
+    /**
+     * Forwards to the wrapped definition: the typed filter keys it applies (1.13.0).
+     *
+     * @return list<string>
+     */
+    public function supportedFilters(): array
+    {
+        return $this->inner->supportedFilters();
+    }
+
+    /**
+     * Forwards to the wrapped definition: applies the typed filters to the query (1.13.0).
+     *
+     * @param DbalQueryBuilder|OrmQueryBuilder $queryBuilder The query of candidateQuery(), scope applied
+     * @param non-empty-list<SearchFilter> $filters The filters of supported keys
+     * @param int|string $tenant The tenant
+     * @param SearchQuery $query The search
+     */
+    public function applyFilters(DbalQueryBuilder|OrmQueryBuilder $queryBuilder, array $filters, int|string $tenant, SearchQuery $query): bool
+    {
+        return $this->inner->applyFilters($queryBuilder, $filters, $tenant, $query);
     }
 
     /**

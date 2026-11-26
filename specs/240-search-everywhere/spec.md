@@ -45,7 +45,8 @@ entries the checker does not allow are never matched or counted.
 
 **Given** configured filter keys, **when** the viewer types `key:value` tokens,
 **then** only providers that apply every key run; chips show the filters; values are suggested from visible values
-only; an unknown and a forbidden value give identical answers.
+only; an unknown and a forbidden value give identical answers. Since 1.13.0 entity definitions that declare a key
+(`is:`, `assignee:`) apply it in SQL before counting, also for filters-only queries (FR-240-FILTER-003).
 
 ### US-240-04 — Better matching (P2)
 
@@ -81,6 +82,7 @@ Stable ports and a written contract for ManualKit, DashboardMenu, ChatKit, Uptim
 | FR-240-ACTIONS-001 | `SearchActionProviderInterface` → `SearchAction {label, url, keywords, icon, shortcut, context}`; GET links; access-checked; Actions group first; `actions.prefix` (`>`); empty-query list from providers, `quick_actions` fallback. |
 | FR-240-FILTER-001 | Parser for configured keys (`key:value`, quoted, `-key:`), ≤ `filters.max`; `FilterableSearchProviderInterface::supportedFilters()`; unsupported key → provider skipped; filters-only query → filter-aware providers only; engine `type:`. |
 | FR-240-FILTER-002 | `SearchFilterValuesProviderInterface` + `GET {prefix}/filters`: visible values only, identical empty answer otherwise. |
+| FR-240-FILTER-003 | 1.13.0 (Beacon FR-034): `EntitySearchDefinition::supportedFilters()` (default `[]`) + `applyFilters(QueryBuilder, list<SearchFilter>, tenant, SearchQuery): bool` (default `false` = deny), applied in SQL after the scope and before the text match, window, total and paging; `EntitySearchProvider` is a `FilterableSearchProviderInterface` with the definition's valid keys (`type` dropped); filters-only queries run for definitions that declare a key of the query (no match condition); undeclared key → `null`, also on direct calls; `-key:` passed through; `nowo_search_*` parameters refused; `FilterCondition` (bound values, NULL-keeping negation, `matchNothing()`); contract kit: undeclared key → null, filter before the total, negation, hidden value = missing value (rows, total, exactness, statement count), bound values, filters-only stays inside the filter and tenant. |
 | FR-240-MATCH-001 | `SearchQuery::matches()` / `score()`: folding, tiers, fuzzy (typed text only), bounded cost. |
 | FR-240-SYN-001 | `SearchSynonymProviderInterface::synonymsOf(word, locale)`; expansion UI locale first, words replaced in place, ≤ `max_terms`; built-in concept groups (7 locales). |
 | FR-240-RANK-001 | `SearchItem::$score` / `$date`; stable sort inside groups only when ranked; top results. |
