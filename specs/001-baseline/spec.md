@@ -169,6 +169,7 @@ only navigates to same-site paths or http(s) URLs.
 - **FR-TS-007** — `min-length.ts`: `compileExemptPatterns` compiles the configured exemptions in the browser (`u` flag); a
   broken entry exempts nothing and never stops the box from mounting.
 - **FR-TS-008** — `motion.ts`: closing with an effect (`CLOSING_ATTR`, transition length, timer fallback).
+- **FR-TS-009** — `logger.ts`: the house bundle logger; `iife.ts` prints one `📦 [search-kit] script loaded` console line per page (once-guard, even if the script is loaded twice) unless `<html data-nowo-console="quiet">` or `globalThis.NOWO_CONSOLE === 'quiet'`; every other console level stays behind the debug flag (REQ-ASSETS-005).
 - **FR-BUILD-001** — `vite build` produces `src/Resources/public/js/nowo-search.js` (IIFE, `NowoSearch`).
 
 ## Key entities

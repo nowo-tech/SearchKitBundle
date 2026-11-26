@@ -1,8 +1,8 @@
 # Search Kit Bundle — baseline code inventory
 
 **Package**: `nowo-tech/search-kit-bundle`  
-**Last audited**: 2026-11-20 (v1.11.2)  
-**Production units**: **111/111**  
+**Last audited**: 2026-11-26 (v1.12.0)  
+**Production units**: **112/112**  
 **Audit command**: `find src -type f \( -name '*.php' -o -name '*.twig' -o -name '*.yaml' -o -name '*.ts' -o -name '*.css' \) -not -path 'src/Resources/assets/tests/*' | wc -l`
 
 ## Scope notes
@@ -21,10 +21,10 @@
 | HTTP | 5 |
 | Twig, markup & theme | 8 |
 | Stylesheets | 3 |
-| Browser (TypeScript) | 12 |
+| Browser (TypeScript) | 13 |
 | Test kit (1.9.0) | 6 |
 | Translations | 7 |
-| **Total** | **111** |
+| **Total** | **112** |
 
 
 ## Bundle, configuration & DI
@@ -150,6 +150,7 @@
 | `src/Resources/assets/src/global-search.ts` | US-03 … US-05, US-07, US-08 | FR-TS-002 |
 | `src/Resources/assets/src/highlight.ts` | US-03, US-08 | FR-TS-003 |
 | `src/Resources/assets/src/iife.ts` | US-01 | FR-TS-001, FR-BUILD-001 |
+| `src/Resources/assets/src/logger.ts` | US-01 | FR-TS-009 |
 | `src/Resources/assets/src/index.ts` | US-01, US-07 | FR-TS-001 |
 | `src/Resources/assets/src/recent.ts` | US-05 | FR-TS-003 |
 | `src/Resources/assets/src/stimulus.ts` | US-07 | FR-TS-004 |
