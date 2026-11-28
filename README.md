@@ -98,7 +98,7 @@ Full guide: [docs/INSTALLATION.md](docs/INSTALLATION.md) · options: [docs/CONFI
 
 ## Requirements
 
-- PHP `>=8.3 <8.6` (8.3 floor: typed class constants)
+- PHP `>=8.3 <8.7` (8.3 floor: typed class constants)
 - Symfony 7.4, 8.0, and 8.1+
 - SecurityBundle, TwigBundle, Form, Asset, RateLimiter (installed with the bundle)
 - Optional: `symfony/ux-icons` (icons from your set; built-in SVG otherwise), `nowo-tech/dashboard-menu-bundle` (Pages group)

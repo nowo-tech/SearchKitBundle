@@ -36,7 +36,7 @@
         "changelog": "https://github.com/nowo-tech/SearchKitBundle/blob/main/docs/CHANGELOG.md"
     },
     "require": {
-        "php": ">=8.3 <8.6",
+        "php": ">=8.3 <8.7",
         "nowo-tech/form-kit-bundle": "^2.17",
         "psr/log": "^3.0",
         "symfony/asset": "^7.4 || ^8.0",
